@@ -1,0 +1,87 @@
+# Conversor de estados de cuenta bancarios
+
+Convierte estados de cuenta bancarios en PDF a movimientos estructurados y archivos Excel/CSV, validando que lo extraído cuadre con lo que declara el documento.
+
+**No es un conversor genérico de PDF.** Solo procesa estados de cuenta que superen la detección de una plantilla compatible; un archivo no reconocido se rechaza en vez de intentar "rescatar" filas.
+
+## Empezar
+
+```powershell
+.\instalar.ps1     # dependencias y configuración local
+.\ejecutar.ps1     # levanta los tres servicios
+```
+
+El segundo imprime la URL y la credencial. Detalle completo, modos y problemas comunes en **[`EJECUTAR.md`](EJECUTAR.md)**.
+
+## Qué hace
+
+```
+PDF  ──►  detección de plantilla  ──►  extracción  ──►  validación  ──►  XLSX + CSV
+              (BCP o genérica)                        (invariantes,
+                                                       reconciliación)
+```
+
+Una extracción no se da por buena solo porque produjo filas: tiene que pasar invariantes (totales por página, balance del documento, campos de movimiento) y las advertencias viajan en la respuesta.
+
+## Arquitectura
+
+Tres piezas con responsabilidades separadas:
+
+| Pieza | Tecnología | De qué es dueña |
+| --- | --- | --- |
+| [`backend/pdf-worker`](backend/pdf-worker/) | Python, FastAPI, Celery | Todo lo que sabe de PDF, bancos y Excel. No conoce PostgreSQL ni S3 |
+| [`backend/api-backend`](backend/api-backend/) | NestJS, Prisma | Autoriza, orquesta y persiste. **Nunca abre un PDF** |
+| [`frontend`](frontend/) | React, Vite, TypeScript | Carga, seguimiento y descarga |
+
+El frontend habla solo con la API; la API es lo único que habla con el worker.
+
+## Los dos modos de persistencia
+
+Se elige con `PERSISTENCE_MODE` en el `.env` de la API. El contrato HTTP es idéntico en ambos.
+
+- **`memory`** — no guarda nada: ni el PDF de origen, ni los resultados, ni una fila. Ni siquiera abre conexión a PostgreSQL. El historial se pierde al reiniciar. Es el modo para trabajar con documentos reales sin retener información financiera.
+- **`database`** — el modo del producto: PostgreSQL para el estado de los trabajos y disco para los archivos.
+
+Decisión, alternativas descartadas y límites en [`ADR-0004`](docs/decisiones/ADR-0004-modo-sin-persistencia.md).
+
+## Estructura
+
+```text
+.
+├── instalar.ps1           # Instala dependencias y prepara los .env
+├── ejecutar.ps1           # Levanta, detiene y consulta el estado de los servicios
+├── EJECUTAR.md            # Guía de ejecución
+├── AGENTS.md              # Reglas de trabajo (normativas, léelas antes de tocar código)
+├── CLAUDE.md              # Puerta de entrada para agentes de IA
+├── backend/
+│   ├── api-backend/       # API pública y orquestador NestJS
+│   └── pdf-worker/        # Extracción Python, FastAPI y tareas Celery
+├── frontend/              # React, Vite y TypeScript
+├── referencias/           # Prototipo legacy y documentos de muestra
+└── docs/                  # Contexto, arquitectura, decisiones y bitácora
+```
+
+## El prototipo legacy
+
+[`referencias/`](referencias/) guarda los cuatro scripts originales en Python junto a los documentos de muestra. El más completo es `convertir_movimientos_pdf_a_excel (1).py`, que combina extracción BCP por coordenadas con un extractor genérico.
+
+**No se borran todavía.** `formatoBCP (1).py` se ejecuta tal cual en las pruebas de caracterización para comprobar que la implementación nueva mantiene sus resultados; por eso los `.py` de esa carpeta sí se versionan, aunque sus PDF, XLSX y CSV no.
+
+Inventario de conversiones y contratos por preservar: [`docs/contexto/conversiones-legacy.md`](docs/contexto/conversiones-legacy.md).
+
+## Si eres un agente de IA
+
+Lee en este orden:
+
+1. **[`AGENTS.md`](AGENTS.md)** — reglas no negociables. Manejo de datos financieros, límites entre capas, uso de `Decimal`, qué conservar. Es normativo, no orientativo.
+2. **[`docs/README.md`](docs/README.md)** — índice de toda la documentación.
+3. **[`docs/bitacora/README.md`](docs/bitacora/README.md)** — qué se hizo últimamente y por qué.
+4. **[`docs/roadmap/README.md`](docs/roadmap/README.md)** — qué toca hacer después.
+
+Antes de terminar una tarea: ejecuta las comprobaciones (`npm run check`, `scripts\check.ps1`), actualiza la bitácora si el cambio fue material, y añade un ADR en `docs/decisiones/` si cambiaste una decisión duradera.
+
+## Datos financieros
+
+Los PDF, Excel y CSV pueden contener información real. No se versionan, no se envían a servicios externos y no aparecen en los registros. Las pruebas usan muestras sintéticas generadas en `tests/support/`.
+
+Ninguna respuesta de la API incluye movimientos, importes, rutas locales ni trazas: solo identificadores, estados, conteos y códigos.

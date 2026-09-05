@@ -1,0 +1,72 @@
+# Secretos y configuración local
+.env
+.env.*
+!.env.example
+
+# Datos bancarios y artefactos generados
+*.pdf
+*.xlsx
+*.xls
+*.csv
+!**/tests/fixtures/**/*.csv
+
+# Carpetas de trabajo con documentos reales y sus salidas. Se ignoran enteras y no
+# solo por extensión: así tampoco se cuela un .txt, un .json ni una captura.
+RESULTADOS/
+PDF_MOVIMIENTOS/
+output/
+
+# `referencias/` guarda el prototipo legacy junto a sus documentos de muestra.
+# Los cuatro scripts .py SÍ se versionan: `AGENTS.md` obliga a conservarlos hasta que
+# las pruebas de caracterización demuestren la paridad, y `legacy_harness.py` los carga
+# desde aquí. El resto de la carpeta —PDF, XLSX, CSV y caché— queda fuera.
+referencias/*
+!referencias/*.py
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+pytest-cache-files-*/
+.ruff_cache/
+.mypy_cache/
+.venv/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Node
+node_modules/
+dist/
+coverage/
+.vite/
+.env.local
+.env.*.local
+*.tsbuildinfo
+
+# Almacenamiento local de objetos del api-backend
+backend/api-backend/storage/
+backend/api-backend/storage-test/
+
+# Servicios locales fuera de Docker y salidas de pruebas de navegador
+.local/
+test-results/
+playwright-report/
+frontend/e2e/*.png
+
+# IDE y sistema operativo
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Directorios temporales de pruebas que un fallo del escritor puede dejar atrás
+.test_*/
+artifacts/
+
+# Archivos temporales del procesamiento
+*_TEMP_LIMPIO.pdf
+tmp/
+temp/
