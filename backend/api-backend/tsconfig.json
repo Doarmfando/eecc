@@ -1,9 +1,9 @@
 {
   "compilerOptions": {
-    "module": "commonjs",
+    "module": "node16",
     "target": "ES2023",
     "lib": ["ES2023"],
-    "moduleResolution": "node",
+    "moduleResolution": "node16",
     "declaration": true,
     "removeComments": true,
     "emitDecoratorMetadata": true,
@@ -12,7 +12,6 @@
     "esModuleInterop": true,
     "sourceMap": true,
     "outDir": "./dist",
-    "baseUrl": "./",
     "incremental": true,
     "skipLibCheck": true,
     "strict": true,
@@ -32,7 +31,7 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./src/*"]
     }
   },
   "include": ["src/**/*", "test/**/*", "prisma/**/*.ts"],

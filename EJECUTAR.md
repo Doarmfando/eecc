@@ -169,6 +169,36 @@ npm run dev
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 ```
 
+## Desplegar
+
+Compilar y arrancar sin las herramientas de desarrollo:
+
+```powershell
+cd backend\api-backend
+npm run build          # deja el JavaScript en dist/, sin pruebas
+$env:NODE_ENV="production"
+npm run start:prod     # node dist/main.js
+
+cd ..\..\frontend
+npm run build          # deja los estáticos en dist/
+```
+
+El worker se sirve con uvicorn igual que en desarrollo.
+
+Tres cosas que cambian respecto a tu equipo y conviene tener presentes:
+
+- **Hace falta HTTPS.** Con `NODE_ENV=production` la cookie de sesión se marca `Secure`, y un navegador no guarda una cookie `Secure` llegada por HTTP: nadie podría entrar. Es deliberado: son documentos financieros y la sesión no debe viajar en claro.
+- **El frontend y la API tienen que compartir dominio.** En desarrollo lo resuelve el proxy de Vite; en despliegue, un proxy inverso que mande `/v1` a la API y el resto a los estáticos. Si van a dominios distintos, la cookie `SameSite=Lax` no viaja y hay que revisar CORS y `SameSite`.
+- **Cada instalación necesita su `FINGERPRINT_SECRET`.** Forma parte de la clave de idempotencia; no copies el de desarrollo.
+
+Antes de arrancar por primera vez, aplica las migraciones y crea la primera cuenta:
+
+```powershell
+cd backend\api-backend
+npm run prisma:deploy
+npm run prisma:seed
+```
+
 ## Verificar el código
 
 ```powershell
