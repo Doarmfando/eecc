@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, type ReactNode } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 import { useApiConfig } from '@/app/use-api-config';
 import { Alert } from '@/components/ui/alert';
@@ -14,7 +14,15 @@ import { describeError } from '@/lib/api-error';
 export function UploadPage(): ReactNode {
   const { apiKey } = useApiConfig();
   const navigate = useNavigate();
+  const location = useLocation();
   const upload = useUploadStatement();
+
+  useEffect(() => {
+    if (!location.hash) {
+      return;
+    }
+    document.querySelector(location.hash)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [location.hash]);
 
   function handleSubmit(values: UploadFormValues): void {
     upload.mutate(values, {
@@ -60,7 +68,11 @@ export function UploadPage(): ReactNode {
 
       {upload.isSuccess ? <JobSummary job={upload.data} /> : null}
 
-      {apiKey.length === 0 ? null : <JobHistory />}
+      {apiKey.length === 0 ? null : (
+        <div id="documentos-procesados" className="scroll-mt-20">
+          <JobHistory />
+        </div>
+      )}
     </div>
   );
 }

@@ -85,3 +85,12 @@ Antes de terminar una tarea: ejecuta las comprobaciones (`npm run check`, `scrip
 Los PDF, Excel y CSV pueden contener información real. No se versionan, no se envían a servicios externos y no aparecen en los registros. Las pruebas usan muestras sintéticas generadas en `tests/support/`.
 
 Ninguna respuesta de la API incluye movimientos, importes, rutas locales ni trazas: solo identificadores, estados, conteos y códigos.
+
+
+
+En interfaz evitar:
+
+- Interfaces recargadas.
+- Emojis en botones o títulos.
+- Iconos desproporcionados.
+- Tablas angostas cuando tienen muchas columnas.
