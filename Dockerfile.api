@@ -1,0 +1,69 @@
+# API pública + frontend, en una sola imagen.
+#
+# Van juntos a propósito. La sesión viaja en una cookie `SameSite=Lax`, que el
+# navegador solo envía si la página y la API comparten origen. En Railway cada
+# servicio recibe su propio dominio, así que separarlos dejaría a todo el mundo
+# fuera: el login respondería 200 y la sesión no persistiría.
+#
+# Se construye desde la raíz del repositorio:
+#   docker build -f Dockerfile.api -t eecc-api .
+
+# --- 1. Frontend --------------------------------------------------------------
+FROM node:22-alpine AS frontend
+
+WORKDIR /app/frontend
+COPY frontend/package*.json ./
+RUN npm ci --no-audit --no-fund
+
+COPY frontend/ ./
+# Vacío significa "el mismo origen que la página", que es justo lo que hace esta
+# imagen. Fijar aquí un dominio rompería la cookie.
+ENV VITE_API_BASE_URL=""
+RUN npm run build
+
+# --- 2. API -------------------------------------------------------------------
+FROM node:22-alpine AS api
+
+WORKDIR /app/api
+COPY backend/api-backend/package*.json ./
+RUN npm ci --no-audit --no-fund
+
+COPY backend/api-backend/ ./
+RUN npx prisma generate && npm run build
+
+# Se reinstala solo lo de producción y se vuelve a generar el cliente: `prisma
+# generate` escribe dentro de node_modules y la reinstalación se lo lleva por delante.
+#
+# El CLI de `prisma` es dependencia de producción y no de desarrollo justamente por
+# esto: el contenedor ejecuta `prisma migrate deploy` al arrancar, y con `--omit=dev`
+# no estaría, así que `npx` intentaría descargarlo en cada arranque.
+RUN npm ci --omit=dev --no-audit --no-fund && npx prisma generate
+
+# --- 3. Imagen final ----------------------------------------------------------
+FROM node:22-alpine AS runtime
+
+# `dumb-init` como PID 1: sin él, Node no recibe SIGTERM y el contenedor tarda
+# diez segundos en morir en cada despliegue.
+RUN apk add --no-cache dumb-init
+
+ENV NODE_ENV=production
+WORKDIR /app
+
+COPY --from=api /app/api/node_modules ./node_modules
+COPY --from=api /app/api/dist ./dist
+COPY --from=api /app/api/package.json ./package.json
+COPY --from=api /app/api/prisma ./prisma
+COPY --from=frontend /app/frontend/dist ./public
+
+ENV STATIC_ROOT=/app/public
+
+# Sin privilegios: si alguien logra ejecutar algo, que no sea como root.
+RUN addgroup -S eecc && adduser -S eecc -G eecc && chown -R eecc:eecc /app
+USER eecc
+
+EXPOSE 3000
+
+# Las migraciones van en el arranque y no en la construcción: al construir no hay
+# base de datos a la que conectarse. `migrate deploy` solo aplica lo pendiente, así
+# que reiniciar el contenedor no hace nada extra.
+CMD ["dumb-init", "sh", "-c", "npx prisma migrate deploy && node dist/main.js"]

@@ -13,6 +13,20 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-09-08 — Listo para desplegar en Railway
+
+- Hecho: la API sirve también el frontend compilado (`STATIC_ROOT`). No es comodidad: la cookie de sesión es `SameSite=Lax` y el navegador solo la envía si la página y la API comparten origen. En Railway cada servicio recibe su propio dominio, así que separarlos dejaría a todo el mundo fuera con un síntoma engañoso —el login responde 200 y la sesión no persiste—.
+- Hecho: `Dockerfile.api` (multietapa: compila frontend y API en una imagen), `Dockerfile.worker`, `railway.json`, `railway.worker.json`, `.dockerignore` y la guía [`docs/despliegue/railway.md`](../despliegue/railway.md).
+- Decisión: el respaldo que entrega la página se registra **antes** del enrutador de Nest. Se intentó después y nunca se ejecutaba: Nest atiende él mismo las rutas que no reconoce. El respaldo descarta `/v1`, `/health`, `/docs` y cualquier ruta con extensión, así que no le quita nada a la API; devolver HTML donde se espera JavaScript produce el críptico «Unexpected token '<'».
+- Hecho: al construir las imágenes aparecieron tres fallos que solo se ven ejecutando.
+  - `npm ci --omit=dev` dejaba fuera el CLI de Prisma, que el arranque necesita para `migrate deploy`; `npx` habría intentado descargarlo en cada arranque. Pasa a dependencia de producción.
+  - El paso documentado para crear la primera cuenta no funcionaba: `npm run prisma:seed` usa `ts-node`, ausente en la imagen. La semilla se movió a `src/cli/seed.ts` para que se compile, y se ejecuta con `node dist/cli/seed.js`.
+  - `uvicorn --host ::` crea un socket **solo IPv6**: comprobado que en la red IPv4 de Docker responde «conexión rechazada». Y `0.0.0.0` dejaría el worker inalcanzable en la red privada IPv6 de Railway. Nace `statement_worker/api/serve.py`, que abre un socket de doble pila con `create_server(dualstack_ipv6=True)` y sirve en ambos entornos sin configuración.
+- Hecho: **el `check` de la API llevaba fallando desde el commit `0876c89`** por el umbral de cobertura, y no se detectó porque el filtro que se aplicaba a la salida ocultaba la línea del umbral. Al retirar el módulo efímero —que estaba bien cubierto— la media global cayó por debajo del mínimo. Se comprueba ahora por código de salida y no por inspección de texto.
+- Hecho: la causa de fondo era `users.service.ts` al 27 %. Se escribió su especificación: 13 pruebas sobre las reglas que importan —protección del último propietario, revocación inmediata de sesiones al retirar el acceso, alta de alguien que ya existe en otra organización sin tocar su contraseña, y que el hash entregado corresponda de verdad a la clave temporal—. Con el guard unificado y el respaldo del frontend, la cobertura pasa de 89/73/84 a 95/82/92.
+- Verificación: las tres capas en verde **por código de salida**. Y las dos imágenes construidas y ejecutadas de verdad: PostgreSQL, worker y API en una red de Docker, migraciones aplicadas solas al arrancar, primera cuenta creada dentro del contenedor, y el ciclo completo de entrar, subir un documento, descargar el XLSX y dar de alta a otra persona.
+- Pendiente: falta montar volúmenes en Railway. El sistema de archivos de un contenedor es efímero y sin ellos los PDF y los resultados desaparecen en cada despliegue, aunque sus filas sigan en la base.
+
 ## 2026-09-08 — PostgreSQL como única persistencia
 
 - Hecho: retirado el modo `memory`. Se van `PERSISTENCE_MODE` y las variables `EPHEMERAL_*`, el módulo `modules/ephemeral`, el helper `common/persistence`, los puertos de `statements.port.ts` —los controladores vuelven a los servicios concretos— y `discardJob` del cliente del worker. Motivos en [`ADR-0006`](../decisiones/ADR-0006-postgresql-como-unica-persistencia.md); [`ADR-0004`](../decisiones/ADR-0004-modo-sin-persistencia.md) queda marcado como reemplazado, no reescrito.

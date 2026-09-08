@@ -1,0 +1,48 @@
+# Todo lo que no debe entrar en una imagen: pesa, o no debe salir de este equipo.
+
+# Datos bancarios reales y sus salidas
+referencias/
+RESULTADOS/
+PDF_MOVIMIENTOS/
+output/
+tmp/
+*.pdf
+*.xlsx
+*.xls
+*.csv
+
+# Secretos locales
+.env
+.env.*
+!.env.example
+
+# Dependencias y compilados: la imagen los reconstruye desde cero
+node_modules/
+dist/
+.venv/
+__pycache__/
+*.py[cod]
+
+# Herramientas y artefactos de desarrollo
+.git/
+.github/
+.local/
+coverage/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+test-results/
+playwright-report/
+backend/api-backend/storage/
+backend/pdf-worker/artifacts/
+
+# Documentación: no aporta nada dentro del contenedor
+docs/
+*.md
+!backend/pdf-worker/README.md
+
+# Scripts de puesta en marcha local
+instalar.ps1
+ejecutar.ps1
+docker-compose.yml

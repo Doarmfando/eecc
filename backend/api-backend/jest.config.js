@@ -6,7 +6,14 @@ module.exports = {
   transform: {
     '^.+\.ts$': ['ts-jest', { tsconfig: 'tsconfig.json' }],
   },
-  collectCoverageFrom: ['src/**/*.ts', '!src/main.ts', '!src/**/*.module.ts'],
+  // Se excluyen los puntos de entrada: `main.ts` y los scripts de `cli/` son
+  // arranque y efectos, no lógica; medirlos solo bajaría el listón para el resto.
+  collectCoverageFrom: [
+    'src/**/*.ts',
+    '!src/main.ts',
+    '!src/cli/**',
+    '!src/**/*.module.ts',
+  ],
   coverageDirectory: 'coverage',
   coverageThreshold: {
     global: { branches: 80, functions: 85, lines: 85, statements: 85 },

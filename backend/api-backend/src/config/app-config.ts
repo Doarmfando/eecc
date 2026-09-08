@@ -55,6 +55,16 @@ export class AppConfig {
   CORS_ORIGINS = '';
 
   /**
+   * Carpeta con el frontend ya compilado. Vacío significa no servirlo.
+   *
+   * Servir la página desde la propia API la deja en el mismo origen que `/v1`, que
+   * es lo que permite que la cookie de sesión sea `SameSite=Lax`: en dominios
+   * distintos el navegador no la enviaría y nadie podría entrar.
+   */
+  @IsString()
+  STATIC_ROOT = '';
+
+  /**
    * Horas que dura una sesión de navegador. Corta a propósito: son documentos
    * financieros y un equipo compartido no debería quedar abierto de un día para otro.
    */

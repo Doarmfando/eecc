@@ -1,11 +1,15 @@
 import { MembershipRole, PrismaClient, UserStatus } from '@prisma/client';
 import { createHash, randomBytes } from 'node:crypto';
 
-import { hashPassword, normalizeEmail } from '../src/modules/auth/password-hash';
+import { hashPassword, normalizeEmail } from '../modules/auth/password-hash';
 
 /**
  * Siembra la organización, su primera persona con rol OWNER y una credencial de
  * servicio para integraciones.
+ *
+ * Vive en `src/` y no en `prisma/` para que entre en el compilado: en un contenedor
+ * de producción no hay `ts-node`, y crear la primera cuenta es justo lo que hay que
+ * hacer allí. Se ejecuta con `node dist/cli/seed.js`.
  *
  * Las claves se imprimen una sola vez y solo se guardan derivadas, igual que en
  * producción. Volver a ejecutarlo reutiliza la organización y la persona, y emite

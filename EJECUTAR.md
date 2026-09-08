@@ -171,6 +171,8 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 
 ## Desplegar
 
+Para Railway hay una guía propia: [`docs/despliegue/railway.md`](docs/despliegue/railway.md). Lo que sigue es el camino genérico.
+
 Compilar y arrancar sin las herramientas de desarrollo:
 
 ```powershell
@@ -188,7 +190,7 @@ El worker se sirve con uvicorn igual que en desarrollo.
 Tres cosas que cambian respecto a tu equipo y conviene tener presentes:
 
 - **Hace falta HTTPS.** Con `NODE_ENV=production` la cookie de sesión se marca `Secure`, y un navegador no guarda una cookie `Secure` llegada por HTTP: nadie podría entrar. Es deliberado: son documentos financieros y la sesión no debe viajar en claro.
-- **El frontend y la API tienen que compartir dominio.** En desarrollo lo resuelve el proxy de Vite; en despliegue, un proxy inverso que mande `/v1` a la API y el resto a los estáticos. Si van a dominios distintos, la cookie `SameSite=Lax` no viaja y hay que revisar CORS y `SameSite`.
+- **El frontend y la API tienen que compartir dominio.** En desarrollo lo resuelve el proxy de Vite. En despliegue, lo más simple es que la propia API sirva los estáticos: pon `STATIC_ROOT` apuntando al `dist/` del frontend y se encarga ella, incluidas las rutas que solo existen en el navegador. La alternativa es un proxy inverso. Si acaban en dominios distintos, la cookie `SameSite=Lax` no viaja.
 - **Cada instalación necesita su `FINGERPRINT_SECRET`.** Forma parte de la clave de idempotencia; no copies el de desarrollo.
 
 Antes de arrancar por primera vez, aplica las migraciones y crea la primera cuenta:

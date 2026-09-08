@@ -1,0 +1,40 @@
+# Worker de extracción. Servicio interno: no debería exponerse a internet.
+#
+# Se construye desde la raíz del repositorio:
+#   docker build -f Dockerfile.worker -t eecc-worker .
+
+FROM python:3.12-slim AS runtime
+
+# `PYTHONUNBUFFERED` para que los registros salgan al momento y no por bloques,
+# que es lo que hace inútil mirar los logs de un contenedor en vivo.
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+# Solo lo necesario para instalar: así una edición del código no invalida la capa
+# de dependencias, que es la lenta.
+COPY backend/pdf-worker/pyproject.toml backend/pdf-worker/README.md ./
+COPY backend/pdf-worker/src ./src
+
+# Sin el extra `dev`: pandas, pytest y reportlab solo hacen falta para las pruebas
+# y multiplicarían el tamaño de la imagen.
+RUN pip install --no-cache-dir -e ".[pdf,excel,api]"
+
+# Los artefactos publicados viven aquí. En Railway el sistema de archivos es
+# efímero: sin un volumen montado, un reinicio se lleva los resultados que aún no
+# se hayan descargado.
+ENV EECC_WORKER_ARTIFACT_ROOT=/app/artifacts
+RUN mkdir -p /app/artifacts
+
+RUN useradd --create-home --shell /bin/false eecc && chown -R eecc:eecc /app
+USER eecc
+
+EXPOSE 8000
+
+# Arranque propio y no `uvicorn --host`: comprobado que `--host ::` crea un socket
+# **solo IPv6** y una red IPv4 recibe «conexión rechazada», mientras que `0.0.0.0`
+# deja el servicio inalcanzable en la red privada IPv6 de Railway. `serve.py` crea
+# un socket de doble pila y sirve en ambos sitios sin configuración.
+CMD ["python", "-m", "statement_worker.api.serve"]

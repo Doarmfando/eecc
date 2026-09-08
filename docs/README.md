@@ -9,6 +9,7 @@ La documentación se organiza por propósito:
 - [`_base_de_datos.md`](_base_de_datos.md): PostgreSQL, Prisma, modelo lógico, seguridad, migraciones y retención.
 - [`calidad/fallos-y-trampas.md`](calidad/fallos-y-trampas.md): riesgos confirmados o previstos.
 - [`calidad/patrones-de-solucion.md`](calidad/patrones-de-solucion.md): método de solución y autoaprendizaje.
+- [`despliegue/railway.md`](despliegue/railway.md): cómo desplegar en Railway y qué queda pendiente antes de abrirlo.
 - [`bitacora/README.md`](bitacora/README.md): registro cronológico de trabajo.
 - [`decisiones/README.md`](decisiones/README.md): decisiones arquitectónicas (ADR).
 - [`roadmap/README.md`](roadmap/README.md): orden recomendado de implementación.
