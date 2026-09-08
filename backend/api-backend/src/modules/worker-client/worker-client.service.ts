@@ -101,36 +101,6 @@ export class WorkerClientService {
     }
     return Buffer.from(await response.arrayBuffer());
   }
-
-  /**
-   * Pide al worker que borre lo que publicó de un trabajo.
-   *
-   * No propaga el fallo: quien llama ya tiene los bytes en la mano y no puede
-   * deshacer el trabajo. Un descarte fallido se registra para que se note que
-   * quedó residuo en el disco del worker, pero no convierte la petición en error.
-   */
-  async discardJob(workerJobId: string): Promise<boolean> {
-    const baseUrl = this.config.get('WORKER_BASE_URL', { infer: true });
-    const timeout = this.config.get('WORKER_TIMEOUT_MS', { infer: true });
-    const path = `/internal/statements/${encodeURIComponent(workerJobId)}`;
-
-    try {
-      const response = await fetch(new URL(path, baseUrl), {
-        method: 'DELETE',
-        signal: AbortSignal.timeout(timeout),
-      });
-      if (!response.ok) {
-        this.logger.warn(`El worker no descartó el trabajo: HTTP ${String(response.status)}`);
-        return false;
-      }
-      return true;
-    } catch (error) {
-      this.logger.warn(
-        `El worker no descartó el trabajo: ${error instanceof Error ? error.name : 'error desconocido'}`,
-      );
-      return false;
-    }
-  }
 }
 
 /**

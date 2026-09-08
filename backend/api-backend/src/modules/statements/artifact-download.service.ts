@@ -25,8 +25,13 @@ const EXTENSIONS: Record<ArtifactKind, string> = {
   TECHNICAL_MANIFEST: 'json',
 };
 
-/** `worker/<organización>/<trabajoDelWorker>/<nombre>`: clave opaca, no una ruta del sistema. */
-const WORKER_KEY = /^worker\/[0-9a-f-]{36}\/([0-9a-f]{32})\/([A-Za-z0-9._-]{1,120})$/;
+/**
+ * `worker/<organización>/<trabajoDelWorker>/<intento>/<nombre>`: clave opaca, no una
+ * ruta del sistema. El segmento del intento es opcional porque las filas escritas
+ * antes de introducirlo no lo llevan y deben seguir sirviéndose.
+ */
+const WORKER_KEY =
+  /^worker\/[0-9a-f-]{36}\/([0-9a-f]{32})\/(?:[0-9a-f-]{36}\/)?([A-Za-z0-9._-]{1,120})$/;
 
 @Injectable()
 export class ArtifactDownloadService {

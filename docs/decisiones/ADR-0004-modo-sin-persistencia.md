@@ -1,7 +1,12 @@
 # ADR-0004: Modo sin persistencia seleccionable por configuración
 
-- Estado: Aceptada
+- Estado: Reemplazada por [`ADR-0006`](ADR-0006-postgresql-como-unica-persistencia.md)
 - Fecha: 2026-09-03
+
+> El modo sin persistencia se retiró el 2026-09-08. Al introducir identidad de
+> personas ([`ADR-0005`](ADR-0005-identidad-de-usuarios-y-sesiones.md)) quedó sin
+> inicio de sesión, porque sin base de datos no hay dónde guardar usuarios. El
+> razonamiento de abajo se conserva tal cual por si vuelve a hacer falta.
 
 ## Contexto
 

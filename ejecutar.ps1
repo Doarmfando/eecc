@@ -4,16 +4,15 @@
     Levanta el proyecto completo: worker, API y frontend.
 
 .DESCRIPTION
-    Arranca los tres servicios en segundo plano, espera a que respondan y muestra
-    la URL y la credencial para entrar. Los registros van a `.local\logs\`.
+    Arranca los tres servicios en segundo plano y espera a que respondan.
+    Los registros van a `.local\logs\`.
+
+    Requiere PostgreSQL levantado: la aplicación guarda ahí las personas, sus
+    sesiones y el estado de los trabajos.
 
     El puerto del worker NO se elige aquí: se deriva de `WORKER_BASE_URL` del
     `.env` de la API. Si ambos no coinciden, subir un documento falla con
     `WORKER_UNAVAILABLE` sin decir por qué, así que hay una sola fuente de verdad.
-
-.PARAMETER Modo
-    Fuerza el modo de persistencia solo para esta ejecución, sin tocar el `.env`.
-    Sin este parámetro se usa lo que diga `PERSISTENCE_MODE` en el `.env`.
 
 .PARAMETER SinFrontend
     Levanta solo worker y API. Útil para consumir la API desde otra herramienta.
@@ -26,7 +25,7 @@
 
 .EXAMPLE
     .\ejecutar.ps1
-    Levanta todo y muestra la URL y la credencial.
+    Levanta todo y muestra dónde entrar.
 
 .EXAMPLE
     .\ejecutar.ps1 -Detener
@@ -34,9 +33,6 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('memoria', 'base-de-datos')]
-    [string]$Modo,
-
     [switch]$SinFrontend,
     [switch]$Detener,
     [switch]$Estado
@@ -113,13 +109,6 @@ try {
 
 $puertoApi = [int](Get-ValorEnv -Archivo $envApi -Clave 'PORT' -PorDefecto '3000')
 $puertoFront = 5173
-$credencial = Get-ValorEnv -Archivo $envApi -Clave 'EPHEMERAL_API_KEY' -PorDefecto '(sin configurar)'
-$persistencia = Get-ValorEnv -Archivo $envApi -Clave 'PERSISTENCE_MODE' -PorDefecto 'database'
-
-if ($Modo) {
-    if ($Modo -eq 'memoria') { $persistencia = 'memory' } else { $persistencia = 'database' }
-    $env:PERSISTENCE_MODE = $persistencia
-}
 
 $servicios = @(
     [pscustomobject]@{ Nombre = 'worker';   Puerto = $puertoWorker; Salud = "http://127.0.0.1:$puertoWorker/health" }
@@ -210,11 +199,16 @@ if ($ocupados.Count -gt 0) {
     exit 1
 }
 
-if ($persistencia -eq 'database') {
+# Sin PostgreSQL la API arranca y muere al primer intento de consulta: mejor
+# avisar aquí, cuando todavía se entiende la causa.
+if (-not (Get-NetTCPConnection -LocalPort 5432 -State Listen -ErrorAction SilentlyContinue)) {
     Write-Host ''
-    Write-Host 'Aviso: PERSISTENCE_MODE=database. La API guardará los documentos y' -ForegroundColor Yellow
-    Write-Host 'necesita PostgreSQL levantado (docker compose up -d postgres).' -ForegroundColor Yellow
-    Write-Host 'Para no guardar nada:  .\ejecutar.ps1 -Modo memoria' -ForegroundColor Yellow
+    Write-Host 'PostgreSQL no responde en 127.0.0.1:5432, y la API lo necesita.' -ForegroundColor Red
+    Write-Host 'Levántalo con una de estas:' -ForegroundColor Red
+    Write-Host '  docker compose up -d postgres' -ForegroundColor Red
+    Write-Host '  backendapi-backend\scripts\local-postgres.ps1 -Action start' -ForegroundColor Red
+    Write-Host ''
+    exit 1
 }
 
 # --- Arranque ---------------------------------------------------------------
@@ -278,12 +272,6 @@ if ($fallaron.Count -gt 0) {
 
 # --- Resumen ----------------------------------------------------------------
 
-if ($persistencia -eq 'memory') {
-    $descripcion = 'sin persistencia: no se guarda nada y todo se pierde al reiniciar'
-} else {
-    $descripcion = 'con base de datos: los documentos y su estado se guardan'
-}
-
 Write-Host ''
 Write-Host '========================================================' -ForegroundColor Cyan
 Write-Host ' Proyecto levantado' -ForegroundColor Cyan
@@ -296,17 +284,9 @@ if (-not $SinFrontend) {
 Write-Host "  API:        http://127.0.0.1:$puertoApi   (OpenAPI en /docs)"
 Write-Host "  Worker:     http://127.0.0.1:$puertoWorker"
 Write-Host ''
-if ($persistencia -eq 'memory') {
-    # Sin base de datos no hay usuarios: se entra con la credencial de servicio.
-    Write-Host '  Credencial: ' -NoNewline
-    Write-Host $credencial -ForegroundColor Yellow
-} else {
-    Write-Host '  Acceso:     ' -NoNewline
-    Write-Host 'entra con tu correo y contraseña' -ForegroundColor Yellow
-    Write-Host '              ¿Aún sin cuenta? cd backend\api-backend; npm run prisma:seed'
-}
-Write-Host ''
-Write-Host "  Modo:       $persistencia ($descripcion)"
+Write-Host '  Acceso:     ' -NoNewline
+Write-Host 'entra con tu correo y contraseña' -ForegroundColor Yellow
+Write-Host '              ¿Aún sin cuenta? cd backend\api-backend; npm run prisma:seed'
 Write-Host ''
 Write-Host '  Registros:  .local\logs\'
 Write-Host '  Detener:    .\ejecutar.ps1 -Detener'

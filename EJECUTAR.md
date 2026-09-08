@@ -15,7 +15,9 @@ El segundo te imprime la URL y la credencial para entrar.
 | --- | --- | --- |
 | Node.js | 20 o superior | Sí |
 | Python | 3.11 o superior | Sí |
-| Docker | cualquiera | Solo para el modo con base de datos |
+| Docker | cualquiera | Recomendado para PostgreSQL |
+
+PostgreSQL es obligatorio. Si Docker no puede arrancar en tu equipo, el instalador cae a `backendapi-backend\scripts\local-postgres.ps1`, que descarga los binarios oficiales y crea un cluster local sin permisos de administrador.
 
 Los scripts comprueban Node y Python antes de empezar y te dicen qué falta.
 
@@ -25,17 +27,20 @@ Los scripts comprueban Node y Python antes de empezar y te dicen qué falta.
 .\instalar.ps1
 ```
 
-Hace cuatro cosas: crea el entorno virtual de Python e instala sus dependencias, instala los paquetes de la API y del frontend, genera el cliente Prisma, y prepara los `.env` a partir de los `.env.example`.
+Hace todo lo necesario: entorno de Python y sus dependencias, paquetes de la API y del frontend, cliente Prisma, `.env` a partir de los `.env.example`, PostgreSQL levantado, migraciones aplicadas y la primera cuenta de acceso creada.
 
-**Es idempotente y no pisa tu configuración.** Si ya tienes un `.env` con valores propios, los respeta y solo añade las claves que falten. La credencial de servicio se genera una única vez y se reutiliza en las siguientes ejecuciones.
+Al terminar imprime el correo y la contraseña con los que entrar.
+
+**Es idempotente y no pisa tu configuración.** Respeta un `.env` con valores propios y no cambia la contraseña de una persona que ya entra; solo completa lo que falte.
 
 Opciones:
 
 | Comando | Para qué |
 | --- | --- |
-| `.\instalar.ps1` | Instala y deja el modo sin persistencia |
-| `.\instalar.ps1 -Modo base-de-datos` | Instala y deja el modo con PostgreSQL |
+| `.\instalar.ps1` | Instala y deja todo listo |
 | `.\instalar.ps1 -Rehacer` | Borra y recrea el entorno de Python si quedó a medias |
+
+**Detén los servicios antes de instalar.** Con la API en marcha, Windows mantiene bloqueado el motor de Prisma; el script lo detecta y te avisa.
 
 ## Ejecutar
 
@@ -50,8 +55,9 @@ Levanta los tres servicios en segundo plano, espera a que respondan y muestra un
 | `.\ejecutar.ps1` | Levanta worker, API y frontend |
 | `.\ejecutar.ps1 -Estado` | Dice qué está levantado y qué no |
 | `.\ejecutar.ps1 -Detener` | Apaga los tres |
-| `.\ejecutar.ps1 -Modo memoria` | Fuerza el modo sin guardar, sin tocar el `.env` |
 | `.\ejecutar.ps1 -SinFrontend` | Solo worker y API |
+
+Si PostgreSQL no responde, el script se detiene y lo dice, en lugar de dejar que la API muera en la primera consulta.
 
 Los registros quedan en `.local\logs\`. Para seguir uno en vivo:
 
@@ -65,9 +71,7 @@ Get-Content -Wait -Tail 30 .local\logs\api.log
 
    Con `localhost`, **no** con `127.0.0.1`: Vite escucha solo en IPv6, y además la sesión depende de que la página y la API compartan origen.
 
-2. **Entra con tu correo y contraseña.** El instalador imprime los de la primera cuenta; también puedes regenerarla con `npm run prisma:seed` en `backend\api-backend`.
-
-   En modo `memory` no hay usuarios: se entra con la credencial de servicio (`EPHEMERAL_API_KEY`).
+2. **Entra con tu correo y contraseña.** El instalador imprime los de la primera cuenta; también puedes volver a crearla con `npm run prisma:seed` en `backend\api-backend`.
 
 3. Sube un estado de cuenta en PDF.
 
@@ -84,55 +88,36 @@ Con sesión de `OWNER` o `ADMIN`, entra en **Personas** en el menú lateral:
 
 No existe registro abierto: nadie entra sin que alguien de la organización lo dé de alta.
 
-## Los dos modos de persistencia
+## Qué se guarda
 
-Se elige con `PERSISTENCE_MODE` en `backend\api-backend\.env`. El contrato HTTP es idéntico en ambos: el frontend no distingue cuál está activo.
+**PostgreSQL es obligatorio.** Ahí viven las personas, sus sesiones, el estado de los trabajos y la auditoría.
 
-| | `memory` | `database` |
-| --- | --- | --- |
-| PDF que subes | No se guarda nunca | Se escribe en `storage/` |
-| XLSX/CSV generados | A memoria; se ordena al worker borrar su copia | Quedan en `artifacts/` del worker |
-| Estado de los trabajos | En memoria del proceso | Filas en PostgreSQL |
-| Auditoría | No existe | Filas en PostgreSQL |
-| PostgreSQL | Ni se conecta | Obligatorio |
-| Historial al reiniciar | Se pierde | Se conserva |
-| Credenciales | Una sola, `EPHEMERAL_API_KEY` | Usuario y contraseña por persona |
-| Inicio de sesión | No hay: sin base de datos no hay usuarios | Sí, con roles y auditoría |
+| | Dónde |
+| --- | --- |
+| Personas, sesiones y roles | PostgreSQL |
+| Estado de los trabajos y auditoría | PostgreSQL |
+| PDF que subes | Disco, en `STORAGE_ROOT` (`backend\api-backend\storage`) |
+| XLSX/CSV generados | Disco del worker, en su directorio de artefactos |
+| Movimientos bancarios | **En ningún sitio**: el esquema no tiene tabla para ellos |
 
-En ambos modos **hay que autenticarse**: sin sesión ni credencial la API responde `AUTHENTICATION_REQUIRED`.
+Esa última fila no es un descuido, es la minimización que fija [`ADR-0002`](docs/decisiones/ADR-0002-postgresql-prisma-y-minimizacion-financiera.md): se guardan identificadores, estados, conteos y códigos, nunca los importes ni las descripciones extraídas.
 
-El modo `memory` está pensado para trabajar con documentos reales sin retener información financiera. Sus límites están detallados en [`docs/decisiones/ADR-0004-modo-sin-persistencia.md`](docs/decisiones/ADR-0004-modo-sin-persistencia.md).
+Existió un modo que no guardaba nada; se retiró al añadir el inicio de sesión. El porqué y lo que queda pendiente están en [`ADR-0006`](docs/decisiones/ADR-0006-postgresql-como-unica-persistencia.md).
 
-### Pasar al modo con base de datos
-
-Lo más simple es dejar que el instalador lo prepare todo:
+### Arrancar PostgreSQL a mano
 
 ```powershell
-.\ejecutar.ps1 -Detener
-.\instalar.ps1 -Modo base-de-datos
+docker compose up -d postgres
+# Sin Docker:
+backend\api-backend\scripts\local-postgres.ps1 -Action start
 ```
 
-Levanta PostgreSQL, aplica las migraciones, crea la primera cuenta e imprime sus datos de acceso.
-
-A mano sería:
+Después, desde `backend\api-backend`:
 
 ```powershell
-docker compose up -d postgres    # o: backend\api-backend\scripts\local-postgres.ps1 -Action start
-cd backend\api-backend
-npm run prisma:deploy
-npm run prisma:seed              # crea la organización y la primera persona, UNA sola vez
+npm run prisma:deploy    # aplica las migraciones
+npm run prisma:seed      # crea la organización y la primera persona
 ```
-
-## Comprobar que no guarda nada
-
-Con el modo `memory`, tras procesar un documento estas dos carpetas deben quedar **vacías**:
-
-```powershell
-dir backend\pdf-worker\artifacts     # donde el worker publica los XLSX/CSV
-dir backend\api-backend\storage      # donde iría el PDF de origen
-```
-
-Y al reiniciar la API el historial desaparece.
 
 ## Levantarlo a mano
 
@@ -170,15 +155,13 @@ npm run dev
 
 **`EADDRINUSE: address already in use`.** Quedó una ejecución anterior. Apágala con `.\ejecutar.ps1 -Detener`.
 
-**`Can't reach database server at 127.0.0.1:5432`.** Estás en modo `database` sin PostgreSQL. Levanta `docker compose up -d postgres` o cambia a `PERSISTENCE_MODE=memory`.
+**`Can't reach database server at 127.0.0.1:5432`.** PostgreSQL no está levantado, y la aplicación no funciona sin él. Arráncalo con `docker compose up -d postgres` o con `backend\api-backend\scripts\local-postgres.ps1 -Action start`.
 
 **`INVALID_CREDENTIALS` al entrar.** El correo o la contraseña no son correctos. A propósito no se distingue cuál de los dos: decirlo confirmaría qué correos están dados de alta.
 
 **`ACCOUNT_LOCKED`.** Cinco intentos fallidos seguidos bloquean la cuenta 15 minutos. Un administrador puede restablecer la contraseña desde *Personas* para desbloquearla al momento.
 
 **La sesión se pierde al recargar.** Comprueba que entras por `http://localhost:5173` y no por el puerto de la API: la cookie solo viaja si la página y la API comparten origen, que es lo que resuelve el proxy de Vite.
-
-**`API_KEY_INVALID`.** Estás en modo `memory` y la credencial no coincide con `EPHEMERAL_API_KEY` del `.env`. Cópiala de ahí.
 
 **`.\instalar.ps1 : No se puede cargar el archivo ... firma digital`.** La directiva de ejecución de PowerShell bloquea scripts. Para esta sesión:
 

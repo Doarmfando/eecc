@@ -4,11 +4,6 @@ import { ApiError } from './api-error';
 
 export interface ApiClientOptions {
   baseUrl: string;
-  /**
-   * Credencial de servicio, solo para integraciones. En el navegador se deja vacía:
-   * la sesión viaja en una cookie httpOnly que este código no puede ni leer.
-   */
-  apiKey?: string;
 }
 
 export interface UploadStatementInput {
@@ -53,13 +48,12 @@ async function request(
   path: string,
   input: RequestInput,
 ): Promise<unknown> {
+  // La autorización viaja en la cookie httpOnly: `credentials` es lo único que
+  // hace falta, y este código no puede leer el token ni aunque quisiera.
   const init: RequestInit = {
     method: input.method,
     credentials: 'include',
-    headers: {
-      ...(options.apiKey ? { 'x-api-key': options.apiKey } : {}),
-      ...input.headers,
-    },
+    headers: { ...input.headers },
   };
   if (input.body) {
     init.body = input.body;
@@ -165,7 +159,6 @@ export async function downloadArtifact(
     response = await fetch(joinUrl(options.baseUrl, path), {
       method: 'GET',
       credentials: 'include',
-      ...(options.apiKey ? { headers: { 'x-api-key': options.apiKey } } : {}),
     });
   } catch {
     throw new ApiError('NETWORK_ERROR', 0);

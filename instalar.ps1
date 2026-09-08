@@ -4,34 +4,21 @@
     Deja el proyecto listo para ejecutarse: dependencias y archivos `.env`.
 
 .DESCRIPTION
-    Instala las tres partes (worker Python, API NestJS y frontend) y prepara la
-    configuración local. Es idempotente: volver a ejecutarlo no reinstala lo que ya
-    está ni pisa un `.env` existente, solo completa lo que falte.
+    Instala las tres partes (worker Python, API NestJS y frontend), levanta
+    PostgreSQL, aplica las migraciones y crea la primera cuenta de acceso.
 
-    Nunca sobrescribe un valor que ya escribiste. Si tu `.env` tiene un puerto o una
-    credencial propios, se conservan.
-
-.PARAMETER Modo
-    'memoria' (por defecto) configura la API para no guardar nada: sin PostgreSQL y
-    sin escribir en disco. 'base-de-datos' deja la configuración del producto, que
-    necesita PostgreSQL levantado y migraciones aplicadas.
+    Es idempotente: volver a ejecutarlo no reinstala lo que ya está, no pisa un
+    `.env` existente y no cambia la contraseña de quien ya entra.
 
 .PARAMETER Rehacer
     Borra y recrea el entorno virtual de Python. Úsalo si quedó a medias.
 
 .EXAMPLE
     .\instalar.ps1
-    Instala todo y configura el modo sin persistencia.
-
-.EXAMPLE
-    .\instalar.ps1 -Modo base-de-datos
-    Instala todo dejando la configuración con PostgreSQL.
+    Instala todo y deja la aplicación lista para entrar.
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('memoria', 'base-de-datos')]
-    [string]$Modo = 'memoria',
-
     [switch]$Rehacer
 )
 
@@ -122,15 +109,14 @@ function Get-ValorEnv {
     return $null
 }
 
-# Credencial con el formato que exige la API: 32-128 caracteres de [A-Za-z0-9._-].
+# Secreto local aleatorio, sin caracteres que se confundan al dictarlo.
 function New-Credencial {
     $alfabeto = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'
     $bytes = New-Object 'byte[]' 48
     $generador = [System.Security.Cryptography.RandomNumberGenerator]::Create()
     try { $generador.GetBytes($bytes) } finally { $generador.Dispose() }
 
-    $texto = -join ($bytes | ForEach-Object { $alfabeto[$_ % $alfabeto.Length] })
-    return "eecc-$texto"
+    return -join ($bytes | ForEach-Object { $alfabeto[$_ % $alfabeto.Length] })
 }
 
 function Invoke-Externo {
@@ -272,8 +258,6 @@ Invoke-Externo -Archivo 'npm.cmd' -Argumentos @('install', '--no-fund', '--no-au
     -Directorio $dirApi -Descripcion 'Instalando dependencias de la API (tarda un poco)'
 Write-Ok 'Dependencias de la API instaladas'
 
-# `PrismaClient` se importa aunque la persistencia esté apagada, así que el cliente
-# tiene que estar generado incluso en modo memoria.
 Invoke-Externo -Archivo 'npm.cmd' -Argumentos @('run', 'prisma:generate') `
     -Directorio $dirApi -Descripcion 'Generando el cliente Prisma'
 Write-Ok 'Cliente Prisma generado'
@@ -285,59 +269,59 @@ if (Test-Path $envApi) {
     Write-Ok '.env de la API creado desde el ejemplo'
 }
 
-$credencial = Get-ValorEnv -Archivo $envApi -Clave 'EPHEMERAL_API_KEY'
-$plantilla = 'genera-una-credencial-local-de-al-menos-32-caracteres'
-if (-not $credencial -or $credencial -eq $plantilla) {
-    $credencial = New-Credencial
-    Set-ValorEnv -Archivo $envApi -Clave 'EPHEMERAL_API_KEY' -Valor $credencial -Sobrescribir | Out-Null
-    Write-Ok 'Credencial de servicio generada'
+# El secreto del fingerprint forma parte de la clave de idempotencia: no puede
+# quedarse en el valor de ejemplo, tiene que ser propio de cada instalación.
+$secreto = Get-ValorEnv -Archivo $envApi -Clave 'FINGERPRINT_SECRET'
+if (-not $secreto -or $secreto -eq 'genera-una-clave-local-de-al-menos-32-caracteres') {
+    Set-ValorEnv -Archivo $envApi -Clave 'FINGERPRINT_SECRET' -Valor (New-Credencial) -Sobrescribir | Out-Null
+    Write-Ok 'Secreto de fingerprint generado'
 } else {
-    Write-Salto 'Ya tenías una credencial configurada, se conserva'
+    Write-Salto 'Ya tenías un secreto de fingerprint, se conserva'
 }
 
-if ($Modo -eq 'memoria') {
-    Set-ValorEnv -Archivo $envApi -Clave 'PERSISTENCE_MODE' -Valor 'memory' -Sobrescribir | Out-Null
-    Write-Ok 'Modo sin persistencia activado (PERSISTENCE_MODE=memory)'
-} else {
-    Set-ValorEnv -Archivo $envApi -Clave 'PERSISTENCE_MODE' -Valor 'database' -Sobrescribir | Out-Null
-    Write-Ok 'Modo con base de datos activado (PERSISTENCE_MODE=database)'
+Write-Titulo 'Base de datos (PostgreSQL)'
 
-    # Con base de datos hacen falta las tablas y una primera persona: sin eso no hay
-    # forma de entrar, porque este producto no tiene registro abierto.
-    $postgresVivo = $null -ne (Get-NetTCPConnection -LocalPort 5432 -State Listen -ErrorAction SilentlyContinue)
-    if (-not $postgresVivo) {
-        Write-Host '   ... PostgreSQL no responde; intentando levantarlo' -ForegroundColor DarkGray
-        try {
-            & (Join-Path $dirApi 'scripts\local-postgres.ps1') -Action start | Out-Null
-            $postgresVivo = $null -ne (Get-NetTCPConnection -LocalPort 5432 -State Listen -ErrorAction SilentlyContinue)
-        } catch {
-            $postgresVivo = $false
-        }
-    }
-
-    if ($postgresVivo) {
-        Write-Ok 'PostgreSQL responde en 127.0.0.1:5432'
-        Invoke-Externo -Archivo 'npm.cmd' -Argumentos @('run', 'prisma:deploy') `
-            -Directorio $dirApi -Descripcion 'Aplicando migraciones'
-        Write-Ok 'Migraciones aplicadas'
-
-        # La semilla respeta a una persona que ya exista, así que reinstalar es seguro.
-        Write-Host '   ... Preparando la primera cuenta de acceso' -ForegroundColor DarkGray
-        $salidaSemilla = Join-Path $env:TEMP "eecc-semilla-$([guid]::NewGuid().ToString('N')).log"
-        $semilla = Start-Process -FilePath 'npm.cmd' -ArgumentList @('run', 'prisma:seed') `
-            -WorkingDirectory $dirApi -NoNewWindow -Wait -PassThru `
-            -RedirectStandardOutput $salidaSemilla -RedirectStandardError "$salidaSemilla.err"
-        if ($semilla.ExitCode -eq 0) {
-            $script:AccesoSembrado = Get-Content -Path $salidaSemilla -Raw -Encoding utf8 -ErrorAction SilentlyContinue
-            Write-Ok 'Cuenta de acceso lista'
-        } else {
-            Write-Aviso 'La semilla falló. Ejecuta a mano: cd backend\api-backend; npm run prisma:seed'
-        }
-        Remove-Item -Path $salidaSemilla, "$salidaSemilla.err" -Force -ErrorAction SilentlyContinue
-    } else {
-        Write-Aviso 'No se pudo levantar PostgreSQL. Arráncalo y ejecuta: cd backend\api-backend; npm run prisma:deploy; npm run prisma:seed'
+$postgresVivo = $null -ne (Get-NetTCPConnection -LocalPort 5432 -State Listen -ErrorAction SilentlyContinue)
+if (-not $postgresVivo) {
+    Write-Host '   ... PostgreSQL no responde; intentando levantarlo' -ForegroundColor DarkGray
+    try {
+        & (Join-Path $dirApi 'scripts\local-postgres.ps1') -Action start | Out-Null
+        $postgresVivo = $null -ne (Get-NetTCPConnection -LocalPort 5432 -State Listen -ErrorAction SilentlyContinue)
+    } catch {
+        $postgresVivo = $false
     }
 }
+
+if (-not $postgresVivo) {
+    Write-Host ''
+    Write-Host 'No se pudo levantar PostgreSQL, y la aplicación no funciona sin él.' -ForegroundColor Red
+    Write-Host 'Arráncalo y vuelve a ejecutar este script:' -ForegroundColor Red
+    Write-Host '  docker compose up -d postgres' -ForegroundColor Red
+    Write-Host '  backend\api-backend\scripts\local-postgres.ps1 -Action start   (sin Docker)' -ForegroundColor Red
+    Write-Host ''
+    exit 1
+}
+Write-Ok 'PostgreSQL responde en 127.0.0.1:5432'
+
+Invoke-Externo -Archivo 'npm.cmd' -Argumentos @('run', 'prisma:deploy') `
+    -Directorio $dirApi -Descripcion 'Aplicando migraciones'
+Write-Ok 'Migraciones aplicadas'
+
+# La semilla respeta a una persona que ya exista, así que reinstalar es seguro.
+Write-Host '   ... Preparando la primera cuenta de acceso' -ForegroundColor DarkGray
+$salidaSemilla = Join-Path $env:TEMP "eecc-semilla-$([guid]::NewGuid().ToString('N')).log"
+$semilla = Start-Process -FilePath 'npm.cmd' -ArgumentList @('run', 'prisma:seed') `
+    -WorkingDirectory $dirApi -NoNewWindow -Wait -PassThru `
+    -RedirectStandardOutput $salidaSemilla -RedirectStandardError "$salidaSemilla.err"
+if ($semilla.ExitCode -eq 0) {
+    # UTF-8 explícito: sin decirlo, PowerShell 5.1 lo lee como ANSI y rompe los
+    # acentos justo en el dato que hay que copiar.
+    $script:AccesoSembrado = Get-Content -Path $salidaSemilla -Raw -Encoding utf8 -ErrorAction SilentlyContinue
+    Write-Ok 'Cuenta de acceso lista'
+} else {
+    Write-Aviso 'La semilla falló. Ejecuta a mano: cd backend\api-backend; npm run prisma:seed'
+}
+Remove-Item -Path $salidaSemilla, "$salidaSemilla.err" -Force -ErrorAction SilentlyContinue
 
 # El puerto del worker lo manda la API: si no coinciden, la subida falla con
 # WORKER_UNAVAILABLE y cuesta diagnosticar. `ejecutar.ps1` lee este mismo valor.
@@ -348,7 +332,7 @@ if (-not $urlWorker) {
 }
 Write-Ok "El worker debe escuchar en $urlWorker"
 
-# --- 4. Frontend ------------------------------------------------------------
+# --- 5. Frontend ------------------------------------------------------------
 
 Write-Titulo 'Frontend (React + Vite)'
 
@@ -373,31 +357,22 @@ Write-Host '========================================================' -Foregroun
 Write-Host ' Instalación terminada' -ForegroundColor Cyan
 Write-Host '========================================================' -ForegroundColor Cyan
 Write-Host ''
-Write-Host " Modo configurado : $Modo"
-Write-Host ''
-
-if ($Modo -eq 'base-de-datos') {
-    if ($script:AccesoSembrado) {
-        Write-Host ' Entra en la aplicación con estos datos:' -ForegroundColor Yellow
-        Write-Host ''
-        foreach ($linea in ($script:AccesoSembrado -split "`n")) {
-            if ($linea -match '^(organizaci|correo|contrase|La persona)') {
-                Write-Host "   $($linea.Trim())" -ForegroundColor Yellow
-            }
-        }
-        Write-Host ''
-        Write-Host ' Guárdalos: la contraseña no vuelve a mostrarse.'
-        Write-Host ' Las demás cuentas se crean desde la propia aplicación, en Personas.'
-    } else {
-        Write-Host ' Cada persona entra con su usuario y contraseña.'
-        Write-Host ' Crea la primera con: cd backend\api-backend; npm run prisma:seed'
-    }
-} else {
-    Write-Host " Credencial       : $credencial" -ForegroundColor Yellow
+if ($script:AccesoSembrado) {
+    Write-Host ' Entra en la aplicación con estos datos:' -ForegroundColor Yellow
     Write-Host ''
-    Write-Host ' En modo memoria no hay usuarios: se entra con esa credencial, guardada'
-    Write-Host ' en backend\api-backend\.env por si la pierdes.'
+    foreach ($linea in ($script:AccesoSembrado -split "`n")) {
+        if ($linea -match '^(organizaci|correo|contrase|La persona)') {
+            Write-Host "   $($linea.Trim())" -ForegroundColor Yellow
+        }
+    }
+    Write-Host ''
+    Write-Host ' Guárdalos: la contraseña no vuelve a mostrarse.'
+    Write-Host ' Las demás cuentas se crean desde la propia aplicación, en Personas.'
+} else {
+    Write-Host ' Crea la primera cuenta con:'
+    Write-Host '   cd backend\api-backend; npm run prisma:seed'
 }
+
 Write-Host ''
 Write-Host ' Siguiente paso:' -ForegroundColor Green
 Write-Host '   .\ejecutar.ps1' -ForegroundColor Green

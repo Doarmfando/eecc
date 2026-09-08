@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fetchJob, uploadStatement, type ApiClientOptions } from './api-client';
 import { ApiError } from './api-error';
 
-const OPTIONS: ApiClientOptions = { baseUrl: 'http://127.0.0.1:3000', apiKey: 'k'.repeat(48) };
+const OPTIONS: ApiClientOptions = { baseUrl: 'http://127.0.0.1:3000' };
 
 const JOB = {
   jobId: '33333333-3333-4333-8333-333333333333',
@@ -42,7 +42,7 @@ afterEach(() => {
 });
 
 describe('uploadStatement', () => {
-  it('envía el documento con la credencial y devuelve el trabajo validado', async () => {
+  it('envía el documento con la sesión y devuelve el trabajo validado', async () => {
     const fetchMock = mockFetch(jsonResponse(201, JOB));
 
     const job = await uploadStatement(OPTIONS, {
@@ -55,8 +55,10 @@ describe('uploadStatement', () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('http://127.0.0.1:3000/v1/statements');
     expect(init.method).toBe('POST');
+    // La sesión viaja en la cookie httpOnly, que este código no puede leer: lo
+    // comprobable es que la petición se haga con credenciales.
+    expect(init.credentials).toBe('include');
     const headers = init.headers as Record<string, string>;
-    expect(headers['x-api-key']).toBe(OPTIONS.apiKey);
     expect(headers['idempotency-key']).toBe('clave-de-prueba-1234');
     const body = init.body as FormData;
     expect(body.get('defaultYear')).toBe('2026');

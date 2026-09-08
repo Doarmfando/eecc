@@ -1,20 +1,11 @@
 import { UnauthorizedException, type ExecutionContext } from '@nestjs/common';
-import type { ConfigService } from '@nestjs/config';
 
-import { PersistenceMode, type AppConfig } from '../../config/app-config';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { RequestWithContext } from '../http/request-context';
-import { ApiKeyGuard, EPHEMERAL_API_KEY_ID, hashApiKey } from './api-key.guard';
+import { ApiKeyGuard, hashApiKey } from './api-key.guard';
 
 const VALID_TOKEN = 'k'.repeat(48);
 const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
-const EPHEMERAL_ORGANIZATION_ID = '22222222-2222-4222-8222-222222222222';
-
-function configFor(values: Record<string, unknown>): ConfigService<AppConfig, true> {
-  return {
-    get: (key: string): unknown => values[key],
-  } as unknown as ConfigService<AppConfig, true>;
-}
 
 function contextFor(request: Partial<RequestWithContext>): ExecutionContext {
   const full = {
@@ -30,20 +21,7 @@ function contextFor(request: Partial<RequestWithContext>): ExecutionContext {
 function guardWith(apiKey: unknown): { guard: ApiKeyGuard; findUnique: jest.Mock } {
   const findUnique = jest.fn().mockResolvedValue(apiKey);
   const prisma = { apiKey: { findUnique } } as unknown as PrismaService;
-  const config = configFor({ PERSISTENCE_MODE: PersistenceMode.Database });
-  return { guard: new ApiKeyGuard(prisma, config), findUnique };
-}
-
-/** En modo memoria la única credencial válida es la configurada. */
-function ephemeralGuardWith(expected: string): { guard: ApiKeyGuard; findUnique: jest.Mock } {
-  const findUnique = jest.fn();
-  const prisma = { apiKey: { findUnique } } as unknown as PrismaService;
-  const config = configFor({
-    PERSISTENCE_MODE: PersistenceMode.Memory,
-    EPHEMERAL_API_KEY: expected,
-    EPHEMERAL_ORGANIZATION_ID: EPHEMERAL_ORGANIZATION_ID,
-  });
-  return { guard: new ApiKeyGuard(prisma, config), findUnique };
+  return { guard: new ApiKeyGuard(prisma), findUnique };
 }
 
 describe('ApiKeyGuard', () => {
@@ -110,35 +88,5 @@ describe('ApiKeyGuard', () => {
 
     const unknown = guardWith(null);
     await expect(unknown.guard.canActivate(context)).rejects.toBeInstanceOf(UnauthorizedException);
-  });
-
-  describe('sin persistencia', () => {
-    it('acepta la credencial configurada y no consulta la base de datos', async () => {
-      const { guard, findUnique } = ephemeralGuardWith(VALID_TOKEN);
-      const context = contextFor({
-        headers: { 'x-api-key': VALID_TOKEN },
-      } as unknown as Partial<RequestWithContext>);
-
-      await expect(guard.canActivate(context)).resolves.toBe(true);
-      expect(findUnique).not.toHaveBeenCalled();
-      expect(context.switchToHttp().getRequest<RequestWithContext>().organization).toEqual({
-        organizationId: EPHEMERAL_ORGANIZATION_ID,
-        apiKeyId: EPHEMERAL_API_KEY_ID,
-        // Una credencial de servicio no representa a nadie ni tiene rol, y por eso
-        // `RolesGuard` la deja fuera de la gestión de personas.
-        userId: null,
-        role: null,
-      });
-    });
-
-    it('rechaza cualquier otra credencial', async () => {
-      const { guard, findUnique } = ephemeralGuardWith('o'.repeat(48));
-      const context = contextFor({
-        headers: { 'x-api-key': VALID_TOKEN },
-      } as unknown as Partial<RequestWithContext>);
-
-      await expect(guard.canActivate(context)).rejects.toBeInstanceOf(UnauthorizedException);
-      expect(findUnique).not.toHaveBeenCalled();
-    });
   });
 });

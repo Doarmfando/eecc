@@ -29,6 +29,29 @@ function build(artifact: unknown): {
 }
 
 describe('ArtifactDownloadService', () => {
+  it('sirve la clave con intento y también la anterior, que no lo lleva', async () => {
+    const ATTEMPT_ID = '55555555-5555-4555-8555-555555555555';
+
+    // Formato actual: el intento va en la clave porque `job_id` se repite al
+    // reprocesar el mismo documento y `object_key` es único en la tabla.
+    const conIntento = build({
+      kind: 'RESULT_XLSX',
+      objectKey: `worker/${ORGANIZATION_ID}/${WORKER_JOB_ID}/${ATTEMPT_ID}/statement.xlsx`,
+    });
+    await conIntento.service.download(ORGANIZATION_ID, JOB_ID, ARTIFACT_ID);
+    expect(conIntento.fetchArtifact).toHaveBeenCalledWith(WORKER_JOB_ID, 'statement.xlsx');
+    expect(conIntento.get).not.toHaveBeenCalled();
+
+    // Formato anterior: las filas ya guardadas deben seguir descargándose.
+    const sinIntento = build({
+      kind: 'RESULT_XLSX',
+      objectKey: `worker/${ORGANIZATION_ID}/${WORKER_JOB_ID}/statement.xlsx`,
+    });
+    await sinIntento.service.download(ORGANIZATION_ID, JOB_ID, ARTIFACT_ID);
+    expect(sinIntento.fetchArtifact).toHaveBeenCalledWith(WORKER_JOB_ID, 'statement.xlsx');
+    expect(sinIntento.get).not.toHaveBeenCalled();
+  });
+
   it('exige que el artefacto pertenezca al trabajo y a la organización', async () => {
     const { service, findFirst } = build({
       kind: 'RESULT_XLSX',

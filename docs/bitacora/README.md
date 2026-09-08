@@ -13,6 +13,16 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-09-08 — PostgreSQL como única persistencia
+
+- Hecho: retirado el modo `memory`. Se van `PERSISTENCE_MODE` y las variables `EPHEMERAL_*`, el módulo `modules/ephemeral`, el helper `common/persistence`, los puertos de `statements.port.ts` —los controladores vuelven a los servicios concretos— y `discardJob` del cliente del worker. Motivos en [`ADR-0006`](../decisiones/ADR-0006-postgresql-como-unica-persistencia.md); [`ADR-0004`](../decisiones/ADR-0004-modo-sin-persistencia.md) queda marcado como reemplazado, no reescrito.
+- Decisión: el modo se retira porque al añadir identidad de usuarios quedó incoherente. Sin base de datos no hay dónde guardar personas, así que se quedó sin inicio de sesión: ya no ofrecía el mismo producto, solo el mismo contrato HTTP. Mantenerlo obligaba a implementar cada cosa dos veces.
+- Hecho: `instalar.ps1` y `ejecutar.ps1` pierden `-Modo`. El instalador levanta PostgreSQL, migra y siembra la primera cuenta; el lanzador se niega a arrancar si la base no responde, en vez de dejar que la API muera en la primera consulta.
+- Hecho: al verificar apareció un 500 al subir un documento ya procesado. `Artifact.objectKey` es único y la clave de los resultados era `worker/<org>/<jobDelWorker>/<nombre>`; como el `job_id` del worker se deriva del contenido, reprocesar el mismo documento con otra clave de idempotencia chocaba contra la fila anterior. No lo causó este cambio: lo dispara cualquier rotación de `FINGERPRINT_SECRET` o subida de `PROFILE_VERSION`, que es justo para lo que existe esa variable.
+- Decisión: la clave incluye ahora el intento. La descarga acepta las dos formas —el segmento del intento es opcional en el patrón— para no dejar inservibles las filas ya guardadas.
+- Verificación: `npm run check` (86 pruebas), `scripts/check.ps1` del worker (206) y `vitest` (58). Además, instalación limpia con `instalar.ps1` y recorrido real contra PostgreSQL: entrar, subir el documento que antes daba 500, repetirlo para comprobar la idempotencia, y descargar el XLSX y validarlo con openpyxl.
+- Pendiente: sin el modo efímero, la retención vuelve a ser urgente. `Organization.retentionDays`, `Statement.retainUntil` y `Artifact.retainUntil` existen en el esquema y ningún código los aplica todavía.
+
 ## 2026-09-08 — Cada persona entra con su cuenta
 
 - Hecho: identidad de usuarios completa. `User` gana contraseña derivada con `scrypt`, último acceso y bloqueo por intentos; nace `Session`, y la sesión viaja en una cookie `httpOnly` con token opaco. Migración `20260908201707_usuarios_y_sesiones`. Decisión y alternativas en [`ADR-0005`](../decisiones/ADR-0005-identidad-de-usuarios-y-sesiones.md).

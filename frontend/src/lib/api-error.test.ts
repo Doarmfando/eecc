@@ -4,7 +4,7 @@ import { ApiError, describeError, isRetriable } from './api-error';
 
 describe('describeError', () => {
   it('traduce los códigos conocidos del contrato', () => {
-    expect(describeError(new ApiError('API_KEY_INVALID', 401))).toContain('credencial');
+    expect(describeError(new ApiError('SESSION_EXPIRED', 401))).toContain('sesión');
     expect(describeError(new ApiError('UNSUPPORTED_DOCUMENT', 422))).toContain('estado de cuenta');
     expect(describeError(new ApiError('WORKER_UNAVAILABLE', 502))).toContain('no está disponible');
     expect(describeError(new ApiError('ARTIFACT_NOT_FOUND', 404))).toContain('descargar');
@@ -25,7 +25,7 @@ describe('isRetriable', () => {
   });
 
   it('no reintenta credenciales, validación ni contratos incompatibles', () => {
-    expect(isRetriable(new ApiError('API_KEY_INVALID', 401))).toBe(false);
+    expect(isRetriable(new ApiError('SESSION_EXPIRED', 401))).toBe(false);
     expect(isRetriable(new ApiError('UNSUPPORTED_DOCUMENT', 422))).toBe(false);
     expect(isRetriable(new ApiError('RESPONSE_CONTRACT_MISMATCH', 200))).toBe(false);
     expect(isRetriable(new Error('boom'))).toBe(false);

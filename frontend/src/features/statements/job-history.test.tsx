@@ -72,11 +72,11 @@ describe('JobHistory', () => {
   it('muestra el motivo cuando el servidor rechaza la consulta', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(jsonResponse(401, { code: 'API_KEY_INVALID' })),
+      vi.fn().mockResolvedValue(jsonResponse(401, { code: 'SESSION_EXPIRED' })),
     );
     renderWithProviders(<JobHistory />);
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('credencial');
+    expect(await screen.findByRole('alert')).toHaveTextContent('sesión');
   });
 
   it('no consulta el historial sin sesión', async () => {

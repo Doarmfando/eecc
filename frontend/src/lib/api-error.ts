@@ -15,8 +15,6 @@ const MESSAGES: Record<string, string> = {
   AUTHENTICATION_REQUIRED: 'Necesitas iniciar sesión.',
   SESSION_EXPIRED: 'Tu sesión caducó. Vuelve a entrar.',
   INSUFFICIENT_ROLE: 'Tu rol no permite hacer esto.',
-  API_KEY_REQUIRED: 'Falta la credencial de acceso.',
-  API_KEY_INVALID: 'La credencial no es válida o fue revocada.',
   DOCUMENT_REQUIRED: 'Selecciona un archivo PDF antes de enviar.',
   UNSUPPORTED_MEDIA_TYPE: 'El archivo no es un PDF válido.',
   UPLOAD_TOO_LARGE: 'El archivo supera el tamaño permitido.',

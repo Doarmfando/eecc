@@ -6,7 +6,6 @@ import { PrismaModule } from './common/prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { validateConfig } from './config/app-config';
-import { EphemeralModule } from './modules/ephemeral/ephemeral.module';
 import { HealthModule } from './modules/health/health.module';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { StatementsModule } from './modules/statements/statements.module';
@@ -19,7 +18,6 @@ import { StatementsModule } from './modules/statements/statements.module';
       validate: validateConfig,
     }),
     PrismaModule,
-    EphemeralModule,
     AuthModule,
     UsersModule,
     HealthModule,

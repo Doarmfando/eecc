@@ -19,7 +19,6 @@ Aplicación NestJS que expone el contrato público del conversor de estados de c
 | Historial paginado por cursor | Implementado |
 | OpenAPI/Swagger | Publicado en `/docs` |
 | Descarga autorizada de artefactos | Implementada |
-| Modo sin persistencia (`PERSISTENCE_MODE=memory`) | Implementado; ni base de datos ni disco |
 | Almacenamiento S3-compatible | Pendiente; hoy escribe en disco tras la misma interfaz |
 | Autenticación de usuarios y URLs firmadas | Pendiente |
 | Callback firmado desde el worker | Pendiente; la llamada interna es síncrona |
@@ -35,7 +34,6 @@ src/
 ├── config/            # Configuración validada del entorno
 ├── modules/
 │   ├── auth/          # Contraseñas, sesiones y rutas de inicio de sesión
-│   ├── ephemeral/     # Implementaciones en memoria del modo sin persistencia
 │   ├── users/         # Gestión de personas de la organización
 │   ├── health/
 │   ├── jobs/
@@ -71,40 +69,11 @@ npm run prisma:seed
 ## Ejecutar
 
 ```powershell
-# Requiere PostgreSQL: `docker compose up -d postgres` en la raíz del repositorio.
+# Requiere PostgreSQL levantado y migrado; sin él la API no puede atender nada.
 npm run start:dev
 ```
 
 El worker debe estar levantado en `WORKER_BASE_URL`. La documentación OpenAPI queda en `/docs`.
-
-## Ejecutar sin guardar nada
-
-`PERSISTENCE_MODE=memory` arranca la API sin PostgreSQL y sin escribir en disco. Es el modo para usar el conversor cuando no se quiere retener información financiera.
-
-```powershell
-Copy-Item .env.example .env   # si aún no existe
-# En `.env`:
-#   PERSISTENCE_MODE=memory
-#   EPHEMERAL_API_KEY=<32-128 caracteres de [A-Za-z0-9._-]>
-npm run start:dev
-```
-
-No hacen falta `docker compose up`, `prisma:migrate` ni `prisma:seed`: `DATABASE_URL` y `FINGERPRINT_SECRET` dejan de exigirse. La credencial que espera el frontend es `EPHEMERAL_API_KEY`, la única que se acepta.
-
-Qué cambia respecto al modo con base de datos:
-
-- el PDF de origen no se guarda en ninguna parte y, por tanto, no aparece entre los artefactos descargables;
-- los XLSX/CSV se traen del worker a memoria y después se le pide que borre su copia, de modo que su directorio de artefactos tampoco los conserva;
-- el historial vive en el proceso y se pierde al reiniciar; además caduca a los `EPHEMERAL_TTL_MINUTES` y solo guarda los `EPHEMERAL_MAX_JOBS` más recientes;
-- no hay auditoría ni eventos de outbox, porque no hay dónde escribirlos.
-
-El contrato HTTP es idéntico en ambos modos: el frontend no distingue cuál está activo.
-
-Límites conocidos:
-
-- una sola credencial y una sola organización, sin `prisma:seed` que las cree;
-- los resultados ocupan RAM mientras duran, que es lo que acota `EPHEMERAL_MAX_JOBS`;
-- si el worker no puede borrar su copia, la API lo registra como advertencia y sigue: conviene revisar su directorio de artefactos.
 
 ## Verificar
 
@@ -144,7 +113,7 @@ Esa suite crea sus propias organizaciones con prefijo reconocible y las borra al
 - `POST /v1/statements`: recibe el PDF por multipart, procesa y devuelve el resumen del trabajo. Acepta `Idempotency-Key`; sin ella, la clave se deriva del contenido y la versión del perfil.
 - `GET /v1/jobs`: historial de la organización, del más reciente al más antiguo, con paginación por cursor (`limit`, `cursor`). El cursor es opaco y combina fecha e identificador, de modo que insertar trabajos nuevos no repite ni salta filas.
 - `GET /v1/jobs/{jobId}`: estado del trabajo, siempre acotado a la organización de la credencial.
-- `GET /v1/jobs/{jobId}/artifacts/{artifactId}/content`: descarga el artefacto si pertenece a ese trabajo y a esa organización. El PDF de origen sale del almacenamiento propio; los resultados se piden al worker, que solo sirve lo que su manifiesto declara. En `PERSISTENCE_MODE=memory` no hay PDF de origen y los resultados salen de memoria.
+- `GET /v1/jobs/{jobId}/artifacts/{artifactId}/content`: descarga el artefacto si pertenece a ese trabajo y a esa organización. El PDF de origen sale del almacenamiento propio; los resultados se piden al worker, que solo sirve lo que su manifiesto declara.
 
 Las respuestas contienen identificadores, estados, conteos y códigos. Nunca incluyen movimientos, importes, claves de objeto, rutas locales ni trazas.
 
@@ -154,6 +123,6 @@ Las respuestas contienen identificadores, estados, conteos y códigos. Nunca inc
 - De una contraseña solo se guarda su derivación `scrypt`, y nunca aparece en un registro ni en una respuesta.
 - La sesión es un token opaco con fila propia, no un JWT: revocar el acceso surte efecto en la petición siguiente. Ver [`ADR-0005`](../../docs/decisiones/ADR-0005-identidad-de-usuarios-y-sesiones.md).
 - El estado del trabajo, sus artefactos, la auditoría y el evento de outbox se escriben en una sola transacción.
-- Los controladores dependen de los puertos de `modules/statements/statements.port.ts`, no de una implementación: `PERSISTENCE_MODE` decide cuál se inyecta.
+- PostgreSQL es obligatorio; no existe un modo sin persistencia. Ver [`ADR-0006`](../../docs/decisiones/ADR-0006-postgresql-como-unica-persistencia.md).
 - Los errores públicos son códigos estables; el detalle interno solo va al log del servidor.
 - El esquema Prisma implementa [`../../docs/_base_de_datos.md`](../../docs/_base_de_datos.md). El worker no recibe credenciales de PostgreSQL ni escribe tablas directamente.

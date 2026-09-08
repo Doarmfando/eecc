@@ -48,14 +48,13 @@ Cada persona entra con **su propio usuario y contraseña**. No hay registro abie
 
 La sesión vive en una cookie `httpOnly`, así que ningún script de la página puede leerla. El token es opaco y tiene fila propia en la base: revocar el acceso o cerrar sesión surte efecto en la petición siguiente, sin esperar a que caduque nada. Detalles en [`ADR-0005`](docs/decisiones/ADR-0005-identidad-de-usuarios-y-sesiones.md).
 
-## Los dos modos de persistencia
+## Persistencia
 
-Se elige con `PERSISTENCE_MODE` en el `.env` de la API. El contrato HTTP es idéntico en ambos.
+**PostgreSQL es obligatorio.** Ahí viven las personas, sus sesiones, el estado de los trabajos y la auditoría; los archivos van a disco tras el adaptador de almacenamiento.
 
-- **`database`** — el modo del producto: PostgreSQL para las personas, las sesiones y el estado de los trabajos, y disco para los archivos. **Es el único con inicio de sesión**, porque es donde viven los usuarios.
-- **`memory`** — no guarda nada: ni el PDF de origen, ni los resultados, ni una fila. Ni siquiera abre conexión a PostgreSQL. Sin base de datos no hay usuarios, así que se entra con una credencial de servicio. El historial se pierde al reiniciar.
+Existió un modo sin base de datos que no guardaba nada. Se retiró al añadir identidad de usuarios, porque sin base no hay dónde guardar personas y quedaba sin inicio de sesión: [`ADR-0006`](docs/decisiones/ADR-0006-postgresql-como-unica-persistencia.md) explica por qué y qué queda pendiente a cambio.
 
-Decisión, alternativas descartadas y límites en [`ADR-0004`](docs/decisiones/ADR-0004-modo-sin-persistencia.md).
+El esquema aplica minimización: **no existe tabla de movimientos bancarios**. Se guardan identificadores, estados, conteos y códigos, nunca los importes ni las descripciones extraídas ([`ADR-0002`](docs/decisiones/ADR-0002-postgresql-prisma-y-minimizacion-financiera.md)).
 
 ## Estructura
 

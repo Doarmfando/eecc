@@ -31,3 +31,4 @@ Los Architecture Decision Records (ADR) explican decisiones duraderas y sus cons
 - [`ADR-0003-csv-derivado-del-resultado-validado.md`](ADR-0003-csv-derivado-del-resultado-validado.md)
 - [`ADR-0004-modo-sin-persistencia.md`](ADR-0004-modo-sin-persistencia.md)
 - [`ADR-0005-identidad-de-usuarios-y-sesiones.md`](ADR-0005-identidad-de-usuarios-y-sesiones.md)
+- [`ADR-0006-postgresql-como-unica-persistencia.md`](ADR-0006-postgresql-como-unica-persistencia.md)

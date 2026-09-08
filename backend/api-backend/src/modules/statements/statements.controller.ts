@@ -9,7 +9,6 @@ import {
   UseGuards,
   UseInterceptors,
   BadRequestException,
-  Inject,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes, ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
@@ -18,7 +17,7 @@ import { API_KEY_HEADER } from '../../common/security/api-key.guard';
 import { AuthGuard } from '../../common/security/auth.guard';
 import { CurrentOrganization, type OrganizationContext } from '../../common/http/request-context';
 import { CreateStatementDto, JobResponseDto } from './dto/create-statement.dto';
-import { STATEMENT_PROCESSOR, type StatementProcessor } from './statements.port';
+import { StatementsService } from './statements.service';
 
 interface UploadedPdf {
   buffer: Buffer;
@@ -35,7 +34,7 @@ interface UploadedPdf {
 @Controller('statements')
 @UseGuards(AuthGuard)
 export class StatementsController {
-  constructor(@Inject(STATEMENT_PROCESSOR) private readonly statements: StatementProcessor) {}
+  constructor(private readonly statements: StatementsService) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)

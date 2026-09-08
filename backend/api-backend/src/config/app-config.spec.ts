@@ -1,4 +1,4 @@
-import { NodeEnvironment, PersistenceMode, parseCorsOrigins, validateConfig } from './app-config';
+import { NodeEnvironment, parseCorsOrigins, validateConfig } from './app-config';
 
 const BASE = {
   DATABASE_URL: 'postgresql://user:pass@127.0.0.1:5432/eecc',
@@ -40,47 +40,6 @@ describe('validateConfig', () => {
     } catch (error) {
       expect((error as Error).message).not.toContain('secreto-corto');
     }
-  });
-});
-
-describe('validateConfig sin persistencia', () => {
-  const MEMORY = {
-    PERSISTENCE_MODE: PersistenceMode.Memory,
-    EPHEMERAL_API_KEY: 'm'.repeat(48),
-  };
-
-  it('no exige DATABASE_URL ni FINGERPRINT_SECRET', () => {
-    const config = validateConfig({ ...MEMORY });
-
-    expect(config.PERSISTENCE_MODE).toEqual(PersistenceMode.Memory);
-    expect(config.EPHEMERAL_MAX_JOBS).toEqual(25);
-    expect(config.EPHEMERAL_TTL_MINUTES).toEqual(60);
-  });
-
-  it('exige en cambio una credencial con formato de credencial de servicio', () => {
-    expect(() => validateConfig({ PERSISTENCE_MODE: PersistenceMode.Memory })).toThrow(
-      /EPHEMERAL_API_KEY/,
-    );
-    expect(() => validateConfig({ ...MEMORY, EPHEMERAL_API_KEY: 'corta' })).toThrow(
-      /EPHEMERAL_API_KEY/,
-    );
-  });
-
-  it('convierte los límites del almacén en memoria que llegan como texto', () => {
-    const config = validateConfig({
-      ...MEMORY,
-      EPHEMERAL_MAX_JOBS: '5',
-      EPHEMERAL_TTL_MINUTES: '15',
-    });
-
-    expect(config.EPHEMERAL_MAX_JOBS).toEqual(5);
-    expect(config.EPHEMERAL_TTL_MINUTES).toEqual(15);
-  });
-
-  it('rechaza un modo de persistencia desconocido', () => {
-    expect(() => validateConfig({ ...BASE, PERSISTENCE_MODE: 'disco' })).toThrow(
-      /PERSISTENCE_MODE/,
-    );
   });
 });
 

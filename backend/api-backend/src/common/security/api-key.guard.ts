@@ -4,19 +4,13 @@ import {
   type CanActivate,
   type ExecutionContext,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { createHash, timingSafeEqual } from 'node:crypto';
 
-import type { AppConfig } from '../../config/app-config';
-import { isMemoryMode } from '../persistence/persistence-mode';
 import { PrismaService } from '../prisma/prisma.service';
 import type { RequestWithContext } from '../http/request-context';
 
 export const API_KEY_HEADER = 'x-api-key';
 const TOKEN_PATTERN = /^[A-Za-z0-9._-]{32,128}$/;
-
-/** Identificador de la credencial sintética del modo memoria; no existe en ninguna tabla. */
-export const EPHEMERAL_API_KEY_ID = '00000000-0000-4000-8000-0000000000ff';
 
 export function hashApiKey(token: string): string {
   return createHash('sha256').update(token, 'utf8').digest('hex');
@@ -28,10 +22,7 @@ export function hashApiKey(token: string): string {
  */
 @Injectable()
 export class ApiKeyGuard implements CanActivate {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly config: ConfigService<AppConfig, true>,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<RequestWithContext>();
@@ -41,22 +32,6 @@ export class ApiKeyGuard implements CanActivate {
     }
 
     const tokenHash = hashApiKey(presented);
-
-    // Sin base de datos no hay tabla de credenciales: se acepta exactamente una,
-    // la configurada, y siempre resuelve a la misma organización.
-    if (isMemoryMode(this.config)) {
-      const expected = hashApiKey(this.config.get('EPHEMERAL_API_KEY', { infer: true }));
-      if (!constantTimeEquals(expected, tokenHash)) {
-        throw new UnauthorizedException({ code: 'API_KEY_INVALID' });
-      }
-      request.organization = {
-        organizationId: this.config.get('EPHEMERAL_ORGANIZATION_ID', { infer: true }),
-        apiKeyId: EPHEMERAL_API_KEY_ID,
-        userId: null,
-        role: null,
-      };
-      return true;
-    }
 
     const apiKey = await this.prisma.apiKey.findUnique({
       where: { tokenHash },

@@ -144,7 +144,7 @@ describe('Sesión de usuario (e2e)', () => {
       .overrideProvider(PrismaService)
       .useValue(doble.prisma)
       .overrideProvider(WorkerClientService)
-      .useValue({ processStatement: jest.fn(), fetchArtifact: jest.fn(), discardJob: jest.fn() })
+      .useValue({ processStatement: jest.fn(), fetchArtifact: jest.fn() })
       .compile();
 
     app = moduleRef.createNestApplication();

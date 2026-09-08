@@ -2,7 +2,6 @@ import {
   Controller,
   Get,
   Header,
-  Inject,
   Param,
   ParseUUIDPipe,
   Query,
@@ -16,13 +15,9 @@ import { API_KEY_HEADER } from '../../common/security/api-key.guard';
 import { AuthGuard } from '../../common/security/auth.guard';
 import { CurrentOrganization, type OrganizationContext } from '../../common/http/request-context';
 import { JobResponseDto } from '../statements/dto/create-statement.dto';
-import {
-  ARTIFACT_DOWNLOADER,
-  JOB_READER,
-  type ArtifactDownloader,
-  type JobReader,
-} from '../statements/statements.port';
+import { ArtifactDownloadService } from '../statements/artifact-download.service';
 import { JobListDto, JobListQueryDto } from './dto/job-list.dto';
+import { JobsService } from './jobs.service';
 
 @ApiTags('jobs')
 @ApiHeader({
@@ -34,8 +29,8 @@ import { JobListDto, JobListQueryDto } from './dto/job-list.dto';
 @UseGuards(AuthGuard)
 export class JobsController {
   constructor(
-    @Inject(JOB_READER) private readonly jobs: JobReader,
-    @Inject(ARTIFACT_DOWNLOADER) private readonly downloads: ArtifactDownloader,
+    private readonly jobs: JobsService,
+    private readonly downloads: ArtifactDownloadService,
   ) {}
 
   @Get()
