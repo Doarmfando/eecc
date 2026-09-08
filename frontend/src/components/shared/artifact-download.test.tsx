@@ -2,7 +2,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { renderWithProviders, TEST_API_KEY } from '@/test/render';
+import { renderWithProviders } from '@/test/render';
 
 import { ArtifactList } from './artifact-list';
 
@@ -42,7 +42,10 @@ describe('descarga de artefactos', () => {
     });
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe(`http://127.0.0.1:3000/v1/jobs/${JOB_ID}/artifacts/${ARTIFACT_ID}/content`);
-    expect((init.headers as Record<string, string>)['x-api-key']).toBe(TEST_API_KEY);
+    // La autorización viaja en la cookie httpOnly, no en una cabecera que el
+    // navegador pueda leer: lo que se comprueba es que se envíen credenciales.
+    expect(init.credentials).toBe('include');
+    expect((init.headers as Record<string, string> | undefined)?.['x-api-key']).toBeUndefined();
     expect(saveBlob.mock.calls[0]?.[1]).toBe(`${JOB_ID}.xlsx`);
   });
 
@@ -64,14 +67,14 @@ describe('descarga de artefactos', () => {
     expect(saveBlob).not.toHaveBeenCalled();
   });
 
-  it('no intenta descargar sin credencial', async () => {
+  it('no intenta descargar sin sesión', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    renderWithProviders(<ArtifactList jobId={JOB_ID} artifacts={ARTIFACTS} />, { apiKey: '' });
+    renderWithProviders(<ArtifactList jobId={JOB_ID} artifacts={ARTIFACTS} />, { usuario: null });
 
     await userEvent.setup().click(screen.getByRole('button', { name: /Descargar/ }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('credencial');
+    expect(await screen.findByRole('alert')).toHaveTextContent('iniciar sesión');
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

@@ -18,11 +18,12 @@ export interface UploadFormValues {
 }
 
 export function UploadForm({
-  disabled,
+  disabled = false,
   pending,
   onSubmit,
 }: {
-  disabled: boolean;
+  /** Reservado para estados en los que el envío no procede; por defecto, activo. */
+  disabled?: boolean;
   pending: boolean;
   onSubmit: (values: UploadFormValues) => void;
 }): ReactNode {

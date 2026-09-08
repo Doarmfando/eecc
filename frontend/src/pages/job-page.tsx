@@ -2,7 +2,6 @@ import { ArrowLeft, Loader2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
-import { useApiConfig } from '@/app/use-api-config';
 import { Alert } from '@/components/ui/alert';
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
 import { JobSummary } from '@/features/statements/job-summary';
@@ -12,7 +11,6 @@ import { isTerminal } from '@/types/job';
 
 export function JobPage(): ReactNode {
   const { jobId } = useParams<{ jobId: string }>();
-  const { apiKey } = useApiConfig();
   const query = useJob(jobId);
 
   return (
@@ -25,13 +23,7 @@ export function JobPage(): ReactNode {
         Volver a cargar otro documento
       </Link>
 
-      {apiKey.length === 0 ? (
-        <Alert variant="warning" title="Necesitas una credencial para consultar este trabajo">
-          Vuelve al inicio y escribe la credencial de tu organización.
-        </Alert>
-      ) : null}
-
-      {query.isPending && apiKey.length > 0 ? (
+      {query.isPending ? (
         <Card>
           <div className="flex items-center gap-3">
             <Loader2 aria-hidden className="size-5 animate-spin text-slate-500" />

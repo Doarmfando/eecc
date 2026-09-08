@@ -35,12 +35,25 @@ Tres piezas con responsabilidades separadas:
 
 El frontend habla solo con la API; la API es lo único que habla con el worker.
 
+## Acceso
+
+Cada persona entra con **su propio usuario y contraseña**. No hay registro abierto: las cuentas las crea quien administra la organización, desde la sección *Personas*.
+
+| Rol | Qué puede hacer |
+| --- | --- |
+| `OWNER` | Todo, incluido gestionar a otros propietarios |
+| `ADMIN` | Gestiona personas y procesa documentos |
+| `MEMBER` | Procesa documentos y consulta el historial |
+| `VIEWER` | Solo consulta el historial |
+
+La sesión vive en una cookie `httpOnly`, así que ningún script de la página puede leerla. El token es opaco y tiene fila propia en la base: revocar el acceso o cerrar sesión surte efecto en la petición siguiente, sin esperar a que caduque nada. Detalles en [`ADR-0005`](docs/decisiones/ADR-0005-identidad-de-usuarios-y-sesiones.md).
+
 ## Los dos modos de persistencia
 
 Se elige con `PERSISTENCE_MODE` en el `.env` de la API. El contrato HTTP es idéntico en ambos.
 
-- **`memory`** — no guarda nada: ni el PDF de origen, ni los resultados, ni una fila. Ni siquiera abre conexión a PostgreSQL. El historial se pierde al reiniciar. Es el modo para trabajar con documentos reales sin retener información financiera.
-- **`database`** — el modo del producto: PostgreSQL para el estado de los trabajos y disco para los archivos.
+- **`database`** — el modo del producto: PostgreSQL para las personas, las sesiones y el estado de los trabajos, y disco para los archivos. **Es el único con inicio de sesión**, porque es donde viven los usuarios.
+- **`memory`** — no guarda nada: ni el PDF de origen, ni los resultados, ni una fila. Ni siquiera abre conexión a PostgreSQL. Sin base de datos no hay usuarios, así que se entra con una credencial de servicio. El historial se pierde al reiniciar.
 
 Decisión, alternativas descartadas y límites en [`ADR-0004`](docs/decisiones/ADR-0004-modo-sin-persistencia.md).
 

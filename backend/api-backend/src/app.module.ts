@@ -3,7 +3,8 @@ import { ConfigModule } from '@nestjs/config';
 
 import { RequestIdMiddleware } from './common/http/request-id.middleware';
 import { PrismaModule } from './common/prisma/prisma.module';
-import { ApiKeyGuard } from './common/security/api-key.guard';
+import { AuthModule } from './modules/auth/auth.module';
+import { UsersModule } from './modules/users/users.module';
 import { validateConfig } from './config/app-config';
 import { EphemeralModule } from './modules/ephemeral/ephemeral.module';
 import { HealthModule } from './modules/health/health.module';
@@ -19,11 +20,12 @@ import { StatementsModule } from './modules/statements/statements.module';
     }),
     PrismaModule,
     EphemeralModule,
+    AuthModule,
+    UsersModule,
     HealthModule,
     StatementsModule,
     JobsModule,
   ],
-  providers: [ApiKeyGuard],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {

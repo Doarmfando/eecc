@@ -18,6 +18,8 @@ Después:
 - El proyecto convierte **estados de cuenta bancarios** en PDF a XLSX/CSV validados. No es un conversor genérico y no debe evolucionar hacia uno.
 - Tres piezas: `backend/pdf-worker` (Python, todo lo que sabe de PDF), `backend/api-backend` (NestJS, autoriza y orquesta, **nunca abre un PDF**) y `frontend` (React).
 - La API tiene dos modos de persistencia, elegidos con `PERSISTENCE_MODE`. En `memory` no escribe nada en ningún disco; en `database` usa PostgreSQL. Ver [`ADR-0004`](docs/decisiones/ADR-0004-modo-sin-persistencia.md).
+- Las personas entran con usuario y contraseña, y la sesión es una cookie `httpOnly` con token opaco en la tabla `sessions`. Las altas las hace un administrador; no hay registro abierto. Ver [`ADR-0005`](docs/decisiones/ADR-0005-identidad-de-usuarios-y-sesiones.md).
+- Nunca guardes una contraseña en claro ni la registres: se derivan con `scrypt` en `modules/auth/password-hash.ts`.
 - Los importes se manejan con `Decimal`, nunca con coma flotante.
 - Los documentos de `referencias/` pueden contener **información financiera real**. No los abras salvo que la tarea lo exija, y nunca los pongas en registros ni los envíes a servicios externos. Para pruebas hay generadores sintéticos en `backend/pdf-worker/tests/support/`.
 

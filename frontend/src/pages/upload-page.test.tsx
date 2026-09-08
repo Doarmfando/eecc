@@ -26,6 +26,15 @@ const JOB = {
   reused: false,
 };
 
+const SESION = {
+  userId: '11111111-1111-4111-8111-111111111111',
+  email: 'persona@empresa.pe',
+  displayName: 'Persona de prueba',
+  organizationId: '22222222-2222-4222-8222-222222222222',
+  organizationName: 'Organización de prueba',
+  role: 'MEMBER',
+};
+
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -41,10 +50,12 @@ function renderApp(client: QueryClient = createQueryClient()): void {
   );
 }
 
-async function submitCredential(): Promise<void> {
-  const user = userEvent.setup();
-  await user.type(screen.getByLabelText('Credencial'), 'k'.repeat(48));
-  await user.click(screen.getByRole('button', { name: 'Usar credencial' }));
+/**
+ * La aplicación pregunta al servidor si hay sesión antes de dibujar nada, porque
+ * la cookie es httpOnly y no puede leerla. Se espera a que aparezca el formulario.
+ */
+async function esperarSesion(): Promise<void> {
+  await screen.findByLabelText('Estado de cuenta en PDF');
 }
 
 function pdfFile(name = 'estado.pdf'): File {
@@ -62,6 +73,9 @@ function routedFetch(uploadResponse: () => Response): ReturnType<typeof vi.fn> {
     if ((init?.method ?? 'GET') !== 'GET') {
       return Promise.resolve(uploadResponse());
     }
+    if (url.includes('/v1/auth/me')) {
+      return Promise.resolve(jsonResponse(200, SESION));
+    }
     const isHistory = /\/v1\/jobs(\?|$)/.test(url);
     return Promise.resolve(isHistory ? jsonResponse(200, EMPTY_HISTORY) : jsonResponse(200, JOB));
   });
@@ -76,23 +90,34 @@ afterEach(() => {
 });
 
 describe('UploadPage', () => {
-  it('mantiene el envío deshabilitado hasta que hay credencial', async () => {
+  it('lleva al inicio de sesión cuando no hay ninguna activa', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse(401, { code: 'AUTHENTICATION_REQUIRED' })),
+    );
     renderApp();
 
-    expect(screen.getByRole('button', { name: /Procesar estado de cuenta/ })).toBeDisabled();
-    expect(screen.getByText(/Escribe tu credencial/)).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Entrar' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Estado de cuenta en PDF')).not.toBeInTheDocument();
+  });
 
-    await submitCredential();
+  it('muestra el formulario de carga con la sesión resuelta', async () => {
+    vi.stubGlobal(
+      'fetch',
+      routedFetch(() => jsonResponse(201, JOB)),
+    );
+    renderApp();
+    await esperarSesion();
 
     expect(screen.getByRole('button', { name: /Procesar estado de cuenta/ })).toBeEnabled();
-    expect(screen.getByText('Sesión activa')).toBeInTheDocument();
+    expect(screen.getByText('Persona de prueba')).toBeInTheDocument();
   });
 
   it('rechaza en el borde un archivo vacío, sin llamar al servidor', async () => {
     const fetchMock = routedFetch(() => jsonResponse(201, JOB));
     vi.stubGlobal('fetch', fetchMock);
     renderApp();
-    await submitCredential();
+    await esperarSesion();
 
     const user = userEvent.setup();
     await user.upload(
@@ -109,7 +134,7 @@ describe('UploadPage', () => {
     const fetchMock = routedFetch(() => jsonResponse(201, JOB));
     vi.stubGlobal('fetch', fetchMock);
     renderApp();
-    await submitCredential();
+    await esperarSesion();
 
     const user = userEvent.setup();
     await user.upload(screen.getByLabelText('Estado de cuenta en PDF'), pdfFile());
@@ -128,7 +153,10 @@ describe('UploadPage', () => {
     let resolveResponse: (value: Response) => void = () => undefined;
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+        if (url.includes('/v1/auth/me')) {
+          return Promise.resolve(jsonResponse(200, SESION));
+        }
         if ((init?.method ?? 'GET') === 'GET') {
           return Promise.resolve(jsonResponse(200, EMPTY_HISTORY));
         }
@@ -138,7 +166,7 @@ describe('UploadPage', () => {
       }),
     );
     renderApp();
-    await submitCredential();
+    await esperarSesion();
 
     const user = userEvent.setup();
     await user.upload(screen.getByLabelText('Estado de cuenta en PDF'), pdfFile());
@@ -161,7 +189,7 @@ describe('UploadPage', () => {
       ),
     );
     renderApp();
-    await submitCredential();
+    await esperarSesion();
 
     const user = userEvent.setup();
     await user.upload(screen.getByLabelText('Estado de cuenta en PDF'), pdfFile());

@@ -1,19 +1,29 @@
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
-import { FileClock, FileSpreadsheet, Home } from 'lucide-react';
+import { FileClock, FileSpreadsheet, Home, LogOut, Users } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
-import { Link, NavLink, Route, Routes } from 'react-router-dom';
+import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import { Alert } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { JobPage } from '@/pages/job-page';
+import { LoginPage } from '@/pages/login-page';
+import { MembersPage } from '@/pages/members-page';
 import { UploadPage } from '@/pages/upload-page';
 
-import { ApiConfigProvider } from './api-config';
 import { createQueryClient } from './query-client';
-import { useApiConfig } from './use-api-config';
+import { SessionProvider } from './session-provider';
+import { useSession } from './use-session';
+
+const ETIQUETAS_DE_ROL: Record<string, string> = {
+  OWNER: 'Propietario',
+  ADMIN: 'Administrador',
+  MEMBER: 'Miembro',
+  VIEWER: 'Lectura',
+};
 
 function Header(): ReactNode {
-  const { apiKey } = useApiConfig();
+  const { usuario, cerrar } = useSession();
 
   return (
     <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-4 sm:px-6">
@@ -21,16 +31,26 @@ function Header(): ReactNode {
         <FileSpreadsheet aria-hidden className="size-5 text-primary" />
         Conversor de estados de cuenta
       </Link>
-      <span
-        className={cn(
-          'inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium',
-          apiKey.length > 0
-            ? 'border-success/40 bg-success/10 text-success'
-            : 'border-border bg-muted text-muted-foreground',
-        )}
-      >
-        {apiKey.length > 0 ? 'Conectado' : 'Sin credencial'}
-      </span>
+
+      {usuario ? (
+        <div className="flex items-center gap-4">
+          <div className="hidden text-right text-xs leading-tight sm:block">
+            <div className="font-medium text-foreground">{usuario.displayName}</div>
+            <div className="text-muted-foreground">
+              {usuario.organizationName} · {ETIQUETAS_DE_ROL[usuario.role] ?? usuario.role}
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => {
+              void cerrar();
+            }}
+          >
+            <LogOut aria-hidden className="size-4" />
+            Salir
+          </Button>
+        </div>
+      ) : null}
     </header>
   );
 }
@@ -39,7 +59,7 @@ const navLinkClass =
   'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground';
 
 function Sidebar(): ReactNode {
-  const { apiKey } = useApiConfig();
+  const { puedeAdministrar } = useSession();
 
   return (
     <aside
@@ -56,11 +76,20 @@ function Sidebar(): ReactNode {
         <Home aria-hidden className="size-4" />
         Nuevo documento
       </NavLink>
-      {apiKey.length > 0 ? (
-        <Link to={{ pathname: '/', hash: '#documentos-procesados' }} className={navLinkClass}>
-          <FileClock aria-hidden className="size-4" />
-          Historial
-        </Link>
+      <Link to={{ pathname: '/', hash: '#documentos-procesados' }} className={navLinkClass}>
+        <FileClock aria-hidden className="size-4" />
+        Historial
+      </Link>
+      {puedeAdministrar ? (
+        <NavLink
+          to="/personas"
+          className={({ isActive }) =>
+            cn(navLinkClass, isActive && 'bg-accent text-accent-foreground')
+          }
+        >
+          <Users aria-hidden className="size-4" />
+          Personas
+        </NavLink>
       ) : null}
     </aside>
   );
@@ -81,11 +110,45 @@ function Layout({ children }: { children: ReactNode }): ReactNode {
       <Header />
       <div className="flex flex-1">
         <Sidebar />
-        <main className="mx-auto w-full max-w-3xl flex-1 p-6">{children}</main>
+        <main className="mx-auto w-full max-w-5xl flex-1 p-6">{children}</main>
       </div>
       <Footer />
     </div>
   );
+}
+
+/**
+ * Puerta de las rutas con sesión.
+ *
+ * Mientras el estado es `cargando` no se decide nada: redirigir en ese momento
+ * expulsaría al login a quien sí tiene sesión cada vez que recarga la página,
+ * porque la cookie es httpOnly y solo el servidor puede confirmarla.
+ */
+function RutaProtegida({
+  children,
+  soloAdmin,
+}: {
+  children: ReactNode;
+  soloAdmin?: boolean;
+}): ReactNode {
+  const { estado, puedeAdministrar } = useSession();
+  const location = useLocation();
+
+  if (estado === 'cargando') {
+    return <p className="text-sm text-muted-foreground">Comprobando la sesión...</p>;
+  }
+  if (estado === 'anonimo') {
+    // Se recuerda a dónde iba para volver ahí después de entrar.
+    return <Navigate to="/entrar" replace state={{ desde: location.pathname }} />;
+  }
+  if (soloAdmin && !puedeAdministrar) {
+    return (
+      <Alert variant="warning" title="No tienes permisos para esta sección">
+        Solo quien administra la organización puede gestionar personas.
+      </Alert>
+    );
+  }
+  return children;
 }
 
 function NotFoundPage(): ReactNode {
@@ -98,20 +161,61 @@ function NotFoundPage(): ReactNode {
   );
 }
 
+/** El login queda fuera del armazón: sin sesión no hay navegación que mostrar. */
+function Contenido(): ReactNode {
+  return (
+    <Routes>
+      <Route path="/entrar" element={<LoginPage />} />
+      <Route
+        path="/"
+        element={
+          <Layout>
+            <RutaProtegida>
+              <UploadPage />
+            </RutaProtegida>
+          </Layout>
+        }
+      />
+      <Route
+        path="/jobs/:jobId"
+        element={
+          <Layout>
+            <RutaProtegida>
+              <JobPage />
+            </RutaProtegida>
+          </Layout>
+        }
+      />
+      <Route
+        path="/personas"
+        element={
+          <Layout>
+            <RutaProtegida soloAdmin>
+              <MembersPage />
+            </RutaProtegida>
+          </Layout>
+        }
+      />
+      <Route
+        path="*"
+        element={
+          <Layout>
+            <NotFoundPage />
+          </Layout>
+        }
+      />
+    </Routes>
+  );
+}
+
 export function App({ queryClient }: { queryClient?: QueryClient }): ReactNode {
   const [client] = useState(() => queryClient ?? createQueryClient());
 
   return (
     <QueryClientProvider client={client}>
-      <ApiConfigProvider>
-        <Layout>
-          <Routes>
-            <Route path="/" element={<UploadPage />} />
-            <Route path="/jobs/:jobId" element={<JobPage />} />
-            <Route path="*" element={<NotFoundPage />} />
-          </Routes>
-        </Layout>
-      </ApiConfigProvider>
+      <SessionProvider>
+        <Contenido />
+      </SessionProvider>
     </QueryClientProvider>
   );
 }

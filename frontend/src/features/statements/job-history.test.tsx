@@ -79,10 +79,10 @@ describe('JobHistory', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('credencial');
   });
 
-  it('no consulta el historial sin credencial', async () => {
+  it('no consulta el historial sin sesión', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    renderWithProviders(<JobHistory />, { apiKey: '' });
+    renderWithProviders(<JobHistory />, { usuario: null });
 
     await waitFor(() => {
       expect(screen.getByText(/Cargando el historial/)).toBeInTheDocument();

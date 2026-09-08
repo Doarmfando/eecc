@@ -41,6 +41,7 @@ $raiz = $PSScriptRoot
 # --- Salida legible ---------------------------------------------------------
 
 $script:Pasos = @()
+$script:AccesoSembrado = $null
 
 function Write-Titulo($texto) {
     Write-Host ''
@@ -192,6 +193,32 @@ if ($faltan.Count -gt 0) {
 Write-Ok "Node $(node --version)"
 Write-Ok "Python $(& $python --version 2>&1)"
 
+# Con la API en marcha, Windows mantiene bloqueado el motor de Prisma y regenerarlo
+# falla con un EPERM que no explica nada. Mejor detenerse aquí y decir por qué.
+$enMarcha = @()
+foreach ($servicio in @(
+    @{ Nombre = 'api'; Puerto = 3000 }
+    @{ Nombre = 'worker'; Puerto = 8010 }
+    @{ Nombre = 'worker'; Puerto = 8000 }
+    @{ Nombre = 'frontend'; Puerto = 5173 }
+)) {
+    if (Get-NetTCPConnection -LocalPort $servicio.Puerto -State Listen -ErrorAction SilentlyContinue) {
+        $enMarcha += "$($servicio.Nombre) (puerto $($servicio.Puerto))"
+    }
+}
+if ($enMarcha.Count -gt 0) {
+    Write-Host ''
+    Write-Host 'Hay servicios del proyecto en marcha:' -ForegroundColor Red
+    $enMarcha | ForEach-Object { Write-Host "  - $_" -ForegroundColor Red }
+    Write-Host ''
+    Write-Host 'Deténlos antes de instalar: con ellos abiertos, Windows no deja' -ForegroundColor Red
+    Write-Host 'reemplazar los archivos en uso.' -ForegroundColor Red
+    Write-Host '  .\ejecutar.ps1 -Detener' -ForegroundColor Red
+    Write-Host ''
+    exit 1
+}
+Write-Ok 'Ningún servicio del proyecto ocupa sus puertos'
+
 # --- 2. Worker Python -------------------------------------------------------
 
 Write-Titulo 'Worker de extracción (Python)'
@@ -274,7 +301,42 @@ if ($Modo -eq 'memoria') {
 } else {
     Set-ValorEnv -Archivo $envApi -Clave 'PERSISTENCE_MODE' -Valor 'database' -Sobrescribir | Out-Null
     Write-Ok 'Modo con base de datos activado (PERSISTENCE_MODE=database)'
-    Write-Aviso 'Falta levantar PostgreSQL y migrar: docker compose up -d postgres; cd backend\api-backend; npm run prisma:migrate; npm run prisma:seed'
+
+    # Con base de datos hacen falta las tablas y una primera persona: sin eso no hay
+    # forma de entrar, porque este producto no tiene registro abierto.
+    $postgresVivo = $null -ne (Get-NetTCPConnection -LocalPort 5432 -State Listen -ErrorAction SilentlyContinue)
+    if (-not $postgresVivo) {
+        Write-Host '   ... PostgreSQL no responde; intentando levantarlo' -ForegroundColor DarkGray
+        try {
+            & (Join-Path $dirApi 'scripts\local-postgres.ps1') -Action start | Out-Null
+            $postgresVivo = $null -ne (Get-NetTCPConnection -LocalPort 5432 -State Listen -ErrorAction SilentlyContinue)
+        } catch {
+            $postgresVivo = $false
+        }
+    }
+
+    if ($postgresVivo) {
+        Write-Ok 'PostgreSQL responde en 127.0.0.1:5432'
+        Invoke-Externo -Archivo 'npm.cmd' -Argumentos @('run', 'prisma:deploy') `
+            -Directorio $dirApi -Descripcion 'Aplicando migraciones'
+        Write-Ok 'Migraciones aplicadas'
+
+        # La semilla respeta a una persona que ya exista, así que reinstalar es seguro.
+        Write-Host '   ... Preparando la primera cuenta de acceso' -ForegroundColor DarkGray
+        $salidaSemilla = Join-Path $env:TEMP "eecc-semilla-$([guid]::NewGuid().ToString('N')).log"
+        $semilla = Start-Process -FilePath 'npm.cmd' -ArgumentList @('run', 'prisma:seed') `
+            -WorkingDirectory $dirApi -NoNewWindow -Wait -PassThru `
+            -RedirectStandardOutput $salidaSemilla -RedirectStandardError "$salidaSemilla.err"
+        if ($semilla.ExitCode -eq 0) {
+            $script:AccesoSembrado = Get-Content -Path $salidaSemilla -Raw -Encoding utf8 -ErrorAction SilentlyContinue
+            Write-Ok 'Cuenta de acceso lista'
+        } else {
+            Write-Aviso 'La semilla falló. Ejecuta a mano: cd backend\api-backend; npm run prisma:seed'
+        }
+        Remove-Item -Path $salidaSemilla, "$salidaSemilla.err" -Force -ErrorAction SilentlyContinue
+    } else {
+        Write-Aviso 'No se pudo levantar PostgreSQL. Arráncalo y ejecuta: cd backend\api-backend; npm run prisma:deploy; npm run prisma:seed'
+    }
 }
 
 # El puerto del worker lo manda la API: si no coinciden, la subida falla con
@@ -312,10 +374,30 @@ Write-Host ' Instalación terminada' -ForegroundColor Cyan
 Write-Host '========================================================' -ForegroundColor Cyan
 Write-Host ''
 Write-Host " Modo configurado : $Modo"
-Write-Host " Credencial       : $credencial" -ForegroundColor Yellow
 Write-Host ''
-Write-Host ' Esa credencial es la que pide el frontend. Está guardada en'
-Write-Host ' backend\api-backend\.env por si la pierdes.'
+
+if ($Modo -eq 'base-de-datos') {
+    if ($script:AccesoSembrado) {
+        Write-Host ' Entra en la aplicación con estos datos:' -ForegroundColor Yellow
+        Write-Host ''
+        foreach ($linea in ($script:AccesoSembrado -split "`n")) {
+            if ($linea -match '^(organizaci|correo|contrase|La persona)') {
+                Write-Host "   $($linea.Trim())" -ForegroundColor Yellow
+            }
+        }
+        Write-Host ''
+        Write-Host ' Guárdalos: la contraseña no vuelve a mostrarse.'
+        Write-Host ' Las demás cuentas se crean desde la propia aplicación, en Personas.'
+    } else {
+        Write-Host ' Cada persona entra con su usuario y contraseña.'
+        Write-Host ' Crea la primera con: cd backend\api-backend; npm run prisma:seed'
+    }
+} else {
+    Write-Host " Credencial       : $credencial" -ForegroundColor Yellow
+    Write-Host ''
+    Write-Host ' En modo memoria no hay usuarios: se entra con esa credencial, guardada'
+    Write-Host ' en backend\api-backend\.env por si la pierdes.'
+}
 Write-Host ''
 Write-Host ' Siguiente paso:' -ForegroundColor Green
 Write-Host '   .\ejecutar.ps1' -ForegroundColor Green

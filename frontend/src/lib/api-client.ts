@@ -4,7 +4,11 @@ import { ApiError } from './api-error';
 
 export interface ApiClientOptions {
   baseUrl: string;
-  apiKey: string;
+  /**
+   * Credencial de servicio, solo para integraciones. En el navegador se deja vacía:
+   * la sesión viaja en una cookie httpOnly que este código no puede ni leer.
+   */
+  apiKey?: string;
 }
 
 export interface UploadStatementInput {
@@ -16,6 +20,10 @@ export interface UploadStatementInput {
 }
 
 function joinUrl(baseUrl: string, path: string): string {
+  // Sin base configurada, la API vive en el mismo origen que la página.
+  if (!baseUrl) {
+    return `/${path}`;
+  }
   return new URL(path, baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`).toString();
 }
 
@@ -47,7 +55,11 @@ async function request(
 ): Promise<unknown> {
   const init: RequestInit = {
     method: input.method,
-    headers: { 'x-api-key': options.apiKey, ...input.headers },
+    credentials: 'include',
+    headers: {
+      ...(options.apiKey ? { 'x-api-key': options.apiKey } : {}),
+      ...input.headers,
+    },
   };
   if (input.body) {
     init.body = input.body;
@@ -152,7 +164,8 @@ export async function downloadArtifact(
   try {
     response = await fetch(joinUrl(options.baseUrl, path), {
       method: 'GET',
-      headers: { 'x-api-key': options.apiKey },
+      credentials: 'include',
+      ...(options.apiKey ? { headers: { 'x-api-key': options.apiKey } } : {}),
     });
   } catch {
     throw new ApiError('NETWORK_ERROR', 0);

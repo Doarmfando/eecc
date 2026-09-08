@@ -52,6 +52,8 @@ export class ApiKeyGuard implements CanActivate {
       request.organization = {
         organizationId: this.config.get('EPHEMERAL_ORGANIZATION_ID', { infer: true }),
         apiKeyId: EPHEMERAL_API_KEY_ID,
+        userId: null,
+        role: null,
       };
       return true;
     }
@@ -76,7 +78,14 @@ export class ApiKeyGuard implements CanActivate {
       throw new UnauthorizedException({ code: 'API_KEY_INVALID' });
     }
 
-    request.organization = { organizationId: apiKey.organizationId, apiKeyId: apiKey.id };
+    // Una credencial de servicio no representa a nadie: sin usuario y sin rol,
+    // por lo que `RolesGuard` la rechaza en las rutas de gestión de personas.
+    request.organization = {
+      organizationId: apiKey.organizationId,
+      apiKeyId: apiKey.id,
+      userId: null,
+      role: null,
+    };
     return true;
   }
 }

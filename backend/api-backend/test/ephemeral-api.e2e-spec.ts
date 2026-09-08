@@ -99,7 +99,7 @@ describe('API pública sin persistencia (e2e)', () => {
       .post('/v1/statements')
       .attach('document', PDF, 'estado.pdf')
       .expect(401);
-    expect(anonymous.body.code).toEqual('API_KEY_REQUIRED');
+    expect(anonymous.body.code).toEqual('AUTHENTICATION_REQUIRED');
 
     const wrong = await request(app.getHttpServer())
       .post('/v1/statements')

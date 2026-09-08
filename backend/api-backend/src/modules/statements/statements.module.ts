@@ -3,6 +3,7 @@ import { MulterModule } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
 
 import { isMemoryMode } from '../../common/persistence/persistence-mode';
+import { AuthModule } from '../auth/auth.module';
 import type { AppConfig } from '../../config/app-config';
 import { EphemeralStatementsService } from '../ephemeral/ephemeral-statements.service';
 import { StorageModule } from '../storage/storage.module';
@@ -13,6 +14,7 @@ import { STATEMENT_PROCESSOR, type StatementProcessor } from './statements.port'
 
 @Module({
   imports: [
+    AuthModule,
     StorageModule,
     WorkerClientModule,
     MulterModule.registerAsync({

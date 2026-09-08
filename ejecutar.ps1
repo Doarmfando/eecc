@@ -296,8 +296,15 @@ if (-not $SinFrontend) {
 Write-Host "  API:        http://127.0.0.1:$puertoApi   (OpenAPI en /docs)"
 Write-Host "  Worker:     http://127.0.0.1:$puertoWorker"
 Write-Host ''
-Write-Host '  Credencial: ' -NoNewline
-Write-Host $credencial -ForegroundColor Yellow
+if ($persistencia -eq 'memory') {
+    # Sin base de datos no hay usuarios: se entra con la credencial de servicio.
+    Write-Host '  Credencial: ' -NoNewline
+    Write-Host $credencial -ForegroundColor Yellow
+} else {
+    Write-Host '  Acceso:     ' -NoNewline
+    Write-Host 'entra con tu correo y contraseña' -ForegroundColor Yellow
+    Write-Host '              ¿Aún sin cuenta? cd backend\api-backend; npm run prisma:seed'
+}
 Write-Host ''
 Write-Host "  Modo:       $persistencia ($descripcion)"
 Write-Host ''

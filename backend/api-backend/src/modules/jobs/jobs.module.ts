@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { isMemoryMode } from '../../common/persistence/persistence-mode';
+import { AuthModule } from '../auth/auth.module';
 import type { AppConfig } from '../../config/app-config';
 import { EphemeralArtifactDownloadService } from '../ephemeral/ephemeral-artifact-download.service';
 import { EphemeralJobsService } from '../ephemeral/ephemeral-jobs.service';
@@ -18,7 +19,7 @@ import { JobsController } from './jobs.controller';
 import { JobsService } from './jobs.service';
 
 @Module({
-  imports: [StorageModule, WorkerClientModule],
+  imports: [AuthModule, StorageModule, WorkerClientModule],
   controllers: [JobsController],
   providers: [
     JobsService,

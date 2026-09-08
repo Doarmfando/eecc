@@ -3,30 +3,41 @@ import { render, type RenderResult } from '@testing-library/react';
 import type { ReactElement, ReactNode } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 
-import { ApiConfigContext, type ApiConfigValue } from '@/app/api-config-context';
 import { createQueryClient } from '@/app/query-client';
+import { SessionContext, type SessionValue } from '@/app/session-context';
+import type { SessionUser } from '@/lib/session-client';
 
-export const TEST_API_KEY = 'k'.repeat(48);
 export const TEST_BASE_URL = 'http://127.0.0.1:3000';
+
+export const TEST_USER: SessionUser = {
+  userId: '11111111-1111-4111-8111-111111111111',
+  email: 'persona@empresa.pe',
+  displayName: 'Persona de prueba',
+  organizationId: '22222222-2222-4222-8222-222222222222',
+  organizationName: 'Organización de prueba',
+  role: 'ADMIN',
+};
 
 /** Envuelve con los mismos proveedores que la aplicación real. */
 export function renderWithProviders(
   ui: ReactElement,
-  { apiKey = TEST_API_KEY }: { apiKey?: string } = {},
+  { usuario = TEST_USER }: { usuario?: SessionUser | null } = {},
 ): RenderResult {
-  const value: ApiConfigValue = {
+  const value: SessionValue = {
     baseUrl: TEST_BASE_URL,
-    apiKey,
-    setApiKey: () => undefined,
-    options: apiKey ? { baseUrl: TEST_BASE_URL, apiKey } : null,
+    estado: usuario ? 'autenticado' : 'anonimo',
+    usuario,
+    establecer: () => undefined,
+    cerrar: () => Promise.resolve(),
+    puedeAdministrar: usuario !== null && (usuario.role === 'OWNER' || usuario.role === 'ADMIN'),
   };
 
   function Wrapper({ children }: { children: ReactNode }): ReactNode {
     return (
       <QueryClientProvider client={createQueryClient()}>
-        <ApiConfigContext value={value}>
+        <SessionContext value={value}>
           <MemoryRouter>{children}</MemoryRouter>
-        </ApiConfigContext>
+        </SessionContext>
       </QueryClientProvider>
     );
   }

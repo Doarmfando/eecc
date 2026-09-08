@@ -113,6 +113,15 @@ export class AppConfig {
   /** Orígenes autorizados del navegador, separados por coma. Vacío desactiva CORS. */
   @IsString()
   CORS_ORIGINS = '';
+
+  /**
+   * Horas que dura una sesión de navegador. Corta a propósito: son documentos
+   * financieros y un equipo compartido no debería quedar abierto de un día para otro.
+   */
+  @IsInt()
+  @Min(1)
+  @Max(720)
+  SESSION_TTL_HOURS = 12;
 }
 
 /** Lista explícita: nunca se responde con comodín a un origen desconocido. */
@@ -129,6 +138,7 @@ const NUMERIC_KEYS = new Set<keyof AppConfig>([
   'MAX_UPLOAD_BYTES',
   'EPHEMERAL_MAX_JOBS',
   'EPHEMERAL_TTL_MINUTES',
+  'SESSION_TTL_HOURS',
 ]);
 
 export function validateConfig(raw: Record<string, unknown>): AppConfig {

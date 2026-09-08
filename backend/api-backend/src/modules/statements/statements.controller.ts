@@ -14,7 +14,8 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes, ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 
-import { API_KEY_HEADER, ApiKeyGuard } from '../../common/security/api-key.guard';
+import { API_KEY_HEADER } from '../../common/security/api-key.guard';
+import { AuthGuard } from '../../common/security/auth.guard';
 import { CurrentOrganization, type OrganizationContext } from '../../common/http/request-context';
 import { CreateStatementDto, JobResponseDto } from './dto/create-statement.dto';
 import { STATEMENT_PROCESSOR, type StatementProcessor } from './statements.port';
@@ -26,9 +27,13 @@ interface UploadedPdf {
 }
 
 @ApiTags('statements')
-@ApiHeader({ name: API_KEY_HEADER, required: true, description: 'Credencial de servicio' })
+@ApiHeader({
+  name: API_KEY_HEADER,
+  required: false,
+  description: 'Credencial de servicio; alternativa a la cookie de sesión',
+})
 @Controller('statements')
-@UseGuards(ApiKeyGuard)
+@UseGuards(AuthGuard)
 export class StatementsController {
   constructor(@Inject(STATEMENT_PROCESSOR) private readonly statements: StatementProcessor) {}
 
@@ -54,6 +59,7 @@ export class StatementsController {
 
     return this.statements.process({
       organizationId: organization.organizationId,
+      userId: organization.userId,
       content: document.buffer,
       fileName: document.originalname,
       mimeType: document.mimetype,

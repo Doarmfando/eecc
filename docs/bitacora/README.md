@@ -13,6 +13,20 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-09-08 — Cada persona entra con su cuenta
+
+- Hecho: identidad de usuarios completa. `User` gana contraseña derivada con `scrypt`, último acceso y bloqueo por intentos; nace `Session`, y la sesión viaja en una cookie `httpOnly` con token opaco. Migración `20260908201707_usuarios_y_sesiones`. Decisión y alternativas en [`ADR-0005`](../decisiones/ADR-0005-identidad-de-usuarios-y-sesiones.md).
+- Decisión: token opaco en tabla y no JWT. Con un token firmado, revocar el acceso a alguien exigiría una lista de revocación —la misma consulta que se quería evitar— o dejarle trabajar hasta que caducase. Comprobado en vivo: al revocar la membresía, su petición siguiente ya recibe 401.
+- Decisión: `scrypt` de la biblioteca estándar en vez de argon2 o bcrypt, que exigen compilación nativa y por tanto toolchain instalada en Windows. Los parámetros de coste van dentro del hash para poder endurecerlos sin invalidar lo guardado.
+- Decisión: proxy de Vite para `/v1`. Entre `localhost:5173` y `127.0.0.1:3000` el navegador ve dos sitios distintos y no enviaría una cookie `SameSite=Lax`; sirviendo bajo el mismo origen la cookie funciona y además desaparece CORS del desarrollo.
+- Hecho: `Statement.uploadedBy` y `AuditEvent.actorUserId` por fin se rellenan. Existían en el esquema desde ADR-0002 sin que ningún código los escribiera; ahora quedan atribuidos el inicio de sesión, el alta y cambio de personas, y el procesamiento de cada documento.
+- Hecho: guards separados por intención. `AuthGuard` acepta sesión o credencial de servicio; `SessionGuard` exige persona y protege la gestión de usuarios; `RolesGuard` filtra por rol. Una credencial de servicio no tiene rol, así que no puede crear ni desactivar cuentas.
+- Hecho: el login responde igual ante correo inexistente que ante contraseña errónea, y verifica contra un hash de descarte cuando el correo no existe para que el tiempo de respuesta tampoco lo delate.
+- Hecho: en el frontend, página de inicio de sesión, rutas protegidas, sección *Personas* para administradores y cabecera con la sesión. Se retiró el formulario de credencial, que era el sustituto provisional.
+- Hecho: `instalar.ps1 -Modo base-de-datos` levanta PostgreSQL, migra, siembra la primera cuenta e imprime sus datos. Y ahora se niega a instalar con los servicios en marcha: con la API viva, Windows bloquea el motor de Prisma y `prisma generate` fallaba con un `EPERM` que no explicaba nada.
+- Verificación: `npm run check` (104 pruebas), `scripts/check.ps1` del worker (206) y `vitest` (58). Además, prueba manual completa contra PostgreSQL real: entrar, crear una persona, entrar con ella, subir un documento, comprobar en la base que quedó atribuido, ver la auditoría, revocarle el acceso y confirmar que su sesión abierta deja de valer al instante.
+- Pendiente: una persona con varias organizaciones entra siempre a la primera membresía activa; falta poder cambiar entre ellas. Tampoco existe aún el flujo de invitación por enlace: el alta entrega una contraseña temporal.
+
 ## 2026-09-04 — Puesta en marcha en dos comandos y una raíz que se explica sola
 
 - Hecho: `instalar.ps1` deja el proyecto listo (entorno de Python, dependencias de API y frontend, cliente Prisma y archivos `.env`). Es idempotente y no pisa valores ya escritos: completa las claves que faltan y genera la credencial una sola vez.

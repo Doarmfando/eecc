@@ -179,12 +179,12 @@ describe('API pública (e2e)', () => {
     expect(response.headers['x-request-id']).toMatch(/^[\w-]{8,64}$/);
   });
 
-  it('exige credencial de servicio en los recursos de la organización', async () => {
+  it('exige sesión o credencial de servicio en los recursos de la organización', async () => {
     const anonymous = await request(app.getHttpServer())
       .post('/v1/statements')
       .attach('document', PDF, 'estado.pdf')
       .expect(401);
-    expect(anonymous.body.code).toEqual('API_KEY_REQUIRED');
+    expect(anonymous.body.code).toEqual('AUTHENTICATION_REQUIRED');
 
     const wrong = await request(app.getHttpServer())
       .get(`/v1/jobs/${JOB_ID}`)

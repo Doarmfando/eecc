@@ -4,10 +4,21 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
+const API_INTERNA = process.env.VITE_API_PROXY_TARGET ?? 'http://127.0.0.1:3000';
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
+  },
+  // La API se sirve bajo el mismo origen que la página. Es lo que permite que la
+  // cookie de sesión sea `sameSite=lax`: entre `localhost:5173` y `127.0.0.1:3000`
+  // el navegador ve dos sitios distintos y no la enviaría. Además evita CORS.
+  server: {
+    proxy: {
+      '/v1': { target: API_INTERNA, changeOrigin: false },
+      '/health': { target: API_INTERNA, changeOrigin: false },
+    },
   },
   test: {
     globals: true,

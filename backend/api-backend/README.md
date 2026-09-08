@@ -10,6 +10,8 @@ Aplicación NestJS que expone el contrato público del conversor de estados de c
 | Esquema Prisma y primera migración | Aplicados contra PostgreSQL real |
 | Aislamiento multi-tenant | Verificado con pruebas contra base real |
 | Autorización por credencial de servicio con alcance de organización | Implementada |
+| Inicio de sesión de personas con cookie httpOnly y roles | Implementado |
+| Gestión de personas por administrador (alta, rol, revocación, restablecer clave) | Implementada |
 | Carga segura y validación del documento | Implementada |
 | Llamada a la API interna del worker | Implementada y probada contra el worker real |
 | Persistencia transaccional de trabajo, intento, advertencias, artefactos, auditoría y outbox | Implementada |
@@ -32,7 +34,9 @@ src/
 │   └── security/      # Guard de credencial de servicio
 ├── config/            # Configuración validada del entorno
 ├── modules/
+│   ├── auth/          # Contraseñas, sesiones y rutas de inicio de sesión
 │   ├── ephemeral/     # Implementaciones en memoria del modo sin persistencia
+│   ├── users/         # Gestión de personas de la organización
 │   ├── health/
 │   ├── jobs/
 │   ├── statements/
@@ -131,6 +135,11 @@ Esa suite crea sus propias organizaciones con prefijo reconocible y las borra al
 
 ## Contrato actual
 
+- `POST /v1/auth/login`: correo y contraseña; deja la cookie de sesión y devuelve la persona, su organización y su rol.
+- `POST /v1/auth/logout`: revoca la sesión y borra la cookie.
+- `GET /v1/auth/me`: datos de la sesión activa.
+- `POST /v1/auth/password`: cambia la contraseña propia y cierra las demás sesiones.
+- `GET /v1/users`, `POST /v1/users`, `PATCH /v1/users/{userId}`, `POST /v1/users/{userId}/password-reset`: gestión de personas, solo para `OWNER` y `ADMIN` con sesión. Una credencial de servicio no las alcanza.
 - `GET /health`: comprobación de vida, sin prefijo de versión.
 - `POST /v1/statements`: recibe el PDF por multipart, procesa y devuelve el resumen del trabajo. Acepta `Idempotency-Key`; sin ella, la clave se deriva del contenido y la versión del perfil.
 - `GET /v1/jobs`: historial de la organización, del más reciente al más antiguo, con paginación por cursor (`limit`, `cursor`). El cursor es opaco y combina fecha e identificador, de modo que insertar trabajos nuevos no repite ni salta filas.
@@ -142,6 +151,8 @@ Las respuestas contienen identificadores, estados, conteos y códigos. Nunca inc
 ## Reglas propias
 
 - Toda consulta de una entidad de tenant recibe la organización; no existe `findById(id)` a secas.
+- De una contraseña solo se guarda su derivación `scrypt`, y nunca aparece en un registro ni en una respuesta.
+- La sesión es un token opaco con fila propia, no un JWT: revocar el acceso surte efecto en la petición siguiente. Ver [`ADR-0005`](../../docs/decisiones/ADR-0005-identidad-de-usuarios-y-sesiones.md).
 - El estado del trabajo, sus artefactos, la auditoría y el evento de outbox se escriben en una sola transacción.
 - Los controladores dependen de los puertos de `modules/statements/statements.port.ts`, no de una implementación: `PERSISTENCE_MODE` decide cuál se inyecta.
 - Los errores públicos son códigos estables; el detalle interno solo va al log del servidor.

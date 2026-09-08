@@ -124,6 +124,10 @@ describe('ApiKeyGuard', () => {
       expect(context.switchToHttp().getRequest<RequestWithContext>().organization).toEqual({
         organizationId: EPHEMERAL_ORGANIZATION_ID,
         apiKeyId: EPHEMERAL_API_KEY_ID,
+        // Una credencial de servicio no representa a nadie ni tiene rol, y por eso
+        // `RolesGuard` la deja fuera de la gestión de personas.
+        userId: null,
+        role: null,
       });
     });
 

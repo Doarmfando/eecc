@@ -6,7 +6,7 @@ import {
   type UseQueryResult,
 } from '@tanstack/react-query';
 
-import { useApiConfig } from '@/app/use-api-config';
+import { useSession } from '@/app/use-session';
 import {
   downloadArtifact,
   fetchJob,
@@ -22,6 +22,17 @@ const MAX_ATTEMPTS = 3;
 const BASE_POLL_MS = 2000;
 const MAX_POLL_MS = 30000;
 
+/**
+ * Opciones del cliente a partir de la sesión.
+ *
+ * Ya no hay credencial que pasar: la cookie httpOnly viaja sola. `null` cuando aún
+ * no hay sesión, para que las consultas no se lancen y reciban un 401 previsible.
+ */
+function useOpcionesDeApi(): { baseUrl: string } | null {
+  const { baseUrl, estado } = useSession();
+  return estado === 'autenticado' ? { baseUrl } : null;
+}
+
 export function jobQueryKey(jobId: string): readonly unknown[] {
   return ['job', jobId];
 }
@@ -35,13 +46,13 @@ export function pollInterval(job: Job | undefined, failureCount: number): number
 }
 
 export function useUploadStatement(): UseMutationResult<Job, ApiError, UploadStatementInput> {
-  const { options } = useApiConfig();
+  const options = useOpcionesDeApi();
   const queryClient = useQueryClient();
 
   return useMutation<Job, ApiError, UploadStatementInput>({
     mutationFn: async (input) => {
       if (!options) {
-        throw new ApiError('API_KEY_REQUIRED', 401);
+        throw new ApiError('AUTHENTICATION_REQUIRED', 401);
       }
       return uploadStatement(options, input);
     },
@@ -58,14 +69,14 @@ export function jobHistoryQueryKey(): readonly unknown[] {
 }
 
 export function useJobHistory(): UseQueryResult<JobList, ApiError> {
-  const { options } = useApiConfig();
+  const options = useOpcionesDeApi();
 
   return useQuery<JobList, ApiError>({
     queryKey: jobHistoryQueryKey(),
     enabled: options !== null,
     queryFn: async ({ signal }) => {
       if (!options) {
-        throw new ApiError('API_KEY_REQUIRED', 401);
+        throw new ApiError('AUTHENTICATION_REQUIRED', 401);
       }
       return fetchJobHistory(options, {}, signal);
     },
@@ -83,12 +94,12 @@ export function useDownloadArtifact(): UseMutationResult<
   ApiError,
   DownloadInput
 > {
-  const { options } = useApiConfig();
+  const options = useOpcionesDeApi();
 
   return useMutation<DownloadedArtifact, ApiError, DownloadInput>({
     mutationFn: async ({ jobId, artifactId }) => {
       if (!options) {
-        throw new ApiError('API_KEY_REQUIRED', 401);
+        throw new ApiError('AUTHENTICATION_REQUIRED', 401);
       }
       return downloadArtifact(options, jobId, artifactId);
     },
@@ -97,14 +108,14 @@ export function useDownloadArtifact(): UseMutationResult<
 }
 
 export function useJob(jobId: string | undefined): UseQueryResult<Job, ApiError> {
-  const { options } = useApiConfig();
+  const options = useOpcionesDeApi();
 
   return useQuery<Job, ApiError>({
     queryKey: jobQueryKey(jobId ?? ''),
     enabled: Boolean(jobId) && options !== null,
     queryFn: async ({ signal }) => {
       if (!options || !jobId) {
-        throw new ApiError('API_KEY_REQUIRED', 401);
+        throw new ApiError('AUTHENTICATION_REQUIRED', 401);
       }
       return fetchJob(options, jobId, signal);
     },

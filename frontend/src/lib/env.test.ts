@@ -9,8 +9,10 @@ describe('readBaseUrl', () => {
     );
   });
 
-  it('cae al valor local cuando la variable falta o está vacía', () => {
-    expect(readBaseUrl({})).toBe('http://127.0.0.1:3000');
-    expect(readBaseUrl({ VITE_API_BASE_URL: '   ' })).toBe('http://127.0.0.1:3000');
+  it('cae al mismo origen que la página cuando la variable falta o está vacía', () => {
+    // Cadena vacía significa "rutas relativas": en desarrollo las sirve el proxy de
+    // Vite y en despliegue el mismo dominio, que es lo que permite la cookie de sesión.
+    expect(readBaseUrl({})).toBe('');
+    expect(readBaseUrl({ VITE_API_BASE_URL: '   ' })).toBe('');
   });
 });

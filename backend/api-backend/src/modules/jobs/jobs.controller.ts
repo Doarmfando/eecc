@@ -12,7 +12,8 @@ import {
 import type { Response } from 'express';
 import { ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 
-import { API_KEY_HEADER, ApiKeyGuard } from '../../common/security/api-key.guard';
+import { API_KEY_HEADER } from '../../common/security/api-key.guard';
+import { AuthGuard } from '../../common/security/auth.guard';
 import { CurrentOrganization, type OrganizationContext } from '../../common/http/request-context';
 import { JobResponseDto } from '../statements/dto/create-statement.dto';
 import {
@@ -24,9 +25,13 @@ import {
 import { JobListDto, JobListQueryDto } from './dto/job-list.dto';
 
 @ApiTags('jobs')
-@ApiHeader({ name: API_KEY_HEADER, required: true, description: 'Credencial de servicio' })
+@ApiHeader({
+  name: API_KEY_HEADER,
+  required: false,
+  description: 'Credencial de servicio; alternativa a la cookie de sesión',
+})
 @Controller('jobs')
-@UseGuards(ApiKeyGuard)
+@UseGuards(AuthGuard)
 export class JobsController {
   constructor(
     @Inject(JOB_READER) private readonly jobs: JobReader,
