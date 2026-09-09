@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 
 import type { AppConfig } from '../../config/app-config';
@@ -39,6 +39,23 @@ export class ObjectStorageService {
 
   async get(objectKey: string): Promise<Buffer> {
     return readFile(this.resolveKey(objectKey));
+  }
+
+  /**
+   * Borra un objeto. Un objeto que ya no está no es un error: la limpieza debe
+   * poder repetirse sin fallar, y un archivo ausente es exactamente el estado
+   * que se quería alcanzar.
+   */
+  async remove(objectKey: string): Promise<boolean> {
+    try {
+      await rm(this.resolveKey(objectKey));
+      return true;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return false;
+      }
+      throw error;
+    }
   }
 
   private resolveKey(objectKey: string): string {

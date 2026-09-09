@@ -101,6 +101,32 @@ export class WorkerClientService {
     }
     return Buffer.from(await response.arrayBuffer());
   }
+
+  /**
+   * Pide al worker que borre lo que publicó de un trabajo.
+   *
+   * No propaga el fallo: lo llama la limpieza, y que un descarte no salga no debe
+   * impedir que se borre el resto. Queda en el registro para que se note el residuo.
+   */
+  async discardJob(workerJobId: string): Promise<boolean> {
+    const baseUrl = this.config.get('WORKER_BASE_URL', { infer: true });
+    const timeout = this.config.get('WORKER_TIMEOUT_MS', { infer: true });
+
+    try {
+      const response = await fetch(
+        new URL(`/internal/statements/${encodeURIComponent(workerJobId)}`, baseUrl),
+        { method: 'DELETE', signal: AbortSignal.timeout(timeout) },
+      );
+      if (!response.ok) {
+        this.logger.warn(`El worker no descartó el trabajo: HTTP ${String(response.status)}`);
+        return false;
+      }
+      return true;
+    } catch (error) {
+      this.logger.warn(`El worker no descartó el trabajo: ${describeNetworkError(error)}`);
+      return false;
+    }
+  }
 }
 
 /**

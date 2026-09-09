@@ -13,6 +13,17 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-09-08 — Cada persona conserva solo tres documentos
+
+- Hecho: `StatementRetentionService` deja como mucho `RETAINED_STATEMENTS_PER_USER` documentos por persona —3 por defecto— y borra los anteriores enteros: PDF de origen, artefactos del worker y fila. Se aplica tras registrar cada documento nuevo, sin planificador. Motivos y alternativas en [`ADR-0007`](../decisiones/ADR-0007-cupo-de-documentos-por-persona.md).
+- Decisión: cupo por persona y no por organización, para que la actividad de alguien no borre el trabajo reciente de un compañero. Una credencial de servicio (`uploadedById` nulo) forma su propio grupo.
+- Decisión: se borra el documento completo y no solo sus archivos. Un historial que enumera trabajos cuyos resultados ya no se pueden descargar confunde más de lo que informa.
+- Decisión: antes de pedir al worker que descarte un trabajo se comprueba que ningún otro documento lo referencie. Su identificador se deriva del contenido, así que dos organizaciones que subieron el mismo archivo comparten artefactos; borrarlos dejaría a la otra sin poder descargar lo suyo.
+- Hecho: los artefactos se borran explícitamente antes que el documento. Su relación con el intento es `NoAction`, y dejar que cayeran por cascada dependía del orden en que la base resolviera las claves.
+- Hecho: vuelven `ObjectStorageService.remove` y `WorkerClientService.discardJob`. El `DELETE` del worker, añadido para el modo sin persistencia y luego sin llamador, recupera su uso.
+- Verificación: además de 6 pruebas del servicio, medición real contra PostgreSQL subiendo cinco documentos distintos con la misma persona. Los PDF en disco crecen 1 → 2 → 3 y se quedan en 3; el documento de otra persona queda intacto; y los trabajos del worker en disco coinciden exactamente con los referenciados en la base. Cobertura de la API en 94/82/91.
+- Pendiente: la interfaz **no avisa** de que subir un cuarto documento hará perder el primero. Y sigue sin haber caducidad por tiempo: un documento dentro del cupo se conserva indefinidamente.
+
 ## 2026-09-08 — Listo para desplegar en Railway
 
 - Hecho: la API sirve también el frontend compilado (`STATIC_ROOT`). No es comodidad: la cookie de sesión es `SameSite=Lax` y el navegador solo la envía si la página y la API comparten origen. En Railway cada servicio recibe su propio dominio, así que separarlos dejaría a todo el mundo fuera con un síntoma engañoso —el login responde 200 y la sesión no persiste—.

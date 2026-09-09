@@ -100,6 +100,8 @@ No existe registro abierto: nadie entra sin que alguien de la organización lo d
 | XLSX/CSV generados | Disco del worker, en su directorio de artefactos |
 | Movimientos bancarios | **En ningún sitio**: el esquema no tiene tabla para ellos |
 
+**Los archivos no se acumulan.** Cada persona conserva sus **3 documentos más recientes**; al subir el cuarto, el más antiguo se borra entero: PDF de origen, resultados y fila del historial. El número se ajusta con `RETAINED_STATEMENTS_PER_USER` en el `.env` de la API. Detalles y lo que se pierde a cambio, en [`ADR-0007`](docs/decisiones/ADR-0007-cupo-de-documentos-por-persona.md).
+
 Esa última fila no es un descuido, es la minimización que fija [`ADR-0002`](docs/decisiones/ADR-0002-postgresql-prisma-y-minimizacion-financiera.md): se guardan identificadores, estados, conteos y códigos, nunca los importes ni las descripciones extraídas.
 
 Existió un modo que no guardaba nada; se retiró al añadir el inicio de sesión. El porqué y lo que queda pendiente están en [`ADR-0006`](docs/decisiones/ADR-0006-postgresql-como-unica-persistencia.md).

@@ -6,6 +6,7 @@ import type { AppConfig } from '../../config/app-config';
 import { AuthModule } from '../auth/auth.module';
 import { StorageModule } from '../storage/storage.module';
 import { WorkerClientModule } from '../worker-client/worker-client.module';
+import { StatementRetentionService } from './statement-retention.service';
 import { StatementsController } from './statements.controller';
 import { StatementsService } from './statements.service';
 
@@ -25,7 +26,7 @@ import { StatementsService } from './statements.service';
     }),
   ],
   controllers: [StatementsController],
-  providers: [StatementsService],
-  exports: [StatementsService],
+  providers: [StatementsService, StatementRetentionService],
+  exports: [StatementsService, StatementRetentionService],
 })
 export class StatementsModule {}

@@ -7,6 +7,7 @@ import type { PrismaService } from '../../common/prisma/prisma.service';
 import type { ObjectStorageService } from '../storage/object-storage.service';
 import type { WorkerClientService } from '../worker-client/worker-client.service';
 import type { WorkerJobPayload } from '../worker-client/worker-client.types';
+import type { StatementRetentionService } from './statement-retention.service';
 import { StatementsService } from './statements.service';
 
 const CONFIG: Record<string, unknown> = {
@@ -117,7 +118,13 @@ function buildService(
     ...worker,
   } as unknown as WorkerClientService;
 
-  return new StatementsService(prisma, storage, workerClient, config);
+  // La retención se comprueba en su propia especificación; aquí solo se registra
+  // que se invoca, para que este doble no la ejecute contra la base.
+  const retention = {
+    enforceForUploader: jest.fn().mockResolvedValue(0),
+  } as unknown as StatementRetentionService;
+
+  return new StatementsService(prisma, storage, workerClient, retention, config);
 }
 
 describe('StatementsService', () => {

@@ -55,6 +55,18 @@ export class AppConfig {
   CORS_ORIGINS = '';
 
   /**
+   * Documentos que se conservan por persona. Al superarlo, los más antiguos se
+   * borran enteros: fila y archivos.
+   *
+   * Existe porque nada más caduca: sin tope, cada estado de cuenta deja para
+   * siempre su PDF de origen y sus XLSX/CSV en disco.
+   */
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  RETAINED_STATEMENTS_PER_USER = 3;
+
+  /**
    * Carpeta con el frontend ya compilado. Vacío significa no servirlo.
    *
    * Servir la página desde la propia API la deja en el mismo origen que `/v1`, que
@@ -87,6 +99,7 @@ const NUMERIC_KEYS = new Set<keyof AppConfig>([
   'WORKER_TIMEOUT_MS',
   'MAX_UPLOAD_BYTES',
   'SESSION_TTL_HOURS',
+  'RETAINED_STATEMENTS_PER_USER',
 ]);
 
 export function validateConfig(raw: Record<string, unknown>): AppConfig {

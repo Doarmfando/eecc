@@ -79,6 +79,9 @@ function buildPrismaDouble(): PrismaService {
   return {
     $connect: jest.fn().mockResolvedValue(undefined),
     $disconnect: jest.fn().mockResolvedValue(undefined),
+    // La retención busca, fuera de la transacción, los documentos que exceden el
+    // cupo. Con la lista vacía no hay nada que retirar y esta prueba mide el alta.
+    statement: { findMany: jest.fn().mockResolvedValue([]) },
     $transaction: jest.fn(
       async (handler: (client: typeof tx) => Promise<unknown>): Promise<unknown> => handler(tx),
     ),

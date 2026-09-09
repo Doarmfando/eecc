@@ -56,6 +56,8 @@ Existió un modo sin base de datos que no guardaba nada. Se retiró al añadir i
 
 El esquema aplica minimización: **no existe tabla de movimientos bancarios**. Se guardan identificadores, estados, conteos y códigos, nunca los importes ni las descripciones extraídas ([`ADR-0002`](docs/decisiones/ADR-0002-postgresql-prisma-y-minimizacion-financiera.md)).
 
+Y los archivos no se acumulan: **cada persona conserva sus 3 documentos más recientes** y los anteriores se borran enteros —PDF de origen, resultados y fila—. El número se ajusta con `RETAINED_STATEMENTS_PER_USER`. Ver [`ADR-0007`](docs/decisiones/ADR-0007-cupo-de-documentos-por-persona.md).
+
 ## Estructura
 
 ```text
