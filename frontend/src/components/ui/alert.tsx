@@ -5,13 +5,13 @@ import type { ComponentProps, ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
 const alertVariants = cva(
-  'grid w-full grid-cols-[auto_1fr] items-start gap-x-3 gap-y-1 rounded-lg border px-4 py-3 text-sm',
+  'grid w-full grid-cols-[auto_1fr] items-start gap-x-3 gap-y-1 rounded-lg border border-l-4 bg-card px-4 py-3.5 text-sm shadow-sm',
   {
     variants: {
       variant: {
-        default: 'border-border bg-card text-card-foreground',
-        warning: 'border-warning/40 bg-warning/10 text-warning-foreground',
-        destructive: 'border-destructive/40 bg-destructive/10 text-destructive',
+        default: 'border-border border-l-primary/50 text-card-foreground',
+        warning: 'border-warning/30 border-l-warning bg-warning/8 text-warning-foreground',
+        destructive: 'border-destructive/30 border-l-destructive bg-destructive/8 text-destructive',
       },
     },
     defaultVariants: { variant: 'default' },

@@ -33,6 +33,7 @@ const SESION = {
   organizationId: '22222222-2222-4222-8222-222222222222',
   organizationName: 'Organización de prueba',
   role: 'MEMBER',
+  retainedStatementsPerUser: 3,
 };
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -110,7 +111,41 @@ describe('UploadPage', () => {
     await esperarSesion();
 
     expect(screen.getByRole('button', { name: /Procesar estado de cuenta/ })).toBeEnabled();
-    expect(screen.getByText('Persona de prueba')).toBeInTheDocument();
+    // La identidad vive en el diálogo de cuenta, no en la barra: lo que la
+    // cabecera expone es el nombre accesible del botón.
+    expect(screen.getByRole('button', { name: 'Cuenta de Persona de prueba' })).toBeInTheDocument();
+  });
+
+  it('avisa del cupo antes de subir, que es cuando el aviso sirve de algo', async () => {
+    // Después de subir el más antiguo ya se ha borrado: el aviso solo evita una
+    // pérdida si se lee junto al formulario.
+    const propios = {
+      items: Array.from({ length: 3 }, (_, indice) => ({
+        jobId: `3333333${String(indice)}-3333-4333-8333-333333333333`,
+        statementId: '22222222-2222-4222-8222-222222222222',
+        status: 'SUCCEEDED',
+        createdAt: '2026-08-26T15:30:00.000Z',
+        extractorId: 'bcp-coordinate-v1',
+        movementCount: 8,
+        warningCount: 0,
+        artifactCount: 5,
+        uploadedByMe: true,
+      })),
+      nextCursor: null,
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        if (url.includes('/v1/auth/me')) {
+          return Promise.resolve(jsonResponse(200, SESION));
+        }
+        return Promise.resolve(jsonResponse(200, propios));
+      }),
+    );
+    renderApp();
+    await esperarSesion();
+
+    expect(await screen.findByText(/se borrará el más antiguo/)).toBeInTheDocument();
   });
 
   it('rechaza en el borde un archivo vacío, sin llamar al servidor', async () => {
@@ -140,8 +175,13 @@ describe('UploadPage', () => {
     await user.upload(screen.getByLabelText('Estado de cuenta en PDF'), pdfFile());
     await user.click(screen.getByRole('button', { name: /Procesar estado de cuenta/ }));
 
-    expect(await screen.findByTestId('status-badge')).toHaveTextContent('Requiere revisión');
-    expect(screen.getByText('Hay salida utilizable, pero con discrepancias')).toBeInTheDocument();
+    // Al terminar se abre el detalle del trabajo, así que se espera al texto que
+    // solo aparece con la consulta ya resuelta: anclar en el distintivo de estado
+    // mide un instante intermedio de la navegación.
+    expect(
+      await screen.findByText('Hay salida utilizable, pero con discrepancias'),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId('status-badge')).toHaveTextContent('Requiere revisión');
     expect(screen.getByText('Un importe no pudo interpretarse con certeza.')).toBeInTheDocument();
     expect(screen.getByText('Los totales declarados cuadran')).toBeInTheDocument();
     expect(screen.getByText('No cumple')).toBeInTheDocument();

@@ -136,7 +136,7 @@ La imagen de la API sirve también la página, así que el dominio de Railway ya
 
 Esto queda pendiente y conviene decidirlo:
 
-- **Los documentos se borran sin avisar.** Cada persona conserva sus 3 más recientes (`RETAINED_STATEMENTS_PER_USER`) y al subir el cuarto pierde el primero, sin que la interfaz lo advierta todavía. Ver [`ADR-0007`](../decisiones/ADR-0007-cupo-de-documentos-por-persona.md).
+- **Los documentos se borran al superar el cupo.** Cada persona conserva sus 3 más recientes (`RETAINED_STATEMENTS_PER_USER`) y al subir el cuarto pierde el primero. La interfaz lo advierte antes de subir y en el historial, pero el borrado no se puede deshacer. Ver [`ADR-0007`](../decisiones/ADR-0007-cupo-de-documentos-por-persona.md).
 - **No hay caducidad por tiempo.** Un documento dentro del cupo se conserva indefinidamente si esa persona no sube más.
 - **No hay copias de seguridad configuradas** más allá de lo que ofrezca el plugin de PostgreSQL.
 - **No hay límite de peticiones** en el inicio de sesión más allá del bloqueo por cinco intentos fallidos, que es por cuenta y no por origen.

@@ -1,11 +1,13 @@
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
-import { FileClock, FileSpreadsheet, Home, LogOut, Users } from 'lucide-react';
+import { FileClock, Home, Users } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
+import logo from '@/assets/logo.svg';
 import { Alert } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
+import { AccountMenu } from '@/features/auth/account-menu';
 import { cn } from '@/lib/utils';
+import { HistoryPage } from '@/pages/history-page';
 import { JobPage } from '@/pages/job-page';
 import { LoginPage } from '@/pages/login-page';
 import { MembersPage } from '@/pages/members-page';
@@ -15,48 +17,23 @@ import { createQueryClient } from './query-client';
 import { SessionProvider } from './session-provider';
 import { useSession } from './use-session';
 
-const ETIQUETAS_DE_ROL: Record<string, string> = {
-  OWNER: 'Propietario',
-  ADMIN: 'Administrador',
-  MEMBER: 'Miembro',
-  VIEWER: 'Lectura',
-};
-
 function Header(): ReactNode {
-  const { usuario, cerrar } = useSession();
-
   return (
-    <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-4 sm:px-6">
-      <Link to="/" className="flex items-center gap-2 text-base font-semibold text-foreground">
-        <FileSpreadsheet aria-hidden className="size-5 text-primary" />
+    <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between bg-slate-900 px-4 sm:px-6">
+      <Link to="/" className="flex items-center gap-2 text-base font-semibold text-white">
+        <img src={logo} alt="" aria-hidden className="h-7 w-auto" />
         Conversor de estados de cuenta
       </Link>
-
-      {usuario ? (
-        <div className="flex items-center gap-4">
-          <div className="hidden text-right text-xs leading-tight sm:block">
-            <div className="font-medium text-foreground">{usuario.displayName}</div>
-            <div className="text-muted-foreground">
-              {usuario.organizationName} · {ETIQUETAS_DE_ROL[usuario.role] ?? usuario.role}
-            </div>
-          </div>
-          <Button
-            variant="outline"
-            onClick={() => {
-              void cerrar();
-            }}
-          >
-            <LogOut aria-hidden className="size-4" />
-            Salir
-          </Button>
-        </div>
-      ) : null}
+      <AccountMenu />
     </header>
   );
 }
 
 const navLinkClass =
-  'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground';
+  'flex items-center gap-3 rounded-lg border-l-2 border-transparent px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground';
+
+const navLinkActiveClass =
+  'border-primary bg-primary/8 text-primary hover:bg-primary/8 hover:text-primary';
 
 function Sidebar(): ReactNode {
   const { puedeAdministrar } = useSession();
@@ -64,40 +41,46 @@ function Sidebar(): ReactNode {
   return (
     <aside
       aria-label="Navegación principal"
-      className="sticky top-14 hidden h-[calc(100vh-3.5rem)] w-56 shrink-0 flex-col gap-1 overflow-y-auto border-r border-border bg-card p-4 md:flex"
+      className="hidden w-60 shrink-0 flex-col border-r border-border/70 p-4 md:flex"
     >
-      <NavLink
-        to="/"
-        end
-        className={({ isActive }) =>
-          cn(navLinkClass, isActive && 'bg-accent text-accent-foreground')
-        }
-      >
-        <Home aria-hidden className="size-4" />
-        Nuevo documento
-      </NavLink>
-      <Link to={{ pathname: '/', hash: '#documentos-procesados' }} className={navLinkClass}>
-        <FileClock aria-hidden className="size-4" />
-        Historial
-      </Link>
-      {puedeAdministrar ? (
+      <p className="px-3 pb-2 text-[11px] font-semibold tracking-wide text-muted-foreground/70 uppercase">
+        Menú
+      </p>
+      <nav className="flex flex-col gap-1">
         <NavLink
-          to="/personas"
-          className={({ isActive }) =>
-            cn(navLinkClass, isActive && 'bg-accent text-accent-foreground')
-          }
+          to="/"
+          end
+          className={({ isActive }) => cn(navLinkClass, isActive && navLinkActiveClass)}
         >
-          <Users aria-hidden className="size-4" />
-          Personas
+          <Home aria-hidden className="size-4" />
+          Nuevo documento
         </NavLink>
-      ) : null}
+        <NavLink
+          to="/historial"
+          className={({ isActive }) => cn(navLinkClass, isActive && navLinkActiveClass)}
+        >
+          <FileClock aria-hidden className="size-4" />
+          Historial
+        </NavLink>
+        {/* Solo se ofrece a quien puede usarla: un enlace que lleva a un aviso de
+            permisos no informa, entorpece. */}
+        {puedeAdministrar ? (
+          <NavLink
+            to="/personas"
+            className={({ isActive }) => cn(navLinkClass, isActive && navLinkActiveClass)}
+          >
+            <Users aria-hidden className="size-4" />
+            Personas
+          </NavLink>
+        ) : null}
+      </nav>
     </aside>
   );
 }
 
 function Footer(): ReactNode {
   return (
-    <footer className="border-t border-border bg-card px-4 py-4 text-xs text-muted-foreground sm:px-6">
+    <footer className="border-t border-border px-4 py-4 text-xs text-muted-foreground sm:px-6">
       Los documentos contienen información financiera. No compartas los archivos generados fuera de
       tu organización.
     </footer>
@@ -106,13 +89,17 @@ function Footer(): ReactNode {
 
 function Layout({ children }: { children: ReactNode }): ReactNode {
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex min-h-screen flex-col bg-slate-900">
       <Header />
-      <div className="flex flex-1">
-        <Sidebar />
-        <main className="mx-auto w-full max-w-5xl flex-1 p-6">{children}</main>
+      <div className="flex flex-1 flex-col px-2 pb-2">
+        <div className="flex flex-1 flex-col overflow-hidden rounded-[18px] bg-card shadow-sm md:flex-row">
+          <Sidebar />
+          <div className="flex flex-1 flex-col">
+            <main className="w-full flex-1 p-6 sm:p-8 lg:p-10">{children}</main>
+            <Footer />
+          </div>
+        </div>
       </div>
-      <Footer />
     </div>
   );
 }
@@ -153,11 +140,28 @@ function RutaProtegida({
 
 function NotFoundPage(): ReactNode {
   return (
-    <Alert variant="warning" title="Esa página no existe">
-      <Link to="/" className="underline">
-        Volver al inicio
-      </Link>
-    </Alert>
+    <div className="mx-auto w-full max-w-3xl">
+      <Alert variant="warning" title="Esa página no existe">
+        <Link to="/" className="underline">
+          Volver al inicio
+        </Link>
+      </Alert>
+    </div>
+  );
+}
+
+/** Cada ruta con sesión comparte armazón; solo cambia lo de dentro. */
+function Protegida({
+  children,
+  soloAdmin,
+}: {
+  children: ReactNode;
+  soloAdmin?: boolean;
+}): ReactNode {
+  return (
+    <Layout>
+      <RutaProtegida soloAdmin={soloAdmin}>{children}</RutaProtegida>
+    </Layout>
   );
 }
 
@@ -169,31 +173,33 @@ function Contenido(): ReactNode {
       <Route
         path="/"
         element={
-          <Layout>
-            <RutaProtegida>
-              <UploadPage />
-            </RutaProtegida>
-          </Layout>
+          <Protegida>
+            <UploadPage />
+          </Protegida>
+        }
+      />
+      <Route
+        path="/historial"
+        element={
+          <Protegida>
+            <HistoryPage />
+          </Protegida>
         }
       />
       <Route
         path="/jobs/:jobId"
         element={
-          <Layout>
-            <RutaProtegida>
-              <JobPage />
-            </RutaProtegida>
-          </Layout>
+          <Protegida>
+            <JobPage />
+          </Protegida>
         }
       />
       <Route
         path="/personas"
         element={
-          <Layout>
-            <RutaProtegida soloAdmin>
-              <MembersPage />
-            </RutaProtegida>
-          </Layout>
+          <Protegida soloAdmin>
+            <MembersPage />
+          </Protegida>
         }
       />
       <Route

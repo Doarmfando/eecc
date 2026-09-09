@@ -14,7 +14,7 @@ export function JobPage(): ReactNode {
   const query = useJob(jobId);
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-3xl space-y-6">
       <Link
         to="/"
         className="inline-flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900"

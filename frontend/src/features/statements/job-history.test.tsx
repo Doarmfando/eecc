@@ -56,7 +56,7 @@ describe('JobHistory', () => {
     );
     renderWithProviders(<JobHistory />);
 
-    expect(await screen.findByText(/Todavía no has procesado/)).toBeInTheDocument();
+    expect(await screen.findByText(/Todavía no se ha procesado/)).toBeInTheDocument();
   });
 
   it('avisa cuando hay documentos más antiguos que los mostrados', async () => {

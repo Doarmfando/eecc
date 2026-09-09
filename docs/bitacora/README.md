@@ -13,6 +13,17 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-09-09 — Interfaz unificada: se incorpora el diseño pendiente
+
+- Hecho: el frontend adopta el diseño que estaba a medias fuera del repositorio —armazón con cabecera oscura, barra lateral, tarjetas y paleta propia— sin ceder nada del backend: rutas, roles y sesión siguen siendo los de este proyecto. Lo que traía el diseño y contradecía esas decisiones se descartó.
+- Hecho: el menú de cuenta se apoya en la sesión real (`useSession`) en lugar de en una credencial escrita a mano. Con ello desaparece el último resto del modelo de clave de API en la interfaz: ya no hay campo donde escribirla ni formulario que se deshabilite por no tenerla, porque la identidad la da la cookie.
+- Hecho: el aviso del cupo pasa a ser un componente compartido y aparece **también junto al formulario de subida**. Es antes de subir cuando avisar sirve de algo: después, el documento más antiguo ya se ha borrado. Con eso queda cerrado lo que [`ADR-0007`](../decisiones/ADR-0007-cupo-de-documentos-por-persona.md) dejaba pendiente.
+- Hecho: el historial se separa en su propia ruta (`/historial`) y deja de repetir el encabezado que ya pone la página.
+- Hecho: cubierta la gestión de personas, que estaba al 13% y es la superficie con la que se crean y revocan cuentas. Las pruebas fijan las salvaguardas que importan: nadie puede cambiarse el rol ni quitarse el acceso a sí mismo, un rechazo por último propietario se explica en vez de fallar en silencio, y la contraseña temporal se muestra una vez y se puede descartar.
+- Decisión: una prueba anclaba en un estado intermedio de la navegación —encontraba el distintivo de estado mientras la página de detalle aún cargaba— y pasaba por casualidad. Se ancló en el texto que solo existe con la consulta ya resuelta.
+- Verificación: las tres capas en verde **por código de salida**, no por leer su salida: frontend `npm run check` y `npm run build`, `api-backend npm run check` y `pdf-worker scripts/check.ps1`. 76 pruebas de frontend (14 nuevas) con la cobertura de sentencias subiendo del 79% al 93%.
+- Pendiente: desplegar el frontend en Vercel (exige iniciar sesión desde un navegador) y volver a desplegar `eecc-api` en Railway, cuya imagen es la que lleva la página dentro.
+
 ## 2026-09-09 — La interfaz avisa antes de que se pierda un documento
 
 - Hecho: el historial dice cuántos documentos propios quedan dentro del cupo y, al llegar al tope, advierte que **el siguiente borrará el más antiguo**. Era lo que quedaba pendiente de [`ADR-0007`](../decisiones/ADR-0007-cupo-de-documentos-por-persona.md): la regla estaba implementada pero nadie la veía venir.

@@ -1,5 +1,7 @@
+import { AlertTriangle, CheckCircle2, MinusCircle, XCircle } from 'lucide-react';
 import type { ReactNode } from 'react';
 
+import { cn } from '@/lib/utils';
 import type { Check } from '@/types/job';
 
 /**
@@ -37,22 +39,33 @@ const CHECK_LABELS: Record<string, string> = {
   BCP_DOCUMENT_BALANCE: 'El saldo global cuadra',
 };
 
-const CHECK_STATUS: Record<string, { label: string; className: string }> = {
-  PASSED: { label: 'Cumple', className: 'text-emerald-700' },
-  FAILED: { label: 'No cumple', className: 'text-red-700' },
-  SKIPPED: { label: 'No aplica', className: 'text-slate-500' },
+const CHECK_STATUS: Record<
+  string,
+  { label: string; className: string; Icon: typeof CheckCircle2 }
+> = {
+  PASSED: { label: 'Cumple', className: 'text-success', Icon: CheckCircle2 },
+  FAILED: { label: 'No cumple', className: 'text-destructive', Icon: XCircle },
+  SKIPPED: { label: 'No aplica', className: 'text-muted-foreground', Icon: MinusCircle },
 };
 
 export function WarningList({ codes }: { codes: string[] }): ReactNode {
   if (codes.length === 0) {
-    return <p className="text-sm text-slate-600">Sin advertencias.</p>;
+    return <p className="text-sm text-muted-foreground">Sin advertencias.</p>;
   }
   return (
-    <ul className="space-y-2 text-sm">
+    <ul className="space-y-2.5 text-sm">
       {codes.map((code) => (
-        <li key={code} className="rounded-md bg-amber-50 p-3 text-amber-900">
-          <p className="font-medium">{WARNING_LABELS[code] ?? 'Advertencia del extractor.'}</p>
-          <p className="mt-0.5 font-mono text-xs text-amber-800">{code}</p>
+        <li
+          key={code}
+          className="flex gap-3 rounded-lg border border-warning/25 bg-warning/8 p-3.5"
+        >
+          <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0 text-warning" />
+          <div>
+            <p className="font-medium text-warning-foreground">
+              {WARNING_LABELS[code] ?? 'Advertencia del extractor.'}
+            </p>
+            <p className="mt-0.5 font-mono text-xs text-warning-foreground/70">{code}</p>
+          </div>
         </li>
       ))}
     </ul>
@@ -61,19 +74,23 @@ export function WarningList({ codes }: { codes: string[] }): ReactNode {
 
 export function CheckList({ checks }: { checks: Check[] }): ReactNode {
   if (checks.length === 0) {
-    return <p className="text-sm text-slate-600">Este intento no reportó invariantes.</p>;
+    return <p className="text-sm text-muted-foreground">Este intento no reportó invariantes.</p>;
   }
   return (
-    <ul className="divide-y divide-slate-200 text-sm">
+    <ul className="divide-y divide-border text-sm">
       {checks.map((check) => {
         const status = CHECK_STATUS[check.status] ?? {
           label: check.status,
-          className: 'text-slate-600',
+          className: 'text-muted-foreground',
+          Icon: MinusCircle,
         };
         return (
-          <li key={check.code} className="flex items-center justify-between gap-4 py-2">
-            <span className="text-slate-700">{CHECK_LABELS[check.code] ?? check.code}</span>
-            <span className={status.className}>{status.label}</span>
+          <li key={check.code} className="flex items-center justify-between gap-4 py-2.5">
+            <span className="text-foreground/80">{CHECK_LABELS[check.code] ?? check.code}</span>
+            <span className={cn('inline-flex items-center gap-1.5 font-medium', status.className)}>
+              <status.Icon aria-hidden className="size-4" />
+              {status.label}
+            </span>
           </li>
         );
       })}

@@ -7,7 +7,7 @@ export function Card({ className, ...props }: ComponentProps<'div'>): ReactNode 
     <div
       data-slot="card"
       className={cn(
-        'flex flex-col gap-4 rounded-lg border border-border bg-card p-6 text-card-foreground shadow-sm',
+        'flex flex-col gap-4 rounded-xl border border-border/70 bg-card p-6 text-card-foreground shadow-[0_1px_2px_rgba(15,23,42,0.04),0_10px_24px_-16px_rgba(15,23,42,0.12)] sm:p-7',
         className,
       )}
       {...props}
@@ -17,7 +17,7 @@ export function Card({ className, ...props }: ComponentProps<'div'>): ReactNode 
 
 export function CardHeader({ className, ...props }: ComponentProps<'div'>): ReactNode {
   return (
-    <div data-slot="card-header" className={cn('flex flex-col gap-1', className)} {...props} />
+    <div data-slot="card-header" className={cn('flex flex-col gap-1.5', className)} {...props} />
   );
 }
 
@@ -25,7 +25,7 @@ export function CardTitle({ className, ...props }: ComponentProps<'h2'>): ReactN
   return (
     <h2
       data-slot="card-title"
-      className={cn('text-lg leading-none font-semibold', className)}
+      className={cn('text-lg leading-none font-semibold tracking-tight', className)}
       {...props}
     />
   );

@@ -33,24 +33,23 @@ Existente hoy en `frontend`:
 - consulta de un trabajo por identificador con polling que se detiene en estados terminales;
 - historial de documentos procesados por la organización, con estado, fecha y conteos;
 - validación Zod de toda respuesta y mensajes accionables por código de error;
-- descarga de los archivos publicados, autorizada con la credencial de la organización.
-
-Diferencias intencionales con el objetivo, todavía pendientes: no hay login de usuarios; se usa una credencial de servicio que vive solo en memoria.
+- descarga de los archivos publicados, acotada a la organización de quien ha entrado;
+- inicio de sesión con correo y contraseña, menú de cuenta, y gestión de personas para quien administra;
+- aviso del cupo de documentos antes de subir y en el historial, para que el borrado no sorprenda.
 
 ## Estado implementado de la API pública
 
 Existente hoy en `backend/api-backend`:
 
-- `POST /v1/statements` autoriza por credencial de servicio, valida la carga, llama al worker y persiste trabajo, intento, advertencias, artefactos, auditoría y evento de outbox en una sola transacción.
+- `POST /v1/statements` autoriza por sesión o credencial de servicio, valida la carga, llama al worker y persiste trabajo, intento, advertencias, artefactos, auditoría y evento de outbox en una sola transacción.
 - `GET /v1/jobs` devuelve el historial de la organización con paginación por cursor.
-- `GET /v1/jobs/{jobId}` devuelve el estado del trabajo acotado a la organización de la credencial.
+- `GET /v1/jobs/{jobId}` devuelve el estado del trabajo acotado a la organización de quien lo pide.
 - `GET /v1/jobs/{jobId}/artifacts/{artifactId}/content` entrega el archivo: el PDF de origen desde el almacenamiento propio y los resultados desde el worker, que solo sirve lo declarado en su manifiesto.
 - La idempotencia usa `Idempotency-Key` o, en su ausencia, una huella HMAC del contenido con alcance por organización más la versión del perfil.
 - Los errores públicos son códigos estables y llevan `x-request-id`; nunca trazas ni contenido del documento.
 
 Diferencias intencionales con el objetivo, todavía pendientes:
 
-- la autorización es por credencial de servicio; no existen usuarios ni sesiones;
 - la carga llega al servidor y no por URL firmada, y el PDF se guarda en disco tras la interfaz de objetos;
 - la descarga pasa por la API en vez de una URL firmada; los resultados se leen del worker;
 - el procesamiento es síncrono, por lo que aún no hay `202`, cola pública ni callback firmado.

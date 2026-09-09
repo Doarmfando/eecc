@@ -29,21 +29,25 @@ export function ArtifactList({
 
   return (
     <div className="space-y-3">
-      <ul className="divide-y divide-border">
+      <ul className="space-y-2.5">
         {artifacts.map((artifact) => {
           const Icon = artifact.kind === 'RESULT_XLSX' ? FileSpreadsheet : FileText;
           const label = describeArtifact(artifact.kind, artifact.name);
           const isDownloading = download.isPending && download.variables.artifactId === artifact.id;
           return (
-            <li key={artifact.id} className="flex items-center gap-3 py-3">
-              <Icon aria-hidden className="size-5 shrink-0 text-muted-foreground" />
+            <li
+              key={artifact.id}
+              className="flex items-center gap-3 rounded-lg border border-border/70 bg-muted/40 p-3.5 transition-colors hover:border-primary/30 hover:bg-primary/5"
+            >
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Icon aria-hidden className="size-5" />
+              </span>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{label}</p>
                 <p className="text-xs text-muted-foreground">{formatBytes(artifact.byteSize)}</p>
               </div>
               <Button
                 type="button"
-                variant="outline"
                 size="sm"
                 disabled={download.isPending}
                 onClick={() => {
