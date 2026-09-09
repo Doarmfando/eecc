@@ -22,7 +22,7 @@ export class JobsService {
    */
   async list(
     organizationId: string,
-    options: { limit?: number; cursor?: string } = {},
+    options: { limit?: number; cursor?: string; viewerUserId?: string | null } = {},
   ): Promise<JobListDto> {
     const limit = Math.min(options.limit ?? JOB_LIST_DEFAULT_LIMIT, JOB_LIST_MAX_LIMIT);
     const where: Prisma.JobWhereInput = { organizationId };
@@ -40,6 +40,7 @@ export class JobsService {
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: limit + 1,
       include: {
+        statement: { select: { uploadedById: true } },
         attempts: {
           orderBy: { attemptNumber: 'desc' },
           take: 1,
@@ -51,7 +52,7 @@ export class JobsService {
     const page = rows.slice(0, limit);
     const last = page.at(-1);
     return {
-      items: page.map(toListItem),
+      items: page.map((job) => toListItem(job, options.viewerUserId ?? null)),
       nextCursor:
         rows.length > limit && last
           ? encodeJobCursor({ createdAt: last.createdAt, id: last.id })
@@ -92,6 +93,7 @@ interface JobRow {
   statementId: string;
   status: string;
   createdAt: Date;
+  statement: { uploadedById: string | null };
   attempts: {
     extractorId: string | null;
     movementCount: number | null;
@@ -99,7 +101,7 @@ interface JobRow {
   }[];
 }
 
-function toListItem(job: JobRow): JobListItemDto {
+function toListItem(job: JobRow, viewerUserId: string | null): JobListItemDto {
   const attempt = job.attempts[0];
   return {
     jobId: job.id,
@@ -110,5 +112,8 @@ function toListItem(job: JobRow): JobListItemDto {
     movementCount: attempt?.movementCount ?? 0,
     warningCount: attempt?._count.warnings ?? 0,
     artifactCount: attempt?._count.artifacts ?? 0,
+    // Nulo contra nulo no cuenta: un documento subido por una credencial de
+    // servicio no es «mío» aunque quien mire tampoco tenga usuario.
+    uploadedByMe: viewerUserId !== null && job.statement.uploadedById === viewerUserId,
   };
 }

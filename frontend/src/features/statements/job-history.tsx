@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { Alert } from '@/components/ui/alert';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useSession } from '@/app/use-session';
 import { describeError } from '@/lib/api-error';
 import { formatCount } from '@/lib/format';
 import type { JobListItem } from '@/types/job';
@@ -32,6 +33,11 @@ function HistoryRow({ job }: { job: JobListItem }): ReactNode {
 
 export function JobHistory(): ReactNode {
   const history = useJobHistory();
+  const { usuario } = useSession();
+  const cupo = usuario?.retainedStatementsPerUser ?? 0;
+  // Se cuentan los propios: el cupo es por persona, y el historial muestra los de
+  // toda la organización.
+  const mios = history.data?.items.filter((job) => job.uploadedByMe).length ?? 0;
 
   if (history.isError) {
     return <Alert variant="destructive" title={describeError(history.error)} />;
@@ -49,6 +55,24 @@ export function JobHistory(): ReactNode {
           archivos.
         </CardDescription>
       </CardHeader>
+
+      {cupo > 0 ? (
+        <p className="mt-2 text-xs text-muted-foreground">
+          Se conservan tus <strong>{cupo}</strong> documentos más recientes
+          {mios >= cupo ? (
+            <>
+              , y ya los tienes todos:{' '}
+              <strong>al procesar el siguiente se borrará el más antiguo</strong> junto con sus
+              archivos. Descarga lo que necesites conservar.
+            </>
+          ) : (
+            <>
+              {' '}
+              ({mios} de {cupo} usados). Al superarlo, el más antiguo se borra con sus archivos.
+            </>
+          )}
+        </p>
+      ) : null}
 
       {history.isPending ? (
         <p className="text-sm text-muted-foreground">Cargando el historial…</p>

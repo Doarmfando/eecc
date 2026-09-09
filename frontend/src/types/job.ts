@@ -50,6 +50,8 @@ export const jobListItemSchema = z.object({
   movementCount: z.number().int().nonnegative(),
   warningCount: z.number().int().nonnegative(),
   artifactCount: z.number().int().nonnegative(),
+  // Opcional para no romper con una API anterior al cupo de retención.
+  uploadedByMe: z.boolean().optional().default(false),
 });
 
 export const jobListSchema = z.object({

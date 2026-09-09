@@ -37,4 +37,14 @@ export class SessionUserDto {
   @ApiProperty() organizationId!: string;
   @ApiProperty() organizationName!: string;
   @ApiProperty({ enum: ['OWNER', 'ADMIN', 'MEMBER', 'VIEWER'] }) role!: string;
+
+  /**
+   * Documentos que conserva cada persona. Va aquí, y no en una ruta aparte, para
+   * que la interfaz pueda advertirlo sin una petición más: si no lo supiera,
+   * alguien perdería su documento más antiguo sin haber sido avisado.
+   */
+  @ApiProperty({
+    description: 'Documentos que conserva cada persona antes de borrar el más antiguo',
+  })
+  retainedStatementsPerUser!: number;
 }

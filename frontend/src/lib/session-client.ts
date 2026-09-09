@@ -7,6 +7,8 @@ export interface SessionUser {
   organizationId: string;
   organizationName: string;
   role: 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER';
+  /** Documentos que conserva cada persona antes de que se borre el más antiguo. */
+  retainedStatementsPerUser: number;
 }
 
 export interface Member {

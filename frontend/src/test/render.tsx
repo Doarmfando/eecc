@@ -16,6 +16,7 @@ export const TEST_USER: SessionUser = {
   organizationId: '22222222-2222-4222-8222-222222222222',
   organizationName: 'Organización de prueba',
   role: 'ADMIN',
+  retainedStatementsPerUser: 3,
 };
 
 /** Envuelve con los mismos proveedores que la aplicación real. */

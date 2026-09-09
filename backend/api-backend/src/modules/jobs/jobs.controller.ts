@@ -43,6 +43,7 @@ export class JobsController {
     return this.jobs.list(organization.organizationId, {
       ...(query.limit === undefined ? {} : { limit: query.limit }),
       ...(query.cursor === undefined ? {} : { cursor: query.cursor }),
+      viewerUserId: organization.userId,
     });
   }
 

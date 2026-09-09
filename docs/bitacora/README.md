@@ -13,6 +13,15 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-09-09 — La interfaz avisa antes de que se pierda un documento
+
+- Hecho: el historial dice cuántos documentos propios quedan dentro del cupo y, al llegar al tope, advierte que **el siguiente borrará el más antiguo**. Era lo que quedaba pendiente de [`ADR-0007`](../decisiones/ADR-0007-cupo-de-documentos-por-persona.md): la regla estaba implementada pero nadie la veía venir.
+- Hecho: la sesión (`/v1/auth/login` y `/v1/auth/me`) devuelve `retainedStatementsPerUser`. Va ahí y no en una ruta aparte para que la interfaz pueda advertirlo sin una petición más; codificarlo en el frontend habría dejado que se separara del valor real de la instalación.
+- Hecho: el listado de trabajos marca `uploadedByMe`. Hacía falta porque el cupo es por persona mientras el historial muestra los de toda la organización: sin ese dato, el aviso contaría documentos ajenos y sería falso.
+- Hecho: retirados `railway.json` y `railway.worker.json`. No solo están obsoletos —Railway los retira el 2026-12-01— sino que **no eran lo que usaba el despliegue real**: los dos servicios comparten repositorio, así que un archivo en la raíz no puede decir cosas distintas a cada uno. El Dockerfile se elige con `RAILWAY_DOCKERFILE_PATH` por servicio, y la guía ya lo explica.
+- Verificación: las tres capas en verde por código de salida, 3 pruebas nuevas del aviso —incluida una que comprueba que no cuenta documentos de otras personas— y comprobación contra el despliegue real: la sesión trae el cupo, el historial marca los propios y el ciclo de subida y descarga sigue funcionando.
+- Pendiente: el frontend en Vercel. La configuración está lista en `frontend/vercel.json`, pero desplegarlo exige iniciar sesión en Vercel desde un navegador.
+
 ## 2026-09-09 — Desplegado en Railway: base de datos, worker y API
 
 - Hecho: proyecto `eecc` en Railway con PostgreSQL, `eecc-worker` (privado) y `eecc-api` (público, con dominio). Los tres con volumen. Verificado en producción de punta a punta: entrar, subir un documento, descargar el XLSX y comprobar el cupo de tres.

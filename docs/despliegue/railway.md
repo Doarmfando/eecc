@@ -33,7 +33,6 @@ En el proyecto de Railway: **New → Database → PostgreSQL**. Railway crea la 
 
 | Ajuste | Valor |
 | --- | --- |
-| Config-as-code path | `railway.worker.json` |
 | Networking | **Sin dominio público.** Solo lo llama la API |
 
 Variables:
@@ -52,7 +51,6 @@ PORT=8000
 
 | Ajuste | Valor |
 | --- | --- |
-| Config-as-code path | `railway.json` |
 | Networking | **Generate Domain**: es el que abrirán las personas |
 
 Variables:
@@ -67,6 +65,8 @@ SESSION_TTL_HOURS=12
 PROFILE_VERSION=bcp-2026.08
 STORAGE_ROOT=/data/storage
 ```
+
+El Dockerfile de cada servicio se elige con `RAILWAY_DOCKERFILE_PATH`, y no con un `railway.json`: los dos servicios comparten repositorio, así que un archivo en la raíz no puede decir cosas distintas a cada uno. Railway además está retirando esa forma de configuración.
 
 `PORT` lo inyecta Railway en el servicio público; no la definas ahí. `CORS_ORIGINS` se deja **vacía**: sirviendo la página desde la propia API no hace falta CORS, y abrirlo sin necesidad solo añade superficie.
 

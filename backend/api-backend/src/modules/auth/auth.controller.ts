@@ -49,7 +49,7 @@ export class AuthController {
       }),
     );
 
-    return toSessionUser(resultado.user);
+    return this.toSessionUser(resultado.user);
   }
 
   @Post('logout')
@@ -73,7 +73,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Datos de la sesión activa' })
   @ApiResponse({ status: HttpStatus.OK, type: SessionUserDto })
   me(@CurrentUser() user: AuthenticatedUser): SessionUserDto {
-    return toSessionUser(user);
+    return this.toSessionUser(user);
   }
 
   @Post('password')
@@ -88,15 +88,16 @@ export class AuthController {
     await this.auth.changePassword(user.userId, body.currentPassword, body.newPassword);
     response.clearCookie(SESSION_COOKIE, { path: '/' });
   }
-}
 
-function toSessionUser(user: AuthenticatedUser): SessionUserDto {
-  return {
-    userId: user.userId,
-    email: user.email,
-    displayName: user.displayName,
-    organizationId: user.organizationId,
-    organizationName: user.organizationName,
-    role: user.role,
-  };
+  private toSessionUser(user: AuthenticatedUser): SessionUserDto {
+    return {
+      userId: user.userId,
+      email: user.email,
+      displayName: user.displayName,
+      organizationId: user.organizationId,
+      organizationName: user.organizationName,
+      role: user.role,
+      retainedStatementsPerUser: this.config.get('RETAINED_STATEMENTS_PER_USER', { infer: true }),
+    };
+  }
 }

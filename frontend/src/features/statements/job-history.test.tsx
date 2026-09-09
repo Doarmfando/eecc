@@ -90,3 +90,51 @@ describe('JobHistory', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe('aviso del cupo de documentos', () => {
+  function mios(cantidad: number): unknown {
+    return {
+      items: Array.from({ length: cantidad }, (_, indice) => ({
+        ...ITEM,
+        jobId: `3333333${String(indice)}-3333-4333-8333-333333333333`,
+        uploadedByMe: true,
+      })),
+      nextCursor: null,
+    };
+  }
+
+  it('dice cuántos quedan mientras hay margen', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, mios(1))));
+    renderWithProviders(<JobHistory />);
+
+    // El cupo de la sesión de prueba es 3.
+    expect(await screen.findByText(/1 de 3 usados/)).toBeInTheDocument();
+  });
+
+  it('advierte que el siguiente borrará el más antiguo al llegar al cupo', async () => {
+    // Es la advertencia que evita perder un documento sin haber sido avisado.
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, mios(3))));
+    renderWithProviders(<JobHistory />);
+
+    expect(await screen.findByText(/se borrará el más antiguo/)).toBeInTheDocument();
+  });
+
+  it('no cuenta los documentos de otras personas: el cupo es por persona', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        jsonResponse(200, {
+          items: [
+            { ...ITEM, jobId: '11111111-1111-4111-8111-111111111111', uploadedByMe: false },
+            { ...ITEM, jobId: '22222222-2222-4222-8222-222222222222', uploadedByMe: false },
+            { ...ITEM, jobId: '33333333-3333-4333-8333-333333333333', uploadedByMe: true },
+          ],
+          nextCursor: null,
+        }),
+      ),
+    );
+    renderWithProviders(<JobHistory />);
+
+    expect(await screen.findByText(/1 de 3 usados/)).toBeInTheDocument();
+  });
+});

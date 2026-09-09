@@ -32,6 +32,9 @@ export class JobListItemDto {
   @ApiProperty() movementCount!: number;
   @ApiProperty() warningCount!: number;
   @ApiProperty() artifactCount!: number;
+
+  /** Si lo subió quien consulta. El cupo de retención es por persona. */
+  @ApiProperty() uploadedByMe!: boolean;
 }
 
 export class JobListDto {
