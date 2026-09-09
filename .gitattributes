@@ -1,0 +1,5 @@
+# Los scripts de shell viajan a contenedores Linux. Un CRLF rompe el shebang con
+# un «no such file or directory» que no menciona el verdadero problema.
+*.sh text eol=lf
+docker/* text eol=lf
+Dockerfile* text eol=lf

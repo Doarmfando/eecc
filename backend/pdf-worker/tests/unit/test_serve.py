@@ -33,8 +33,9 @@ class CrearSocketTests(TestCase):
         rechazada»; `--host 0.0.0.0` deja fuera a las redes privadas IPv6.
         """
 
-        escucha = crear_socket(0)
+        escucha, alcance = crear_socket(0)
         try:
+            self.assertIn("IPv", alcance)
             puerto = escucha.getsockname()[1]
             escucha.listen(2)
 
@@ -50,5 +51,18 @@ class CrearSocketTests(TestCase):
                         cliente.connect(destino)
                     finally:
                         cliente.close()
+        finally:
+            escucha.close()
+
+
+class DescripcionDelAlcanceTests(TestCase):
+    def test_dice_por_que_familia_se_puede_llamar(self) -> None:
+        """Quien despliega necesita saberlo: en Railway la red privada es IPv6 y
+        en Docker por defecto es IPv4. Un servicio invisible se diagnostica leyendo
+        esta línea del arranque."""
+
+        escucha, alcance = crear_socket(0)
+        try:
+            self.assertRegex(alcance, r"(doble pila|solo IPv6|solo IPv4)")
         finally:
             escucha.close()

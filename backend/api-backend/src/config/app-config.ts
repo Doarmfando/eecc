@@ -55,6 +55,18 @@ export class AppConfig {
   CORS_ORIGINS = '';
 
   /**
+   * Cuenta inicial que se crea **solo si la base no tiene ningún usuario**.
+   *
+   * Sirve para un despliegue nuevo en un PaaS, donde la base solo es accesible
+   * desde dentro y no habría forma de sembrarla. Vacías, no se hace nada.
+   */
+  @IsString()
+  BOOTSTRAP_ADMIN_EMAIL = '';
+
+  @IsString()
+  BOOTSTRAP_ADMIN_PASSWORD = '';
+
+  /**
    * Documentos que se conservan por persona. Al superarlo, los más antiguos se
    * borran enteros: fila y archivos.
    *

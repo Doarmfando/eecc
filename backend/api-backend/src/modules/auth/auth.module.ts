@@ -5,6 +5,7 @@ import { AuthGuard } from '../../common/security/auth.guard';
 import { RolesGuard } from '../../common/security/roles.guard';
 import { SessionGuard } from '../../common/security/session.guard';
 import { AuthController } from './auth.controller';
+import { BootstrapService } from './bootstrap.service';
 import { AuthService } from './auth.service';
 
 /**
@@ -13,7 +14,7 @@ import { AuthService } from './auth.service';
  */
 @Module({
   controllers: [AuthController],
-  providers: [AuthService, ApiKeyGuard, AuthGuard, SessionGuard, RolesGuard],
+  providers: [AuthService, BootstrapService, ApiKeyGuard, AuthGuard, SessionGuard, RolesGuard],
   exports: [AuthService, ApiKeyGuard, AuthGuard, SessionGuard, RolesGuard],
 })
 export class AuthModule {}

@@ -13,6 +13,21 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-09-09 — Desplegado en Railway: base de datos, worker y API
+
+- Hecho: proyecto `eecc` en Railway con PostgreSQL, `eecc-worker` (privado) y `eecc-api` (público, con dominio). Los tres con volumen. Verificado en producción de punta a punta: entrar, subir un documento, descargar el XLSX y comprobar el cupo de tres.
+- Hecho: `BootstrapService` crea la organización y su primera persona al arrancar, **solo si la base no tiene ningún usuario**. Nace de un problema real: en Railway la base solo es accesible desde la red privada, y `railway ssh` exige registrar una clave SSH; sembrar desde fuera obligaría a exponer la base.
+- Hecho: `frontend/vercel.json` reenvía `/v1` y `/health` a la API de Railway. Sin ese reenvío, la página en Vercel y la API en Railway son sitios distintos y la cookie `SameSite=Lax` no viaja: el login respondería 200 y la sesión no persistiría. Guía en [`docs/despliegue/vercel.md`](../despliegue/vercel.md).
+- Hecho: cuatro trampas que solo aparecieron desplegando de verdad.
+  - Railway inyecta `PORT=8080` también en un servicio sin dominio, así que el worker escuchaba ahí mientras `WORKER_BASE_URL` apuntaba al 8000. Se fija `PORT=8000` en el worker.
+  - Los volúmenes se montan como root y los contenedores corren sin privilegios: el worker respondía 500 con `Permission denied` al primer documento. Ambas imágenes arrancan ahora con un script que ajusta el dueño y baja privilegios.
+  - Ese script usa `setpriv` en Debian pero **`su-exec` en Alpine**, donde `setpriv` lo aporta BusyBox y solo maneja capacidades: no sabe cambiar de usuario.
+  - Una edición del script en Windows lo dejó con CRLF y el contenedor falló con «no such file or directory», que se refiere al intérprete del shebang y no al archivo. Se añade `.gitattributes` para que la regla lo impida en vez de la disciplina.
+- Decisión: `serve.py` registra en qué familia de red quedó escuchando. Fue lo que permitió ver el desajuste de puerto en un vistazo; antes el arranque no decía nada y el diagnóstico era a ciegas.
+- Hecho: `railway config pull` volcó la configuración de `comfortable-truth` —otro proyecto en producción del mismo dueño— dentro de este repositorio. Se retiró; conviene saber que ese comando escribe en el árbol de trabajo.
+- Verificación: `npm run check`, `scripts/check.ps1` y `vitest` en verde por código de salida, ambas imágenes construidas y probadas en local con un volumen propiedad de root, y el sistema completo ejercitado contra el despliegue real.
+- Pendiente: la interfaz sigue sin avisar de que subir un cuarto documento hará perder el primero. Y `BOOTSTRAP_ADMIN_PASSWORD` debe retirarse del entorno una vez cambiada la contraseña.
+
 ## 2026-09-08 — Cada persona conserva solo tres documentos
 
 - Hecho: `StatementRetentionService` deja como mucho `RETAINED_STATEMENTS_PER_USER` documentos por persona —3 por defecto— y borra los anteriores enteros: PDF de origen, artefactos del worker y fila. Se aplica tras registrar cada documento nuevo, sin planificador. Motivos y alternativas en [`ADR-0007`](../decisiones/ADR-0007-cupo-de-documentos-por-persona.md).

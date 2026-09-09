@@ -29,7 +29,13 @@ ENV EECC_WORKER_ARTIFACT_ROOT=/app/artifacts
 RUN mkdir -p /app/artifacts
 
 RUN useradd --create-home --shell /bin/false eecc && chown -R eecc:eecc /app
-USER eecc
+
+# No se fija `USER`: el arranque necesita ser root un instante para ajustar el
+# dueño del volumen, que el PaaS monta como root, y después baja privilegios él
+# mismo. Sin eso, el worker arranca bien y falla al escribir el primer resultado.
+COPY docker/entrypoint-worker.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
 EXPOSE 8000
 

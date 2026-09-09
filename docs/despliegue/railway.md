@@ -39,8 +39,12 @@ En el proyecto de Railway: **New → Database → PostgreSQL**. Railway crea la 
 Variables:
 
 ```
+RAILWAY_DOCKERFILE_PATH=Dockerfile.worker
 EECC_WORKER_MAX_CONCURRENT_DOCUMENTS=2
+PORT=8000
 ```
+
+`PORT=8000` es necesario, no decorativo. Railway inyecta un `PORT` propio —8080— también en un servicio sin dominio, y entonces el worker escucha ahí mientras `WORKER_BASE_URL` apunta al 8000: la subida falla con `WORKER_UNAVAILABLE`. Fijarlo mantiene las dos puntas de acuerdo.
 
 ### 3. Servicio de la API
 
@@ -54,6 +58,7 @@ EECC_WORKER_MAX_CONCURRENT_DOCUMENTS=2
 Variables:
 
 ```
+RAILWAY_DOCKERFILE_PATH=Dockerfile.api
 NODE_ENV=production
 DATABASE_URL=${{Postgres.DATABASE_URL}}
 WORKER_BASE_URL=http://eecc-worker.railway.internal:8000
@@ -63,7 +68,7 @@ PROFILE_VERSION=bcp-2026.08
 STORAGE_ROOT=/data/storage
 ```
 
-`PORT` lo inyecta Railway; no la definas. `CORS_ORIGINS` se deja **vacía**: con un solo origen no hace falta CORS, y abrirlo sin necesidad solo añade superficie.
+`PORT` lo inyecta Railway en el servicio público; no la definas ahí. `CORS_ORIGINS` se deja **vacía**: sirviendo la página desde la propia API no hace falta CORS, y abrirlo sin necesidad solo añade superficie.
 
 ### 4. Volúmenes
 
@@ -76,20 +81,27 @@ El sistema de archivos de un contenedor es efímero: cada despliegue lo vacía. 
 
 ### 5. Primera cuenta
 
-Las migraciones se aplican solas al arrancar (`prisma migrate deploy` va en el comando de inicio). La primera persona no: hay que crearla una vez.
+Las migraciones se aplican solas al arrancar (`prisma migrate deploy` va en el comando de inicio). La primera persona también, mediante dos variables en `eecc-api`:
 
-Se ejecuta **dentro del contenedor**, con la [CLI de Railway](https://docs.railway.com/guides/cli):
-
-```powershell
-railway link                     # elige el proyecto
-railway ssh --service eecc-api
-# ya dentro:
-SEED_ADMIN_EMAIL=tu@empresa.pe SEED_ADMIN_PASSWORD=<clave larga> node dist/cli/seed.js
+```
+BOOTSTRAP_ADMIN_EMAIL=tu@empresa.pe
+BOOTSTRAP_ADMIN_PASSWORD=<una contraseña larga>
 ```
 
-`node dist/cli/seed.js` y no `npm run prisma:seed`: ese script usa `ts-node`, que es dependencia de desarrollo y no viaja en la imagen. Por eso la semilla vive en `src/cli/` y se compila con el resto.
+Al arrancar, **si y solo si la base no tiene ningún usuario**, se crea la organización y esa persona como propietaria. Nunca modifica una instalación en marcha, así que dejar las variables puestas no duplica cuentas; aun así, **retira `BOOTSTRAP_ADMIN_PASSWORD` en cuanto entres y cambies la contraseña**.
 
-Sin las dos variables genera una contraseña y la imprime **una sola vez**. A partir de ahí, las demás cuentas se crean desde la propia aplicación, en **Personas**.
+Existe porque en Railway la base solo es accesible desde dentro de la red privada: sembrar desde fuera obligaría a exponerla, y `railway ssh` exige registrar una clave SSH. El arranque lo resuelve sin abrir nada.
+
+Si prefieres hacerlo a mano y tienes SSH configurado:
+
+```powershell
+railway ssh --service eecc-api
+node dist/cli/seed.js
+```
+
+`node dist/cli/seed.js` y no `npm run prisma:seed`: ese script usa `ts-node`, que es dependencia de desarrollo y no viaja en la imagen.
+
+A partir de ahí, las demás cuentas se crean desde la propia aplicación, en **Personas**.
 
 ## Comprobar que quedó bien
 
@@ -112,12 +124,19 @@ Después, en el navegador:
 
 **Los resultados desaparecen tras un despliegue.** Falta el volumen del paso 4.
 
+**`Permission denied` al escribir en el volumen.** Railway monta los volúmenes como root y los contenedores corren sin privilegios. Las imágenes lo resuelven con un arranque que ajusta el dueño y baja privilegios (`docker/entrypoint-*.sh`); si ves este error, es que ese arranque no se está ejecutando. Comprueba que el script conserva finales de línea LF: con CRLF, el contenedor falla con un desconcertante «no such file or directory» que se refiere al intérprete, no al script.
+
 **El despliegue tarda o falla al construir.** La imagen de la API compila frontend y backend. Si Railway agota memoria, sube el plan del servicio o construye con menos concurrencia.
+
+## El frontend
+
+La imagen de la API sirve también la página, así que el dominio de Railway ya es una aplicación completa y funcional. Si además quieres desplegar el frontend en Vercel, hay una guía propia: [`vercel.md`](vercel.md). Lo importante de ahí: Vercel debe **reenviar** `/v1` a esta API en lugar de que el navegador la llame directamente, o la cookie de sesión no viajará.
 
 ## Antes de abrirlo a gente real
 
 Esto queda pendiente y conviene decidirlo:
 
-- **La retención no está implementada.** `Organization.retentionDays`, `Statement.retainUntil` y `Artifact.retainUntil` existen en el esquema y ningún código los aplica: hoy nada caduca solo y los documentos se acumulan. Ver [`ADR-0006`](../decisiones/ADR-0006-postgresql-como-unica-persistencia.md).
+- **Los documentos se borran sin avisar.** Cada persona conserva sus 3 más recientes (`RETAINED_STATEMENTS_PER_USER`) y al subir el cuarto pierde el primero, sin que la interfaz lo advierta todavía. Ver [`ADR-0007`](../decisiones/ADR-0007-cupo-de-documentos-por-persona.md).
+- **No hay caducidad por tiempo.** Un documento dentro del cupo se conserva indefinidamente si esa persona no sube más.
 - **No hay copias de seguridad configuradas** más allá de lo que ofrezca el plugin de PostgreSQL.
 - **No hay límite de peticiones** en el inicio de sesión más allá del bloqueo por cinco intentos fallidos, que es por cuenta y no por origen.
