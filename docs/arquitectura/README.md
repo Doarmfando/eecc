@@ -34,7 +34,7 @@ Existente hoy en `frontend`:
 - historial de documentos procesados por la organización, con estado, fecha y conteos;
 - validación Zod de toda respuesta y mensajes accionables por código de error;
 - descarga de los archivos publicados, acotada a la organización de quien ha entrado;
-- inicio de sesión con correo y contraseña, menú de cuenta, y gestión de personas para quien administra;
+- inicio de sesión con correo y contraseña, menú de cuenta con cambio de la propia contraseña, y gestión de usuarios para el administrador ([`ADR-0008`](../decisiones/ADR-0008-administrador-y-usuario.md));
 - aviso del cupo de documentos antes de subir y en el historial, para que el borrado no sorprenda.
 
 ## Estado implementado de la API pública

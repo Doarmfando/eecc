@@ -10,8 +10,11 @@ export interface SessionValue {
   usuario: SessionUser | null;
   /** Guarda la sesión recién iniciada sin volver a pedirla al servidor. */
   establecer: (usuario: SessionUser) => void;
-  cerrar: () => Promise<void>;
-  /** `true` para OWNER y ADMIN: son quienes pueden gestionar personas. */
+  /** Cierra la sesión; `aviso` se muestra después en la pantalla de entrada. */
+  cerrar: (aviso?: string) => Promise<void>;
+  /** Motivo del último cierre de sesión, si lo hubo. Se borra al volver a entrar. */
+  aviso: string | null;
+  /** `true` solo para ADMIN: es quien gestiona las cuentas de la organización. */
   puedeAdministrar: boolean;
 }
 

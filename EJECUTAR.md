@@ -77,16 +77,30 @@ Get-Content -Wait -Tail 30 .local\logs\api.log
 
 4. Revisa las invariantes y advertencias, y descarga el XLSX o los CSV.
 
-## Dar de alta a más personas
+## Gestionar usuarios
 
-Con sesión de `OWNER` o `ADMIN`, entra en **Personas** en el menú lateral:
+Con sesión de **administrador**, entra en **Usuarios** (menú lateral, sección *Administración*):
 
-- **Crear cuenta** genera una contraseña temporal que se muestra **una sola vez**. Entrégasela a la persona; la cambiará al entrar.
-- **Rol** decide qué puede hacer: `OWNER` y `ADMIN` gestionan personas, `MEMBER` procesa documentos, `VIEWER` solo consulta.
-- **Quitar acceso** cierra sus sesiones abiertas en el acto, no cuando caduque su cookie.
-- **Restablecer contraseña** genera otra temporal y cierra también sus sesiones.
+- **Nuevo usuario** crea una cuenta de *Usuario* o de *Administrador*. La contraseña se puede **generar** —se muestra **una sola vez**, entrégasela— o **escribir** tú.
+- **Editar** cambia nombre y correo, y permite ascender un usuario a administrador.
+- **Cambiar contraseña** genera otra o fija la que escribas; cierra sus sesiones y desbloquea la cuenta.
+- **Desactivar** cierra sus sesiones en el acto, no cuando caduque su cookie. Se puede reactivar.
+- **Eliminar** borra la cuenta **y sus documentos**. No se puede deshacer.
+- La columna **Documentos** dice cuántos conserva cada persona frente al cupo.
 
-No existe registro abierto: nadie entra sin que alguien de la organización lo dé de alta.
+Un administrador no se puede eliminar ni pasar a usuario; sí desactivar. Nadie puede desactivarse ni cambiarse el rol a sí mismo, y la propia contraseña se cambia desde el menú de cuenta (arriba a la derecha).
+
+No existe registro abierto: nadie entra sin que un administrador lo dé de alta.
+
+**Si pierdes la contraseña del administrador**, fíjala desde el servidor:
+
+```powershell
+cd backend\api-backend
+$env:SEED_ADMIN_EMAIL="admin@eecc.local"; $env:SEED_ADMIN_PASSWORD="<una contraseña larga>"
+npm run prisma:seed      # en producción: node dist/cli/seed.js
+```
+
+Sin `SEED_ADMIN_PASSWORD` la semilla nunca toca una contraseña existente.
 
 ## Qué se guarda
 
@@ -94,7 +108,7 @@ No existe registro abierto: nadie entra sin que alguien de la organización lo d
 
 | | Dónde |
 | --- | --- |
-| Personas, sesiones y roles | PostgreSQL |
+| Usuarios, sesiones y roles | PostgreSQL |
 | Estado de los trabajos y auditoría | PostgreSQL |
 | PDF que subes | Disco, en `STORAGE_ROOT` (`backend\api-backend\storage`) |
 | XLSX/CSV generados | Disco del worker, en su directorio de artefactos |
@@ -161,7 +175,7 @@ npm run dev
 
 **`INVALID_CREDENTIALS` al entrar.** El correo o la contraseña no son correctos. A propósito no se distingue cuál de los dos: decirlo confirmaría qué correos están dados de alta.
 
-**`ACCOUNT_LOCKED`.** Cinco intentos fallidos seguidos bloquean la cuenta 15 minutos. Un administrador puede restablecer la contraseña desde *Personas* para desbloquearla al momento.
+**`ACCOUNT_LOCKED`.** Cinco intentos fallidos seguidos bloquean la cuenta 15 minutos. Un administrador puede cambiarle la contraseña desde *Usuarios* para desbloquearla al momento.
 
 **La sesión se pierde al recargar.** Comprueba que entras por `http://localhost:5173` y no por el puerto de la API: la cookie solo viaja si la página y la API comparten origen, que es lo que resuelve el proxy de Vite.
 

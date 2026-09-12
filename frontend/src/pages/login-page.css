@@ -5,7 +5,7 @@
   overflow: hidden;
   background: #f7f5f4;
   font-family:
-    "Segoe UI",
+    'Segoe UI',
     system-ui,
     -apple-system,
     BlinkMacSystemFont,
@@ -122,7 +122,14 @@
 .asm-login-card h1 {
   margin: 0 0 28px;
   color: #002c5f;
-  background: linear-gradient(90deg, #002c5f 0%, #0b4f91 38%, #8aa4c0 50%, #0b4f91 62%, #002c5f 100%);
+  background: linear-gradient(
+    90deg,
+    #002c5f 0%,
+    #0b4f91 38%,
+    #8aa4c0 50%,
+    #0b4f91 62%,
+    #002c5f 100%
+  );
   background-size: 240% 100%;
   background-clip: text;
   -webkit-background-clip: text;
@@ -173,7 +180,7 @@
   box-shadow: 0 0 0 3px rgba(0, 44, 95, 0.12);
 }
 
-.asm-login-field input[aria-invalid="true"] {
+.asm-login-field input[aria-invalid='true'] {
   border-color: #dc2626;
 }
 
@@ -268,6 +275,19 @@
   border: 1px solid #fecaca;
   border-radius: 12px;
   background: #fef2f2;
+}
+
+/* Aviso informativo (p. ej. tras cambiar la contraseña): mismo formato que el
+   error, en el azul de la marca para que no se lea como un fallo. */
+.asm-login-notice {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid #bfd3ea;
+  border-radius: 12px;
+  background: #eef4fb;
+  color: #002c5f;
+  font-size: 13px;
+  line-height: 1.35;
 }
 
 .asm-login-footer {
@@ -455,7 +475,8 @@
   100% {
     border-radius: var(--shape-radius-end);
     opacity: 0.24;
-    transform: translate3d(var(--shape-end-x), var(--shape-end-y), 0) rotate(var(--shape-end-rotate));
+    transform: translate3d(var(--shape-end-x), var(--shape-end-y), 0)
+      rotate(var(--shape-end-rotate));
   }
 }
 

@@ -1,6 +1,6 @@
 # ADR-0005: Identidad de usuarios con sesión opaca en cookie httpOnly
 
-- Estado: Aceptada
+- Estado: Aceptada. Los roles y la regla de que el administrador no fija contraseñas, reemplazados por [`ADR-0008`](ADR-0008-administrador-y-usuario.md)
 - Fecha: 2026-09-08
 
 ## Contexto

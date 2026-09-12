@@ -45,7 +45,7 @@ function mensajeDeError(error: unknown): string {
 }
 
 export function LoginPage(): ReactNode {
-  const { baseUrl, estado, establecer } = useSession();
+  const { baseUrl, estado, establecer, aviso } = useSession();
   const navigate = useNavigate();
   const location = useLocation();
   const emailId = useId();
@@ -87,12 +87,7 @@ export function LoginPage(): ReactNode {
 
       <div className="asm-login-shell">
         <aside className="asm-login-left" aria-label="Identidad de la aplicación">
-          <img
-            className="asm-login-left-image"
-            src="/login-assets/panel.png"
-            alt=""
-            aria-hidden
-          />
+          <img className="asm-login-left-image" src="/login-assets/panel.png" alt="" aria-hidden />
           <div className="asm-login-left-overlay" />
 
           {/* <div className="asm-login-left-content">
@@ -109,6 +104,14 @@ export function LoginPage(): ReactNode {
         <main className="asm-login-main">
           <section className="asm-login-card" aria-labelledby="login-title">
             <h1 id="login-title">Inicia Sesión</h1>
+
+            {/* Tras cambiar la contraseña el servidor cierra todas las sesiones: sin
+                este aviso, volver aquí parecería un fallo. */}
+            {aviso ? (
+              <div className="asm-login-notice" role="status">
+                {aviso}
+              </div>
+            ) : null}
 
             {mutation.isError ? (
               <div className="asm-login-error" role="alert">
@@ -167,11 +170,7 @@ export function LoginPage(): ReactNode {
                 <p className="asm-login-validation">{errors.password.message}</p>
               ) : null}
 
-              <button
-                type="submit"
-                className="asm-login-submit"
-                disabled={mutation.isPending}
-              >
+              <button type="submit" className="asm-login-submit" disabled={mutation.isPending}>
                 {mutation.isPending ? 'Accediendo...' : 'Acceder'}
               </button>
 

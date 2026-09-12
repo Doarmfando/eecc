@@ -11,7 +11,7 @@ Aplicación NestJS que expone el contrato público del conversor de estados de c
 | Aislamiento multi-tenant | Verificado con pruebas contra base real |
 | Autorización por credencial de servicio con alcance de organización | Implementada |
 | Inicio de sesión de personas con cookie httpOnly y roles | Implementado |
-| Gestión de personas por administrador (alta, rol, revocación, restablecer clave) | Implementada |
+| Gestión de usuarios por el administrador (alta, edición, contraseña, desactivar, eliminar, documentos por cuenta) | Implementada |
 | Carga segura y validación del documento | Implementada |
 | Llamada a la API interna del worker | Implementada y probada contra el worker real |
 | Persistencia transaccional de trabajo, intento, advertencias, artefactos, auditoría y outbox | Implementada |
@@ -34,7 +34,7 @@ src/
 ├── config/            # Configuración validada del entorno
 ├── modules/
 │   ├── auth/          # Contraseñas, sesiones y rutas de inicio de sesión
-│   ├── users/         # Gestión de personas de la organización
+│   ├── users/         # Gestión de las cuentas de la organización
 │   ├── health/
 │   ├── jobs/
 │   ├── statements/
@@ -108,7 +108,7 @@ Esa suite crea sus propias organizaciones con prefijo reconocible y las borra al
 - `POST /v1/auth/logout`: revoca la sesión y borra la cookie.
 - `GET /v1/auth/me`: datos de la sesión activa.
 - `POST /v1/auth/password`: cambia la contraseña propia y cierra las demás sesiones.
-- `GET /v1/users`, `POST /v1/users`, `PATCH /v1/users/{userId}`, `POST /v1/users/{userId}/password-reset`: gestión de personas, solo para `OWNER` y `ADMIN` con sesión. Una credencial de servicio no las alcanza.
+- `GET /v1/users`, `POST /v1/users`, `PATCH /v1/users/{userId}`, `POST /v1/users/{userId}/password-reset`, `DELETE /v1/users/{userId}`: gestión de cuentas, solo para `ADMIN` con sesión. Una credencial de servicio no las alcanza. El listado incluye `documentCount`; el alta y el cambio de contraseña aceptan `password` opcional (sin él, se genera una temporal); un administrador no se elimina ni se degrada. Reglas en [`ADR-0008`](../../docs/decisiones/ADR-0008-administrador-y-usuario.md).
 - `GET /health`: comprobación de vida, sin prefijo de versión.
 - `POST /v1/statements`: recibe el PDF por multipart, procesa y devuelve el resumen del trabajo. Acepta `Idempotency-Key`; sin ella, la clave se deriva del contenido y la versión del perfil.
 - `GET /v1/jobs`: historial de la organización, del más reciente al más antiguo, con paginación por cursor (`limit`, `cursor`). El cursor es opaco y combina fecha e identificador, de modo que insertar trabajos nuevos no repite ni salta filas.

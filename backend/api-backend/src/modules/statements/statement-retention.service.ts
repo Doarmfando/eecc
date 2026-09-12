@@ -70,6 +70,24 @@ export class StatementRetentionService {
     return borrados;
   }
 
+  /**
+   * Borra todos los documentos que subió una persona en la organización.
+   *
+   * Al contrario que el cupo, aquí un fallo **sí** corta: quien llama va a eliminar
+   * la cuenta a continuación, y hacerlo con documentos a medio borrar dejaría
+   * archivos financieros sin dueño y sin nadie que los vea en su historial.
+   */
+  async removeAllForUploader(organizationId: string, uploadedById: string): Promise<number> {
+    const documentos = await this.prisma.statement.findMany({
+      where: { organizationId, uploadedById },
+      select: { id: true },
+    });
+    for (const documento of documentos) {
+      await this.deleteStatement(organizationId, documento.id);
+    }
+    return documentos.length;
+  }
+
   /** Borra los archivos de un documento y después su fila. */
   private async deleteStatement(organizationId: string, statementId: string): Promise<void> {
     const artefactos = await this.prisma.artifact.findMany({

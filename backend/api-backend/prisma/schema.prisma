@@ -29,11 +29,12 @@ enum UserStatus {
   DISABLED
 }
 
+/// Dos roles, porque solo hay dos comportamientos: quien administra las cuentas
+/// de la organización y quien procesa documentos. Un administrador no se puede
+/// eliminar ni degradar; ver ADR-0008.
 enum MembershipRole {
-  OWNER
   ADMIN
   MEMBER
-  VIEWER
 }
 
 enum MembershipStatus {

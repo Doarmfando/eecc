@@ -98,7 +98,7 @@ describe('UploadPage', () => {
     );
     renderApp();
 
-    expect(await screen.findByRole('button', { name: 'Entrar' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Acceder' })).toBeInTheDocument();
     expect(screen.queryByLabelText('Estado de cuenta en PDF')).not.toBeInTheDocument();
   });
 
@@ -175,9 +175,11 @@ describe('UploadPage', () => {
     await user.upload(screen.getByLabelText('Estado de cuenta en PDF'), pdfFile());
     await user.click(screen.getByRole('button', { name: /Procesar estado de cuenta/ }));
 
-    // Al terminar se abre el detalle del trabajo, así que se espera al texto que
-    // solo aparece con la consulta ya resuelta: anclar en el distintivo de estado
-    // mide un instante intermedio de la navegación.
+    // Al terminar se abre el detalle del trabajo. Antes de navegar, la página de
+    // subida pinta un instante el mismo resumen: buscar el texto sin más lo
+    // encontraba ahí y, al desmontarse con la navegación, la aserción veía un nodo
+    // ya retirado (~1 de cada 3 corridas). Se ancla primero en el detalle.
+    await screen.findByRole('link', { name: /Volver a cargar otro documento/ });
     expect(
       await screen.findByText('Hay salida utilizable, pero con discrepancias'),
     ).toBeInTheDocument();

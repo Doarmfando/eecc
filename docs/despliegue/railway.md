@@ -88,7 +88,7 @@ BOOTSTRAP_ADMIN_EMAIL=tu@empresa.pe
 BOOTSTRAP_ADMIN_PASSWORD=<una contraseña larga>
 ```
 
-Al arrancar, **si y solo si la base no tiene ningún usuario**, se crea la organización y esa persona como propietaria. Nunca modifica una instalación en marcha, así que dejar las variables puestas no duplica cuentas; aun así, **retira `BOOTSTRAP_ADMIN_PASSWORD` en cuanto entres y cambies la contraseña**.
+Al arrancar, **si y solo si la base no tiene ningún usuario**, se crea la organización y esa persona como administradora. Nunca modifica una instalación en marcha, así que dejar las variables puestas no duplica cuentas; aun así, **retira `BOOTSTRAP_ADMIN_PASSWORD` en cuanto entres y cambies la contraseña**.
 
 Existe porque en Railway la base solo es accesible desde dentro de la red privada: sembrar desde fuera obligaría a exponerla, y `railway ssh` exige registrar una clave SSH. El arranque lo resuelve sin abrir nada.
 
@@ -101,7 +101,9 @@ node dist/cli/seed.js
 
 `node dist/cli/seed.js` y no `npm run prisma:seed`: ese script usa `ts-node`, que es dependencia de desarrollo y no viaja en la imagen.
 
-A partir de ahí, las demás cuentas se crean desde la propia aplicación, en **Personas**.
+A partir de ahí, las demás cuentas se crean desde la propia aplicación, en **Usuarios**.
+
+Al desplegar la migración `20260912120000_administrador_y_usuario`, en cada organización solo queda como administradora la cuenta más antigua de rol más alto (la del arranque); las demás pasan a usuario. Ver [`ADR-0008`](../decisiones/ADR-0008-administrador-y-usuario.md).
 
 ## Comprobar que quedó bien
 

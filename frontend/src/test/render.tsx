@@ -22,15 +22,24 @@ export const TEST_USER: SessionUser = {
 /** Envuelve con los mismos proveedores que la aplicación real. */
 export function renderWithProviders(
   ui: ReactElement,
-  { usuario = TEST_USER }: { usuario?: SessionUser | null } = {},
+  {
+    usuario = TEST_USER,
+    cerrar = () => Promise.resolve(),
+    aviso = null,
+  }: {
+    usuario?: SessionUser | null;
+    cerrar?: SessionValue['cerrar'];
+    aviso?: string | null;
+  } = {},
 ): RenderResult {
   const value: SessionValue = {
     baseUrl: TEST_BASE_URL,
     estado: usuario ? 'autenticado' : 'anonimo',
     usuario,
     establecer: () => undefined,
-    cerrar: () => Promise.resolve(),
-    puedeAdministrar: usuario !== null && (usuario.role === 'OWNER' || usuario.role === 'ADMIN'),
+    cerrar,
+    aviso,
+    puedeAdministrar: usuario?.role === 'ADMIN',
   };
 
   function Wrapper({ children }: { children: ReactNode }): ReactNode {

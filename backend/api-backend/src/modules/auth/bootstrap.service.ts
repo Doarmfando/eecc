@@ -9,7 +9,7 @@ import { hashPassword, normalizeEmail } from './password-hash';
 const ORGANIZACION_INICIAL = 'Organización';
 
 /**
- * Crea la organización y su primera persona cuando la base está vacía.
+ * Crea la organización y su administrador cuando la base está vacía.
  *
  * Sin esto, un despliegue recién levantado no tiene por dónde entrar: no hay
  * registro abierto, y en un PaaS la base solo es accesible desde dentro del
@@ -64,7 +64,7 @@ export class BootstrapService implements OnApplicationBootstrap {
           passwordSetAt: new Date(),
           status: UserStatus.ACTIVE,
           memberships: {
-            create: { organizationId: organization.id, role: MembershipRole.OWNER },
+            create: { organizationId: organization.id, role: MembershipRole.ADMIN },
           },
         },
       });

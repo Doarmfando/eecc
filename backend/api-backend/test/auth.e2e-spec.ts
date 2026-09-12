@@ -21,24 +21,36 @@ const PASSWORD = 'contraseña-de-prueba-larga';
  * Guarda las sesiones en un `Map` para poder comprobar de verdad el ciclo entrar →
  * consultar → salir, que es justo lo que un doble sin estado no demostraría.
  */
+interface EstadoUsuario {
+  status: string;
+  role: string;
+  failedAttempts: number;
+  lockedUntil: Date | null;
+}
+
 function buildPrismaDouble(passwordHash: string): {
   prisma: PrismaService;
   sesiones: Map<string, { revokedAt: Date | null; expiresAt: Date }>;
-  usuario: { status: string; failedAttempts: number; lockedUntil: Date | null };
+  usuario: EstadoUsuario;
 } {
   const sesiones = new Map<string, { revokedAt: Date | null; expiresAt: Date }>();
-  const usuario = { status: 'ACTIVE', failedAttempts: 0, lockedUntil: null as Date | null };
+  const usuario: EstadoUsuario = {
+    status: 'ACTIVE',
+    role: 'ADMIN',
+    failedAttempts: 0,
+    lockedUntil: null,
+  };
 
-  const membership = {
+  const membership = (): Record<string, unknown> => ({
     organizationId: ORGANIZATION_ID,
     userId: USER_ID,
-    role: 'ADMIN',
+    role: usuario.role,
     status: 'ACTIVE',
     createdAt: new Date('2026-01-01T00:00:00Z'),
     organization: { id: ORGANIZATION_ID, displayName: 'Organización de prueba', status: 'ACTIVE' },
-  };
+  });
 
-  const filaUsuario = (): unknown => ({
+  const filaUsuario = (): Record<string, unknown> => ({
     id: USER_ID,
     emailNormalized: EMAIL,
     displayName: 'Persona de prueba',
@@ -47,7 +59,8 @@ function buildPrismaDouble(passwordHash: string): {
     failedAttempts: usuario.failedAttempts,
     lockedUntil: usuario.lockedUntil,
     lastLoginAt: null,
-    memberships: [membership],
+    memberships: [membership()],
+    _count: { statements: 2 },
   });
 
   const prisma = {
@@ -111,16 +124,23 @@ function buildPrismaDouble(passwordHash: string): {
       }),
     },
     organizationMembership: {
-      findMany: jest.fn().mockResolvedValue([{ ...membership, user: filaUsuario() }]),
-      findUnique: jest.fn(({ where }: { where: { organizationId_userId: { userId: string } } }) =>
-        Promise.resolve(
-          where.organizationId_userId.userId === OTRO_USER_ID
-            ? { ...membership, userId: OTRO_USER_ID, role: 'MEMBER' }
-            : null,
-        ),
-      ),
-      update: jest.fn().mockResolvedValue({ ...membership, user: filaUsuario() }),
-      count: jest.fn().mockResolvedValue(2),
+      findMany: jest.fn(() => Promise.resolve([{ ...membership(), user: filaUsuario() }])),
+      findUnique: jest.fn(({ where }: { where: { organizationId_userId: { userId: string } } }) => {
+        const buscado = where.organizationId_userId.userId;
+        if (buscado === OTRO_USER_ID) {
+          return Promise.resolve({
+            ...membership(),
+            userId: OTRO_USER_ID,
+            role: 'MEMBER',
+            user: { ...filaUsuario(), id: OTRO_USER_ID, emailNormalized: 'otra@empresa.pe' },
+          });
+        }
+        return Promise.resolve(
+          buscado === USER_ID ? { ...membership(), user: filaUsuario() } : null,
+        );
+      }),
+      update: jest.fn(() => Promise.resolve({ ...membership(), user: filaUsuario() })),
+      count: jest.fn().mockResolvedValue(0),
     },
     auditEvent: { create: jest.fn().mockResolvedValue({}) },
     apiKey: { findUnique: jest.fn().mockResolvedValue(null) },
@@ -132,13 +152,15 @@ function buildPrismaDouble(passwordHash: string): {
 describe('Sesión de usuario (e2e)', () => {
   let app: INestApplication;
   let sesiones: Map<string, { revokedAt: Date | null; expiresAt: Date }>;
-  let usuario: { status: string; failedAttempts: number; lockedUntil: Date | null };
+  let usuario: EstadoUsuario;
+  let prismaDoble: PrismaService;
 
   beforeAll(async () => {
     const passwordHash = await hashPassword(PASSWORD);
     const doble = buildPrismaDouble(passwordHash);
     sesiones = doble.sesiones;
     usuario = doble.usuario;
+    prismaDoble = doble.prisma;
 
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(PrismaService)
@@ -163,6 +185,7 @@ describe('Sesión de usuario (e2e)', () => {
   beforeEach(() => {
     sesiones.clear();
     usuario.status = 'ACTIVE';
+    usuario.role = 'ADMIN';
     usuario.failedAttempts = 0;
     usuario.lockedUntil = null;
   });
@@ -272,6 +295,82 @@ describe('Sesión de usuario (e2e)', () => {
       .set('Cookie', cookie)
       .expect(200);
     expect(listado.body[0].email).toBe(EMAIL);
+    expect(listado.body[0].documentCount).toBe(2);
+  });
+
+  it('solo un administrador gestiona cuentas', async () => {
+    // El rol se relee de la membresía en cada petición: no basta con haber sido
+    // administrador al entrar.
+    usuario.role = 'MEMBER';
+    const cookie = await entrar();
+
+    const respuesta = await request(app.getHttpServer())
+      .get('/v1/users')
+      .set('Cookie', cookie)
+      .expect(403);
+    expect(respuesta.body.code).toBe('INSUFFICIENT_ROLE');
+    await request(app.getHttpServer())
+      .delete(`/v1/users/${OTRO_USER_ID}`)
+      .set('Cookie', cookie)
+      .expect(403);
+  });
+
+  it('no deja eliminar a un administrador', async () => {
+    const cookie = await entrar();
+
+    const respuesta = await request(app.getHttpServer())
+      .delete(`/v1/users/${USER_ID}`)
+      .set('Cookie', cookie)
+      .expect(409);
+    expect(respuesta.body.code).toBe('ADMIN_CANNOT_BE_DELETED');
+  });
+
+  it('rechaza una contraseña fijada demasiado corta sin llegar a guardarla', async () => {
+    const cookie = await entrar();
+
+    const respuesta = await request(app.getHttpServer())
+      .post(`/v1/users/${OTRO_USER_ID}/password-reset`)
+      .set('Cookie', cookie)
+      .send({ password: 'corta' })
+      .expect(400);
+    expect(respuesta.body.code).toBe('VALIDATION_FAILED');
+  });
+
+  it('edita el nombre de otra persona recortando los espacios', async () => {
+    const cookie = await entrar();
+
+    await request(app.getHttpServer())
+      .patch(`/v1/users/${OTRO_USER_ID}`)
+      .set('Cookie', cookie)
+      .send({ displayName: '  Nombre nuevo  ' })
+      .expect(200);
+
+    expect(prismaDoble.user.update).toHaveBeenCalledWith({
+      where: { id: OTRO_USER_ID },
+      data: { displayName: 'Nombre nuevo' },
+    });
+  });
+
+  it('un nombre de solo espacios no pasa por válido', async () => {
+    const cookie = await entrar();
+
+    await request(app.getHttpServer())
+      .patch(`/v1/users/${OTRO_USER_ID}`)
+      .set('Cookie', cookie)
+      .send({ displayName: '    ' })
+      .expect(400);
+  });
+
+  it('rechaza campos que la edición no admite', async () => {
+    // `forbidNonWhitelisted`: sin él, un campo como `passwordHash` se ignoraría en
+    // silencio y quien lo envió creería haberlo cambiado.
+    const cookie = await entrar();
+
+    await request(app.getHttpServer())
+      .patch(`/v1/users/${OTRO_USER_ID}`)
+      .set('Cookie', cookie)
+      .send({ passwordHash: 'x' })
+      .expect(400);
   });
 
   it('exige sesión para subir un documento cuando no hay credencial', async () => {
