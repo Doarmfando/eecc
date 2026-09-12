@@ -17,6 +17,7 @@ export const TEST_USER: SessionUser = {
   organizationName: 'Organización de prueba',
   role: 'ADMIN',
   retainedStatementsPerUser: 3,
+  allowedEmailDomains: ['hotmail.com', 'empresa.pe', 'eecc.local'],
 };
 
 /** Envuelve con los mismos proveedores que la aplicación real. */

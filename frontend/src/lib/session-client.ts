@@ -12,6 +12,8 @@ export interface SessionUser {
   role: Role;
   /** Documentos que conserva cada persona antes de que se borre el más antiguo. */
   retainedStatementsPerUser: number;
+  /** Dominios de correo admitidos en las altas. Vacío: cualquiera. */
+  allowedEmailDomains?: string[];
 }
 
 export interface Member {

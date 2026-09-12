@@ -11,9 +11,11 @@ import {
   StatementStatus,
   UserStatus,
 } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'node:crypto';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { isEmailDomainAllowed, parseEmailDomains, type AppConfig } from '../../config/app-config';
 import { hashPassword, normalizeEmail } from '../auth/password-hash';
 import { StatementRetentionService } from '../statements/statement-retention.service';
 
@@ -61,10 +63,24 @@ const LONGITUD_TEMPORAL = 16;
  */
 @Injectable()
 export class UsersService {
+  private readonly dominiosPermitidos: string[];
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly retention: StatementRetentionService,
-  ) {}
+    config: ConfigService<AppConfig, true>,
+  ) {
+    this.dominiosPermitidos = parseEmailDomains(
+      config.get('ALLOWED_EMAIL_DOMAINS', { infer: true }),
+    );
+  }
+
+  /** La organización solo da de alta correos de los dominios configurados. */
+  private exigirDominioPermitido(email: string): void {
+    if (!isEmailDomainAllowed(email, this.dominiosPermitidos)) {
+      throw new BadRequestException({ code: 'EMAIL_DOMAIN_NOT_ALLOWED' });
+    }
+  }
 
   async list(organizationId: string): Promise<MemberSummary[]> {
     const memberships = await this.prisma.organizationMembership.findMany({
@@ -88,6 +104,7 @@ export class UsersService {
     requestId?: string,
   ): Promise<CreatedMember> {
     const email = normalizeEmail(datos.email);
+    this.exigirDominioPermitido(email);
 
     const existente = await this.prisma.user.findUnique({
       where: { emailNormalized: email },
@@ -194,6 +211,9 @@ export class UsersService {
       await this.exigirCuentaExclusiva(organizationId, userId);
     }
     if (email !== undefined && datosUsuario.emailNormalized !== undefined) {
+      // Solo se exige al cambiarlo: corregir el nombre de una cuenta antigua con
+      // otro dominio no debe obligar a cambiarle también el correo.
+      this.exigirDominioPermitido(email);
       const otro = await this.prisma.user.findUnique({ where: { emailNormalized: email } });
       if (otro && otro.id !== userId) {
         throw new ConflictException({ code: 'EMAIL_ALREADY_IN_USE' });

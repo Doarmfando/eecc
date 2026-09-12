@@ -315,6 +315,23 @@ describe('Sesión de usuario (e2e)', () => {
       .expect(403);
   });
 
+  it('solo da de alta correos de los dominios admitidos, y la sesión los anuncia', async () => {
+    const cookie = await entrar();
+
+    const yo = await request(app.getHttpServer())
+      .get('/v1/auth/me')
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(yo.body.allowedEmailDomains).toEqual(['hotmail.com', 'empresa.pe', 'eecc.local']);
+
+    const respuesta = await request(app.getHttpServer())
+      .post('/v1/users')
+      .set('Cookie', cookie)
+      .send({ displayName: 'Diego', email: 'diego@avax.pe', role: 'MEMBER' })
+      .expect(400);
+    expect(respuesta.body.code).toBe('EMAIL_DOMAIN_NOT_ALLOWED');
+  });
+
   it('no deja eliminar a un administrador', async () => {
     const cookie = await entrar();
 

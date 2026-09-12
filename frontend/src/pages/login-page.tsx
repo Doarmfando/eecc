@@ -87,23 +87,16 @@ export function LoginPage(): ReactNode {
 
       <div className="asm-login-shell">
         <aside className="asm-login-left" aria-label="Identidad de la aplicación">
-          <img className="asm-login-left-image" src="/login-assets/panel.png" alt="" aria-hidden />
+          <img className="asm-login-left-image" src="/login-assets/panel.jpg" alt="" aria-hidden />
           <div className="asm-login-left-overlay" />
-
-          {/* <div className="asm-login-left-content">
-            <div className="asm-login-brand-band">
-              <img src="/login-assets/brand-logo.png" alt="ASM" />
-            </div>
-            <div className="asm-login-left-title">
-              <strong>Generador</strong>
-              <span>(2026)</span>
-            </div>
-          </div> */}
         </aside>
 
         <main className="asm-login-main">
           <section className="asm-login-card" aria-labelledby="login-title">
-            <h1 id="login-title">Inicia Sesión</h1>
+            <h1 id="login-title">Inicia sesión</h1>
+            {/* Sin esto, en móvil —donde el panel lateral se oculta— la pantalla no
+                dice a qué aplicación se está entrando. */}
+            <p className="asm-login-subtitle">Conversor de estados de cuenta</p>
 
             {/* Tras cambiar la contraseña el servidor cierra todas las sesiones: sin
                 este aviso, volver aquí parecería un fallo. */}
@@ -174,14 +167,19 @@ export function LoginPage(): ReactNode {
                 {mutation.isPending ? 'Accediendo...' : 'Acceder'}
               </button>
 
-              <p className="asm-login-recovery">¿Olvidaste tu contraseña?</p>
+              {/* No hay recuperación por correo: las cuentas las gestiona un
+                  administrador, así que se dice a quién acudir en vez de ofrecer
+                  algo que parece un enlace y no lleva a ningún sitio. */}
+              <p className="asm-login-recovery">
+                ¿Olvidaste tu contraseña? Pide a un administrador que te asigne una nueva.
+              </p>
             </form>
           </section>
         </main>
 
         <footer className="asm-login-footer" aria-label="Créditos">
           <span className="asm-login-footer-brand">
-            <img src="/login-assets/ATLAS_isotipo_transparente_5000px.png" alt="" aria-hidden />
+            <img src="/login-assets/atlas-isotipo.png" alt="" aria-hidden />
           </span>
         </footer>
       </div>

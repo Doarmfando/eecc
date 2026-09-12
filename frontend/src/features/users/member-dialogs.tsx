@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, Copy } from 'lucide-react';
-import { useId, useState, type ReactNode } from 'react';
+import { useId, useMemo, useState, type ReactNode } from 'react';
 import { Controller, useForm, useWatch, type UseFormRegisterReturn } from 'react-hook-form';
 
 import { useSession } from '@/app/use-session';
@@ -23,6 +23,7 @@ import { mensajeDeError } from './error-messages';
 import { ChoiceCard, FieldError, PasswordInput, RoleChoice } from './form-fields';
 import {
   claveSchema,
+  describirDominios,
   edicionSchema,
   MIN_PASSWORD_LENGTH,
   nuevaCuentaSchema,
@@ -42,6 +43,17 @@ export interface Credencial {
 // Los formularios largos se desplazan dentro del diálogo en pantallas bajas, en vez
 // de quedar cortados fuera de la vista.
 const contenidoClass = 'max-h-[calc(100dvh-2rem)] max-w-lg overflow-y-auto';
+
+// Referencia estable: una lista nueva en cada render rehace el esquema sin motivo.
+const SIN_DOMINIOS: readonly string[] = [];
+
+/** Qué correos admite la organización, visible antes de equivocarse. */
+function DominiosAdmitidos({ dominios }: { dominios: readonly string[] }): ReactNode {
+  if (dominios.length === 0) {
+    return null;
+  }
+  return <p className="text-xs text-muted-foreground">Admitidos: {describirDominios(dominios)}</p>;
+}
 
 function Encabezado({
   titulo,
@@ -125,14 +137,16 @@ export function CrearCuentaDialog({
   onOpenChange: (abierto: boolean) => void;
   onCreada: (miembro: Member, claveGenerada: string | null) => void;
 }): ReactNode {
-  const { baseUrl } = useSession();
+  const { baseUrl, usuario } = useSession();
   const queryClient = useQueryClient();
   const nombreId = useId();
   const correoId = useId();
   const claveId = useId();
+  const dominios = usuario?.allowedEmailDomains ?? SIN_DOMINIOS;
+  const schema = useMemo(() => nuevaCuentaSchema(dominios), [dominios]);
 
   const form = useForm<NuevaCuenta>({
-    resolver: zodResolver(nuevaCuentaSchema),
+    resolver: zodResolver(schema),
     defaultValues: NUEVA_CUENTA,
   });
   const errores = form.formState.errors;
@@ -198,7 +212,11 @@ export function CrearCuentaDialog({
                 aria-invalid={errores.email ? true : undefined}
                 {...form.register('email')}
               />
-              <FieldError message={errores.email?.message} />
+              {errores.email ? (
+                <FieldError message={errores.email.message} />
+              ) : (
+                <DominiosAdmitidos dominios={dominios} />
+              )}
             </div>
           </div>
 
@@ -274,13 +292,15 @@ function EditarCuentaContenido({
   onCerrar: () => void;
   onGuardada: (miembro: Member) => void;
 }): ReactNode {
-  const { baseUrl } = useSession();
+  const { baseUrl, usuario } = useSession();
   const queryClient = useQueryClient();
   const nombreId = useId();
   const correoId = useId();
+  const dominios = usuario?.allowedEmailDomains ?? SIN_DOMINIOS;
+  const schema = useMemo(() => edicionSchema(dominios, miembro.email), [dominios, miembro.email]);
 
   const form = useForm<Edicion>({
-    resolver: zodResolver(edicionSchema),
+    resolver: zodResolver(schema),
     defaultValues: { displayName: miembro.displayName, email: miembro.email, role: miembro.role },
   });
   const errores = form.formState.errors;
@@ -341,7 +361,11 @@ function EditarCuentaContenido({
               aria-invalid={errores.email ? true : undefined}
               {...form.register('email')}
             />
-            <FieldError message={errores.email?.message} />
+            {errores.email ? (
+              <FieldError message={errores.email.message} />
+            ) : (
+              <DominiosAdmitidos dominios={dominios} />
+            )}
           </div>
         </div>
 

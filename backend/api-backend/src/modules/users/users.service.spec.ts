@@ -1,7 +1,10 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { MembershipRole, MembershipStatus, Prisma, UserStatus } from '@prisma/client';
 
+import type { ConfigService } from '@nestjs/config';
+
 import type { PrismaService } from '../../common/prisma/prisma.service';
+import type { AppConfig } from '../../config/app-config';
 import { verifyPassword } from '../auth/password-hash';
 import type { StatementRetentionService } from '../statements/statement-retention.service';
 import { UsersService } from './users.service';
@@ -61,6 +64,8 @@ function construir(
     otrasMembresias?: number;
     falloAlActualizar?: Error;
     falloAlBorrarDocumentos?: Error;
+    /** Valor de `ALLOWED_EMAIL_DOMAINS`. */
+    dominios?: string;
   } = {},
 ): Dobles {
   const usuarioBuscado = jest.fn().mockResolvedValue(opciones.usuarioExistente ?? null);
@@ -126,8 +131,12 @@ function construir(
     removeAllForUploader: documentosBorrados,
   } as unknown as StatementRetentionService;
 
+  const config = {
+    get: (): string => opciones.dominios ?? 'hotmail.com,empresa.pe,eecc.local',
+  } as unknown as ConfigService<AppConfig, true>;
+
   return {
-    service: new UsersService(prisma, retention),
+    service: new UsersService(prisma, retention, config),
     usuarioBuscado,
     usuarioCreado,
     usuarioActualizado,
@@ -245,6 +254,24 @@ describe('UsersService.create', () => {
     expect(guardado.data.displayName).toBe('Persona de prueba');
   });
 
+  it('rechaza un correo de un dominio no admitido sin tocar la base', async () => {
+    const { service, usuarioBuscado, usuarioCreado } = construir();
+
+    await expect(
+      service.create(ORGANIZATION_ID, ACTOR_ID, { ...datos, email: 'diego@avax.pe' }),
+    ).rejects.toMatchObject({ response: { code: 'EMAIL_DOMAIN_NOT_ALLOWED' } });
+    expect(usuarioBuscado).not.toHaveBeenCalled();
+    expect(usuarioCreado).not.toHaveBeenCalled();
+  });
+
+  it('admite cualquier dominio si la lista está vacía', async () => {
+    const { service, usuarioCreado } = construir({ dominios: '' });
+
+    await service.create(ORGANIZATION_ID, ACTOR_ID, { ...datos, email: 'ana@cualquiera.com' });
+
+    expect(usuarioCreado).toHaveBeenCalled();
+  });
+
   it('rechaza a quien ya pertenece a la organización', async () => {
     const { service } = construir({
       usuarioExistente: usuarioFila({ memberships: [membresiaFila()] }),
@@ -318,6 +345,34 @@ describe('UsersService.update', () => {
     expect(usuarioActualizado).not.toHaveBeenCalled();
     expect(membresiaActualizada).not.toHaveBeenCalled();
     expect(auditoria).not.toHaveBeenCalled();
+  });
+
+  it('no deja cambiar el correo a uno de un dominio no admitido', async () => {
+    const { service, usuarioActualizado } = construir();
+
+    await expect(
+      service.update(ORGANIZATION_ID, ACTOR_ID, MIEMBRO_ID, { email: 'persona@gmail.com' }),
+    ).rejects.toMatchObject({ response: { code: 'EMAIL_DOMAIN_NOT_ALLOWED' } });
+    expect(usuarioActualizado).not.toHaveBeenCalled();
+  });
+
+  it('sí deja renombrar una cuenta antigua cuyo correo ya no está admitido', async () => {
+    // La regla es para correos nuevos: no obliga a cambiar el de quien ya existía.
+    const { service, usuarioActualizado } = construir({
+      membresiaExistente: membresiaFila({
+        user: usuarioFila({ emailNormalized: 'vieja@avax.pe' }),
+      }),
+    });
+
+    await service.update(ORGANIZATION_ID, ACTOR_ID, MIEMBRO_ID, {
+      displayName: 'Nombre corregido',
+      email: 'vieja@avax.pe',
+    });
+
+    expect(usuarioActualizado).toHaveBeenCalledWith({
+      where: { id: MIEMBRO_ID },
+      data: { displayName: 'Nombre corregido' },
+    });
   });
 
   it('rechaza un correo que ya usa otra persona', async () => {

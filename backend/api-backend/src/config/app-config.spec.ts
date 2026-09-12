@@ -1,4 +1,10 @@
-import { NodeEnvironment, parseCorsOrigins, validateConfig } from './app-config';
+import {
+  isEmailDomainAllowed,
+  NodeEnvironment,
+  parseCorsOrigins,
+  parseEmailDomains,
+  validateConfig,
+} from './app-config';
 
 const BASE = {
   DATABASE_URL: 'postgresql://user:pass@127.0.0.1:5432/eecc',
@@ -54,5 +60,40 @@ describe('parseCorsOrigins', () => {
   it('devuelve una lista vacía cuando no hay orígenes configurados', () => {
     expect(parseCorsOrigins('')).toEqual([]);
     expect(parseCorsOrigins('   ,  ')).toEqual([]);
+  });
+});
+
+describe('dominios de correo', () => {
+  it('normaliza la lista: minúsculas, sin espacios ni arroba inicial', () => {
+    expect(parseEmailDomains(' @Empresa.PE , hotmail.com,, eecc.local ')).toEqual([
+      'empresa.pe',
+      'hotmail.com',
+      'eecc.local',
+    ]);
+  });
+
+  it('por defecto admite hotmail.com, empresa.pe y eecc.local', () => {
+    const config = validateConfig({
+      DATABASE_URL: 'postgresql://u:c@127.0.0.1:5432/x',
+      FINGERPRINT_SECRET: 'f'.repeat(48),
+    });
+    expect(parseEmailDomains(config.ALLOWED_EMAIL_DOMAINS)).toEqual([
+      'hotmail.com',
+      'empresa.pe',
+      'eecc.local',
+    ]);
+  });
+
+  it('compara el dominio exacto, sin admitir subdominios ni sufijos engañosos', () => {
+    const dominios = ['empresa.pe', 'hotmail.com'];
+    expect(isEmailDomainAllowed('Ana@Empresa.PE', dominios)).toBe(true);
+    expect(isEmailDomainAllowed('ana@hotmail.com', dominios)).toBe(true);
+    expect(isEmailDomainAllowed('diego@avax.pe', dominios)).toBe(false);
+    expect(isEmailDomainAllowed('ana@otra.empresa.pe', dominios)).toBe(false);
+    expect(isEmailDomainAllowed('ana@empresa.pe.falso.com', dominios)).toBe(false);
+  });
+
+  it('con la lista vacía admite cualquier dominio', () => {
+    expect(isEmailDomainAllowed('ana@cualquiera.com', [])).toBe(true);
   });
 });

@@ -34,6 +34,8 @@ La gestión de cuentas se quedaba corta para quien la usa: no se podía corregir
 
 **Auditoría.** `member.updated` registra qué campos cambiaron, no sus valores: el correo es un dato personal y la auditoría no lo necesita para ser útil. Se añade `member.deleted` con el número de documentos borrados.
 
+**Dominios de correo.** Las altas y los cambios de correo solo admiten los dominios de `ALLOWED_EMAIL_DOMAINS` (por defecto `hotmail.com`, `empresa.pe` y `eecc.local`). No se aplica al inicio de sesión, para que ajustar la lista no deje fuera a cuentas existentes.
+
 **Recuperación.** Si se pierde la contraseña del único administrador, la semilla la fija cuando `SEED_ADMIN_PASSWORD` está puesta a propósito, aunque la cuenta exista. Sin esa variable sigue sin tocar ninguna contraseña existente.
 
 ## Alternativas consideradas

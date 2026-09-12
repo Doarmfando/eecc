@@ -92,6 +92,8 @@ Un administrador no se puede eliminar ni pasar a usuario; sí desactivar. Nadie 
 
 No existe registro abierto: nadie entra sin que un administrador lo dé de alta.
 
+**Solo se admiten correos `@hotmail.com`, `@empresa.pe` y `@eecc.local`.** La lista se cambia con `ALLOWED_EMAIL_DOMAINS` en el `.env` de la API (separada por comas; vacía admite cualquiera). Solo afecta a altas y cambios de correo: una cuenta que ya existía sigue pudiendo entrar.
+
 **Si pierdes la contraseña del administrador**, fíjala desde el servidor:
 
 ```powershell

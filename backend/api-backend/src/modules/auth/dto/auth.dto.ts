@@ -47,4 +47,8 @@ export class SessionUserDto {
     description: 'Documentos que conserva cada persona antes de borrar el más antiguo',
   })
   retainedStatementsPerUser!: number;
+
+  /** Dominios de correo admitidos en las altas. Vacío: cualquiera. */
+  @ApiProperty({ type: [String], example: ['hotmail.com', 'empresa.pe', 'eecc.local'] })
+  allowedEmailDomains!: string[];
 }

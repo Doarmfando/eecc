@@ -7,6 +7,7 @@ import { ApiError } from '@/lib/api-error';
 const MENSAJES: Record<string, string> = {
   MEMBER_ALREADY_EXISTS: 'Ya existe una cuenta con ese correo en la organización.',
   EMAIL_ALREADY_IN_USE: 'Ese correo ya lo usa otra cuenta.',
+  EMAIL_DOMAIN_NOT_ALLOWED: 'Ese dominio de correo no está admitido en la organización.',
   MEMBER_IN_OTHER_ORGANIZATION:
     'Esta cuenta también pertenece a otra organización: su nombre, correo y contraseña no se pueden cambiar desde aquí.',
   ADMIN_CANNOT_BE_DELETED: 'Un administrador no se puede eliminar. Puedes desactivarlo.',

@@ -271,6 +271,26 @@ describe('MembersPage: alta', () => {
     expect(peticiones(fetchMock, 'POST')).toHaveLength(0);
   });
 
+  it('solo admite correos de los dominios de la organización y lo avisa antes', async () => {
+    const fetchMock = await montar();
+    const { user, dialogo } = await abrirAlta();
+
+    expect(
+      within(dialogo).getByText('Admitidos: @hotmail.com, @empresa.pe o @eecc.local'),
+    ).toBeInTheDocument();
+
+    await user.type(within(dialogo).getByLabelText('Nombre'), 'Diego');
+    await user.type(within(dialogo).getByLabelText('Correo'), 'diego@avax.pe');
+    await user.click(within(dialogo).getByRole('button', { name: 'Crear usuario' }));
+
+    expect(
+      await within(dialogo).findByText(
+        'Solo se admiten correos @hotmail.com, @empresa.pe o @eecc.local',
+      ),
+    ).toBeInTheDocument();
+    expect(peticiones(fetchMock, 'POST')).toHaveLength(0);
+  });
+
   it('deja ver la contraseña escrita para comprobarla antes de entregarla', async () => {
     await montar();
     const { user, dialogo } = await abrirAlta();
@@ -321,6 +341,25 @@ describe('MembersPage: edición', () => {
       });
     });
     expect(await screen.findByText(/Cambios guardados/)).toBeInTheDocument();
+  });
+
+  it('deja renombrar una cuenta antigua con otro dominio sin obligar a cambiar su correo', async () => {
+    const antigua = { ...OTRA, email: 'vieja@avax.pe' };
+    const fetchMock = await montar({ lista: () => jsonResponse(200, [YO, antigua]) });
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'Editar a Otra persona' }));
+    const dialogo = await screen.findByRole('dialog');
+    const nombre = within(dialogo).getByLabelText('Nombre');
+    await user.clear(nombre);
+    await user.type(nombre, 'Nombre corregido');
+    await user.click(within(dialogo).getByRole('button', { name: 'Guardar cambios' }));
+
+    await waitFor(() => {
+      expect(cuerpo(peticiones(fetchMock, 'PATCH')[0]?.[1])).toEqual({
+        displayName: 'Nombre corregido',
+      });
+    });
   });
 
   it('no llama al servidor si no cambió nada', async () => {

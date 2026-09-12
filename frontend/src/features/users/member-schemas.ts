@@ -44,15 +44,64 @@ function validarClaveElegida(
   }
 }
 
-export const nuevaCuentaSchema = z
-  .object({ displayName: nombre, email: correo, role: rol, modoClave, password: z.string() })
-  .superRefine(validarClaveElegida);
+/** `["empresa.pe", "hotmail.com"]` → `"@empresa.pe o @hotmail.com"`. */
+export function describirDominios(dominios: readonly string[]): string {
+  const conArroba = dominios.map((dominio) => `@${dominio}`);
+  if (conArroba.length <= 1) {
+    return conArroba.join('');
+  }
+  return `${conArroba.slice(0, -1).join(', ')} o ${conArroba[conArroba.length - 1] ?? ''}`;
+}
 
-export type NuevaCuenta = z.infer<typeof nuevaCuentaSchema>;
+/**
+ * Misma regla que la API: coincidencia exacta tras la última arroba y lista vacía
+ * sin restricción. `salvo` deja pasar el correo que la cuenta ya tenía, para no
+ * obligar a cambiarlo al corregir otro dato.
+ */
+function exigirDominio(
+  dominios: readonly string[],
+  salvo?: string,
+): (email: string, ctx: z.RefinementCtx) => void {
+  return (email, ctx) => {
+    const normalizado = email.toLowerCase();
+    if (dominios.length === 0 || normalizado === salvo) {
+      return;
+    }
+    if (!dominios.includes(normalizado.split('@').pop() ?? '')) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Solo se admiten correos ${describirDominios(dominios)}`,
+      });
+    }
+  };
+}
 
-export const edicionSchema = z.object({ displayName: nombre, email: correo, role: rol });
+const nuevaCuentaBase = z.object({
+  displayName: nombre,
+  email: correo,
+  role: rol,
+  modoClave,
+  password: z.string(),
+});
 
-export type Edicion = z.infer<typeof edicionSchema>;
+export type NuevaCuenta = z.infer<typeof nuevaCuentaBase>;
+
+export function nuevaCuentaSchema(dominios: readonly string[]): z.ZodType<NuevaCuenta> {
+  return nuevaCuentaBase
+    .extend({ email: correo.superRefine(exigirDominio(dominios)) })
+    .superRefine(validarClaveElegida);
+}
+
+const edicionBase = z.object({ displayName: nombre, email: correo, role: rol });
+
+export type Edicion = z.infer<typeof edicionBase>;
+
+export function edicionSchema(
+  dominios: readonly string[],
+  correoActual: string,
+): z.ZodType<Edicion> {
+  return edicionBase.extend({ email: correo.superRefine(exigirDominio(dominios, correoActual)) });
+}
 
 export const claveSchema = z
   .object({ modoClave, password: z.string() })

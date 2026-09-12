@@ -51,53 +51,6 @@
   mix-blend-mode: multiply;
 }
 
-.asm-login-left-content {
-  position: relative;
-  z-index: 1;
-  padding-top: 64px;
-  color: #ffffff;
-  text-align: center;
-}
-
-.asm-login-brand-band {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  padding: 14px 22px;
-  background: rgba(0, 0, 0, 0.62);
-  backdrop-filter: blur(4px);
-}
-
-.asm-login-brand-band img {
-  width: min(190px, 74%);
-  height: auto;
-  object-fit: contain;
-}
-
-.asm-login-left-title {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 28px;
-  text-align: center;
-  text-transform: uppercase;
-}
-
-.asm-login-left-title strong {
-  color: #ffffff;
-  font-size: 22px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-}
-
-.asm-login-left-title span {
-  color: rgba(255, 255, 255, 0.78);
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0;
-}
-
 .asm-login-main {
   position: relative;
   z-index: 2;
@@ -120,7 +73,7 @@
 }
 
 .asm-login-card h1 {
-  margin: 0 0 28px;
+  margin: 0 0 6px;
   color: #002c5f;
   background: linear-gradient(
     90deg,
@@ -140,6 +93,14 @@
   text-align: center;
   letter-spacing: 0;
   animation: asmLoginTitleFlash 3.2s ease-in-out infinite alternate;
+}
+
+.asm-login-subtitle {
+  margin: 0 0 26px;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
 }
 
 .asm-login-form {
@@ -229,7 +190,9 @@
   margin-top: 0;
   border: 0;
   border-radius: 15px;
-  background: #88a0b9;
+  /* El azul de la marca y no #88a0b9: con aquel el texto blanco no llegaba al
+     contraste mínimo (≈2,6:1) y el botón parecía deshabilitado aunque no lo estuviera. */
+  background: #0b4f91;
   color: #ffffff;
   font-size: 16px;
   font-weight: 800;
@@ -253,11 +216,12 @@
   opacity: 0.55;
 }
 
+/* Indicación, no enlace: no hay recuperación por correo que ofrecer. */
 .asm-login-recovery {
   margin: 4px 0 0;
-  color: #002c5f;
-  font-size: 14px;
-  font-weight: 500;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.4;
   text-align: center;
 }
 

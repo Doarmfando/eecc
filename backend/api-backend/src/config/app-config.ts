@@ -67,6 +67,16 @@ export class AppConfig {
   BOOTSTRAP_ADMIN_PASSWORD = '';
 
   /**
+   * Dominios de correo admitidos al crear una cuenta o cambiarle el correo,
+   * separados por coma. Vacío admite cualquiera.
+   *
+   * No afecta al inicio de sesión: una cuenta que ya existe sigue pudiendo entrar,
+   * para que ajustar la lista no deje fuera a nadie de golpe.
+   */
+  @IsString()
+  ALLOWED_EMAIL_DOMAINS = 'hotmail.com,empresa.pe,eecc.local';
+
+  /**
    * Documentos que se conservan por persona. Al superarlo, los más antiguos se
    * borran enteros: fila y archivos.
    *
@@ -104,6 +114,26 @@ export function parseCorsOrigins(value: string): string[] {
     .split(',')
     .map((origin) => origin.trim())
     .filter((origin) => origin.length > 0);
+}
+
+/** `" @Empresa.PE , hotmail.com"` → `["empresa.pe", "hotmail.com"]`. */
+export function parseEmailDomains(value: string): string[] {
+  return value
+    .split(',')
+    .map((dominio) => dominio.trim().toLowerCase().replace(/^@/, ''))
+    .filter((dominio) => dominio.length > 0);
+}
+
+/**
+ * Coincidencia exacta con lo que va tras la última arroba: `empresa.pe` no admite
+ * `otra.empresa.pe` ni `empresa.pe.falso.com`. Una lista vacía lo admite todo.
+ */
+export function isEmailDomainAllowed(email: string, dominios: readonly string[]): boolean {
+  if (dominios.length === 0) {
+    return true;
+  }
+  const dominio = email.trim().toLowerCase().split('@').pop() ?? '';
+  return dominios.includes(dominio);
 }
 
 const NUMERIC_KEYS = new Set<keyof AppConfig>([

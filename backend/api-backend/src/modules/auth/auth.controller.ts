@@ -16,7 +16,7 @@ import type { Response } from 'express';
 import { CurrentUser } from '../../common/http/request-context';
 import type { RequestWithContext } from '../../common/http/request-context';
 import { SessionGuard } from '../../common/security/session.guard';
-import { NodeEnvironment, type AppConfig } from '../../config/app-config';
+import { NodeEnvironment, parseEmailDomains, type AppConfig } from '../../config/app-config';
 import { AuthService, type AuthenticatedUser } from './auth.service';
 import { ChangePasswordDto, LoginDto, SessionUserDto } from './dto/auth.dto';
 import { SESSION_COOKIE, buildSessionCookieOptions, readCookie } from './session-cookie';
@@ -98,6 +98,9 @@ export class AuthController {
       organizationName: user.organizationName,
       role: user.role,
       retainedStatementsPerUser: this.config.get('RETAINED_STATEMENTS_PER_USER', { infer: true }),
+      allowedEmailDomains: parseEmailDomains(
+        this.config.get('ALLOWED_EMAIL_DOMAINS', { infer: true }),
+      ),
     };
   }
 }

@@ -88,6 +88,8 @@ BOOTSTRAP_ADMIN_EMAIL=tu@empresa.pe
 BOOTSTRAP_ADMIN_PASSWORD=<una contraseña larga>
 ```
 
+Las altas solo admiten correos `@hotmail.com`, `@empresa.pe` y `@eecc.local`; para otra lista, define `ALLOWED_EMAIL_DOMAINS` en `eecc-api` (separada por comas, vacía para no restringir).
+
 Al arrancar, **si y solo si la base no tiene ningún usuario**, se crea la organización y esa persona como administradora. Nunca modifica una instalación en marcha, así que dejar las variables puestas no duplica cuentas; aun así, **retira `BOOTSTRAP_ADMIN_PASSWORD` en cuanto entres y cambies la contraseña**.
 
 Existe porque en Railway la base solo es accesible desde dentro de la red privada: sembrar desde fuera obligaría a exponerla, y `railway ssh` exige registrar una clave SSH. El arranque lo resuelve sin abrir nada.

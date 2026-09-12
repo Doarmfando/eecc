@@ -13,6 +13,15 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-09-12 — Solo correos de dominios admitidos, y un login que se entiende
+
+- Hecho: `ALLOWED_EMAIL_DOMAINS` (por defecto `hotmail.com,empresa.pe,eecc.local`) limita los correos al crear una cuenta o al cambiarle el correo; responde `EMAIL_DOMAIN_NOT_ALLOWED`. Coincidencia exacta del dominio: `empresa.pe` no admite `otra.empresa.pe` ni `empresa.pe.falso.com`. Vacía, admite cualquiera.
+- Decisión: no se aplica al inicio de sesión ni a la edición de otros datos. Ajustar la lista no debe dejar fuera de golpe a cuentas que ya existen, ni obligar a cambiarles el correo para corregir su nombre.
+- Hecho: la sesión expone `allowedEmailDomains`, y los formularios de alta y edición los muestran bajo el correo y validan antes de enviar.
+- Hecho: eliminada la cuenta local `diego@avax.pe` con la rutina de la aplicación: sus 3 documentos y sus archivos (3 PDF y 3 trabajos del worker) fuera. El descarte en el worker falló la primera vez porque el `.env` local lo espera en el puerto 8010 y se había levantado en el 8000; se completó después contra el propio worker, conservando el único trabajo que otro documento aún referencia.
+- Hecho: revisado el rediseño del login llegado en paralelo. Se conservó su diseño y se corrigió: el botón «Acceder» no llegaba al contraste mínimo (blanco sobre `#88a0b9`, ≈2,6:1) y parecía deshabilitado; «¿Olvidaste tu contraseña?» parecía un enlace sin destino y ahora dice a quién acudir; la pantalla no nombraba la aplicación en móvil; y sobraba un bloque comentado que apuntaba a un logo inexistente. Las imágenes pasan de 1,2 MB a 100 KB: el panel a JPEG (mismas dimensiones) y el isotipo de 3600×5000 px, que se muestra a 28 px, a 81×112.
+- Verificación: `api-backend npm run check` (161 pruebas) y frontend `npm run check` (95) y `npm run build`, por código de salida; login capturado en tres tamaños sin recursos rotos.
+
 ## 2026-09-12 — Administrador y usuario: gestión completa de cuentas
 
 - Hecho: los roles pasan de cuatro a dos, `ADMIN` y `MEMBER`. `VIEWER` no se aplicaba en ninguna ruta y `OWNER` solo se distinguía en la protección del último propietario. La migración `20260912120000_administrador_y_usuario` deja en cada organización **una sola** cuenta administradora —la de rol más alto y, a igualdad, la activa más antigua, que es la del arranque o la semilla— y el resto como usuario; luego recrea el enum. Motivos y alternativas en [`ADR-0008`](../decisiones/ADR-0008-administrador-y-usuario.md).
