@@ -1,18 +1,16 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
-import { useId, type ReactNode } from 'react';
+import { Eye, EyeOff, Lock, User } from 'lucide-react';
+import { useId, useState, type ReactNode } from 'react';
 import { useForm } from 'react-hook-form';
-import { useLocation, useNavigate, Navigate } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 
 import { useSession } from '@/app/use-session';
-import { Alert } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { ApiError } from '@/lib/api-error';
 import { login } from '@/lib/session-client';
+
+import './login-page.css';
 
 const loginSchema = z.object({
   email: z
@@ -52,6 +50,7 @@ export function LoginPage(): ReactNode {
   const location = useLocation();
   const emailId = useId();
   const passwordId = useId();
+  const [mostrarPassword, setMostrarPassword] = useState(false);
 
   const {
     register,
@@ -76,75 +75,117 @@ export function LoginPage(): ReactNode {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-md flex-col gap-6 py-12">
-      <div className="space-y-1">
-        <h1 className="text-xl font-semibold text-foreground">Conversor de estados de cuenta</h1>
-        <p className="text-sm text-muted-foreground">
-          Entra con la cuenta que te haya facilitado tu organización.
-        </p>
+    <div className="asm-login-screen">
+      <div className="asm-login-shapes" aria-hidden>
+        <span />
+        <span />
+        <span />
+        <span />
+        <span />
+        <span />
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Iniciar sesión</CardTitle>
-          <CardDescription>
-            Si es tu primer acceso, usa la contraseña temporal que te entregaron y cámbiala después.
-          </CardDescription>
-        </CardHeader>
+      <div className="asm-login-shell">
+        <aside className="asm-login-left" aria-label="Identidad de la aplicación">
+          <img
+            className="asm-login-left-image"
+            src="/login-assets/panel.png"
+            alt=""
+            aria-hidden
+          />
+          <div className="asm-login-left-overlay" />
 
-        <form
-          className="mt-6 space-y-4"
-          onSubmit={(event) => {
-            void handleSubmit((values) => {
-              mutation.mutate(values);
-            })(event);
-          }}
-          noValidate
-        >
-          <div className="space-y-2">
-            <Label htmlFor={emailId}>Correo</Label>
-            <Input
-              id={emailId}
-              type="email"
-              autoComplete="username"
-              autoFocus
-              aria-invalid={errors.email ? true : undefined}
-              {...register('email')}
-            />
-            {errors.email ? (
-              <p className="text-sm text-destructive">{errors.email.message}</p>
+          {/* <div className="asm-login-left-content">
+            <div className="asm-login-brand-band">
+              <img src="/login-assets/brand-logo.png" alt="ASM" />
+            </div>
+            <div className="asm-login-left-title">
+              <strong>Generador</strong>
+              <span>(2026)</span>
+            </div>
+          </div> */}
+        </aside>
+
+        <main className="asm-login-main">
+          <section className="asm-login-card" aria-labelledby="login-title">
+            <h1 id="login-title">Inicia Sesión</h1>
+
+            {mutation.isError ? (
+              <div className="asm-login-error" role="alert">
+                {mensajeDeError(mutation.error)}
+              </div>
             ) : null}
-          </div>
 
-          <div className="space-y-2">
-            <Label htmlFor={passwordId}>Contraseña</Label>
-            <Input
-              id={passwordId}
-              type="password"
-              autoComplete="current-password"
-              aria-invalid={errors.password ? true : undefined}
-              {...register('password')}
-            />
-            {errors.password ? (
-              <p className="text-sm text-destructive">{errors.password.message}</p>
-            ) : null}
-          </div>
+            <form
+              className="asm-login-form"
+              onSubmit={(event) => {
+                void handleSubmit((values) => {
+                  mutation.mutate(values);
+                })(event);
+              }}
+              noValidate
+            >
+              <div className="asm-login-field">
+                <User aria-hidden className="asm-login-field-icon" />
+                <input
+                  id={emailId}
+                  type="email"
+                  autoComplete="username"
+                  autoFocus
+                  placeholder="Correo electrónico"
+                  aria-label="Correo electrónico"
+                  aria-invalid={errors.email ? true : undefined}
+                  {...register('email')}
+                />
+              </div>
+              {errors.email ? <p className="asm-login-validation">{errors.email.message}</p> : null}
 
-          {mutation.isError ? (
-            <Alert variant="destructive" title="No se pudo entrar">
-              {mensajeDeError(mutation.error)}
-            </Alert>
-          ) : null}
+              <div className="asm-login-field">
+                <Lock aria-hidden className="asm-login-field-icon" />
+                <input
+                  id={passwordId}
+                  type={mostrarPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  placeholder="Contraseña"
+                  aria-label="Contraseña"
+                  aria-invalid={errors.password ? true : undefined}
+                  {...register('password')}
+                />
+                <button
+                  type="button"
+                  className="asm-login-eye"
+                  onClick={() => {
+                    setMostrarPassword((actual) => !actual);
+                  }}
+                  aria-label={mostrarPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  disabled={mutation.isPending}
+                >
+                  {mostrarPassword ? <EyeOff aria-hidden /> : <Eye aria-hidden />}
+                </button>
+              </div>
+              {errors.password ? (
+                <p className="asm-login-validation">{errors.password.message}</p>
+              ) : null}
 
-          <Button type="submit" className="w-full" disabled={mutation.isPending}>
-            {mutation.isPending ? 'Entrando...' : 'Entrar'}
-          </Button>
-        </form>
-      </Card>
+              <button
+                type="submit"
+                className="asm-login-submit"
+                disabled={mutation.isPending}
+              >
+                {mutation.isPending ? 'Accediendo...' : 'Acceder'}
+              </button>
 
-      <p className="text-xs text-muted-foreground">
-        Las cuentas las crea quien administra tu organización. No hay registro abierto.
-      </p>
+              <p className="asm-login-recovery">¿Olvidaste tu contraseña?</p>
+            </form>
+          </section>
+        </main>
+
+        <footer className="asm-login-footer" aria-label="Créditos">
+          <span className="asm-login-footer-brand">
+            <img src="/login-assets/ATLAS_isotipo_transparente_5000px.png" alt="" aria-hidden />
+          </span>
+        </footer>
+      </div>
     </div>
   );
 }
