@@ -51,7 +51,7 @@ function construir(
 }
 
 describe('BootstrapService', () => {
-  it('crea la persona propietaria cuando la base está vacía', async () => {
+  it('crea la cuenta administradora cuando la base está vacía', async () => {
     const { service, crearUsuario, crearOrganizacion } = construir();
 
     await service.onApplicationBootstrap();
@@ -65,7 +65,7 @@ describe('BootstrapService', () => {
       };
     };
     expect(datos.data.emailNormalized).toBe(EMAIL);
-    expect(datos.data.memberships.create.role).toBe(MembershipRole.OWNER);
+    expect(datos.data.memberships.create.role).toBe(MembershipRole.ADMIN);
     // La contraseña se guarda derivada, y debe servir de verdad para entrar.
     expect(datos.data.passwordHash).not.toContain(PASSWORD);
     await expect(verifyPassword(PASSWORD, datos.data.passwordHash)).resolves.toBe(true);

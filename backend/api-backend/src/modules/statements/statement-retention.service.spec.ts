@@ -157,6 +157,33 @@ describe('StatementRetentionService', () => {
     expect(borrarDocumento).toHaveBeenCalledTimes(2);
   });
 
+  it('al eliminar una cuenta borra todos sus documentos, no solo los que exceden el cupo', async () => {
+    const { service, sobrantes, borrarDocumento } = construir({
+      sobrantes: [{ id: 'uno' }, { id: 'dos' }],
+      artefactos: [],
+    });
+
+    await expect(service.removeAllForUploader(ORGANIZATION_ID, USUARIO_ID)).resolves.toBe(2);
+
+    const consulta = sobrantes.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(consulta.where).toEqual({ organizationId: ORGANIZATION_ID, uploadedById: USUARIO_ID });
+    expect(consulta).not.toHaveProperty('skip');
+    expect(borrarDocumento).toHaveBeenCalledTimes(2);
+  });
+
+  it('al eliminar una cuenta se detiene ante un fallo en vez de dejarla a medias', async () => {
+    // Quien llama borra la cuenta justo después: si siguiera, quedarían archivos
+    // financieros sin dueño y sin nadie que los viera en su historial.
+    const { service, borrarDocumento } = construir({
+      sobrantes: [{ id: 'uno' }, { id: 'dos' }],
+      artefactos: [],
+      fallaElBorrado: true,
+    });
+
+    await expect(service.removeAllForUploader(ORGANIZATION_ID, USUARIO_ID)).rejects.toThrow();
+    expect(borrarDocumento).toHaveBeenCalledTimes(1);
+  });
+
   it('agrupa por subidor, de modo que una credencial de servicio no gasta el cupo de nadie', async () => {
     const { service, sobrantes } = construir();
 

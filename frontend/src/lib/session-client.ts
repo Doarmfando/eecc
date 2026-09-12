@@ -1,12 +1,15 @@
 import { ApiError } from './api-error';
 
+/** `ADMIN` gestiona las cuentas de la organización; `MEMBER` procesa documentos. */
+export type Role = 'ADMIN' | 'MEMBER';
+
 export interface SessionUser {
   userId: string;
   email: string;
   displayName: string;
   organizationId: string;
   organizationName: string;
-  role: 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER';
+  role: Role;
   /** Documentos que conserva cada persona antes de que se borre el más antiguo. */
   retainedStatementsPerUser: number;
 }
@@ -15,11 +18,20 @@ export interface Member {
   userId: string;
   email: string;
   displayName: string;
-  role: SessionUser['role'];
+  role: Role;
   status: string;
-  membershipStatus: string;
+  membershipStatus: 'ACTIVE' | 'REVOKED';
+  /** Documentos que conserva en la organización. */
+  documentCount: number;
   lastLoginAt: string | null;
   createdAt: string;
+}
+
+export interface MemberChanges {
+  displayName?: string;
+  email?: string;
+  role?: Role;
+  membershipStatus?: 'ACTIVE' | 'REVOKED';
 }
 
 function joinUrl(baseUrl: string, path: string): string {
@@ -46,7 +58,7 @@ async function readError(response: Response): Promise<ApiError> {
 async function pedir(
   baseUrl: string,
   path: string,
-  init: { method: 'GET' | 'POST' | 'PATCH'; body?: unknown; signal?: AbortSignal },
+  init: { method: 'GET' | 'POST' | 'PATCH' | 'DELETE'; body?: unknown; signal?: AbortSignal },
 ): Promise<unknown> {
   let response: Response;
   try {
@@ -111,20 +123,21 @@ export async function fetchMembers(baseUrl: string, signal?: AbortSignal): Promi
   })) as Member[];
 }
 
+/** Sin `password`, el servidor genera una temporal y la devuelve una sola vez. */
 export async function createMember(
   baseUrl: string,
-  datos: { email: string; displayName: string; role: SessionUser['role'] },
-): Promise<{ member: Member; temporaryPassword: string }> {
+  datos: { email: string; displayName: string; role: Role; password?: string },
+): Promise<{ member: Member; temporaryPassword: string | null }> {
   return (await pedir(baseUrl, 'v1/users', { method: 'POST', body: datos })) as {
     member: Member;
-    temporaryPassword: string;
+    temporaryPassword: string | null;
   };
 }
 
 export async function updateMember(
   baseUrl: string,
   userId: string,
-  cambios: { role?: SessionUser['role']; membershipStatus?: 'ACTIVE' | 'REVOKED' },
+  cambios: MemberChanges,
 ): Promise<Member> {
   return (await pedir(baseUrl, `v1/users/${encodeURIComponent(userId)}`, {
     method: 'PATCH',
@@ -132,11 +145,19 @@ export async function updateMember(
   })) as Member;
 }
 
-export async function resetMemberPassword(
+/** Sin `password`, el servidor genera una temporal y la devuelve una sola vez. */
+export async function setMemberPassword(
   baseUrl: string,
   userId: string,
-): Promise<{ temporaryPassword: string }> {
+  password?: string,
+): Promise<{ temporaryPassword: string | null }> {
   return (await pedir(baseUrl, `v1/users/${encodeURIComponent(userId)}/password-reset`, {
     method: 'POST',
-  })) as { temporaryPassword: string };
+    body: password === undefined ? {} : { password },
+  })) as { temporaryPassword: string | null };
+}
+
+/** Elimina la cuenta y sus documentos. El servidor rechaza hacerlo con un administrador. */
+export async function deleteMember(baseUrl: string, userId: string): Promise<void> {
+  await pedir(baseUrl, `v1/users/${encodeURIComponent(userId)}`, { method: 'DELETE' });
 }

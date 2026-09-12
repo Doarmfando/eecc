@@ -36,7 +36,7 @@ export class SessionUserDto {
   @ApiProperty() displayName!: string;
   @ApiProperty() organizationId!: string;
   @ApiProperty() organizationName!: string;
-  @ApiProperty({ enum: ['OWNER', 'ADMIN', 'MEMBER', 'VIEWER'] }) role!: string;
+  @ApiProperty({ enum: ['ADMIN', 'MEMBER'] }) role!: string;
 
   /**
    * Documentos que conserva cada persona. Va aquí, y no en una ruta aparte, para

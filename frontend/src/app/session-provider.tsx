@@ -6,8 +6,6 @@ import { fetchSession, logout as cerrarEnServidor, type SessionUser } from '@/li
 
 import { SessionContext, type SessionState, type SessionValue } from './session-context';
 
-const ROLES_ADMINISTRADORES = new Set(['OWNER', 'ADMIN']);
-
 /**
  * Resuelve la sesión al cargar la aplicación.
  *
@@ -26,6 +24,7 @@ export function SessionProvider({
   const resolvedBaseUrl = baseUrl ?? readBaseUrl(import.meta.env);
   const [estado, setEstado] = useState<SessionState>('cargando');
   const [usuario, setUsuario] = useState<SessionUser | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -51,19 +50,24 @@ export function SessionProvider({
   const establecer = useCallback((sesion: SessionUser) => {
     setUsuario(sesion);
     setEstado('autenticado');
+    setAviso(null);
   }, []);
 
-  const cerrar = useCallback(async () => {
-    try {
-      await cerrarEnServidor(resolvedBaseUrl);
-    } finally {
-      // El estado local se limpia pase lo que pase: si la petición falla, dejar la
-      // interfaz como si siguiera dentro sería peor que cerrarla de más.
-      setUsuario(null);
-      setEstado('anonimo');
-      queryClient.clear();
-    }
-  }, [resolvedBaseUrl, queryClient]);
+  const cerrar = useCallback(
+    async (motivo?: string) => {
+      try {
+        await cerrarEnServidor(resolvedBaseUrl);
+      } finally {
+        // El estado local se limpia pase lo que pase: si la petición falla, dejar la
+        // interfaz como si siguiera dentro sería peor que cerrarla de más.
+        setUsuario(null);
+        setEstado('anonimo');
+        setAviso(motivo ?? null);
+        queryClient.clear();
+      }
+    },
+    [resolvedBaseUrl, queryClient],
+  );
 
   const value = useMemo<SessionValue>(
     () => ({
@@ -72,9 +76,10 @@ export function SessionProvider({
       usuario,
       establecer,
       cerrar,
-      puedeAdministrar: usuario !== null && ROLES_ADMINISTRADORES.has(usuario.role),
+      aviso,
+      puedeAdministrar: usuario?.role === 'ADMIN',
     }),
-    [resolvedBaseUrl, estado, usuario, establecer, cerrar],
+    [resolvedBaseUrl, estado, usuario, establecer, cerrar, aviso],
   );
 
   return <SessionContext value={value}>{children}</SessionContext>;

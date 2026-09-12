@@ -81,6 +81,8 @@
 - Revocar la URL del blob en el mismo tick del `click()` cancela la descarga antes de que el navegador la inicie. Liberar en el siguiente tick.
 - Con CORS, el navegador solo lee las cabeceras expuestas explícitamente. Un nombre de archivo tomado de `Content-Disposition` necesita `Access-Control-Expose-Headers` o un valor de respaldo.
 - Un localizador por texto puede coincidir además con el nombre accesible de un botón que lo contiene. Preferir roles y nombres accesibles.
+- Si la página de origen pinta un instante el mismo texto que la de destino antes de navegar, `findByText` lo encuentra en la de origen y la aserción siguiente ve un nodo ya desmontado: falla con «`toBeInTheDocument`» aunque el texto sí aparezca después. No se arregla con más tiempo de espera; se ancla primero en algo que solo existe en la página de destino. Pasó en `upload-page.test.tsx`, ~1 de cada 3 corridas.
+- En Windows, `curl` desde Git Bash envía los argumentos `-d` en la página de códigos ANSI: un acento llega como byte inválido y la API lo guarda como carácter de reemplazo. Al probar a mano, mandar el cuerpo desde un archivo UTF-8 con `--data-binary @archivo`.
 
 ## Herramientas y entorno
 

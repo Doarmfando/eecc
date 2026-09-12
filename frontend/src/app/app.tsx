@@ -1,5 +1,5 @@
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
-import { FileClock, Home, Users } from 'lucide-react';
+import { FileClock, Home, Users, type LucideIcon } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
@@ -35,46 +35,97 @@ const navLinkClass =
 const navLinkActiveClass =
   'border-primary bg-primary/8 text-primary hover:bg-primary/8 hover:text-primary';
 
+const seccionClass =
+  'px-3 pb-2 text-[11px] font-semibold tracking-wide text-muted-foreground/70 uppercase';
+
+interface Enlace {
+  to: string;
+  etiqueta: string;
+  Icono: LucideIcon;
+  end?: boolean;
+}
+
+const ENLACES: Enlace[] = [
+  { to: '/', etiqueta: 'Nuevo documento', Icono: Home, end: true },
+  { to: '/historial', etiqueta: 'Historial', Icono: FileClock },
+];
+
+const ENLACES_ADMINISTRACION: Enlace[] = [{ to: '/usuarios', etiqueta: 'Usuarios', Icono: Users }];
+
 function Sidebar(): ReactNode {
   const { puedeAdministrar } = useSession();
 
   return (
     <aside
       aria-label="Navegación principal"
-      className="hidden w-60 shrink-0 flex-col border-r border-border/70 p-4 md:flex"
+      className="hidden w-60 shrink-0 flex-col gap-6 border-r border-border/70 p-4 md:flex"
     >
-      <p className="px-3 pb-2 text-[11px] font-semibold tracking-wide text-muted-foreground/70 uppercase">
-        Menú
-      </p>
-      <nav className="flex flex-col gap-1">
-        <NavLink
-          to="/"
-          end
-          className={({ isActive }) => cn(navLinkClass, isActive && navLinkActiveClass)}
-        >
-          <Home aria-hidden className="size-4" />
-          Nuevo documento
-        </NavLink>
-        <NavLink
-          to="/historial"
-          className={({ isActive }) => cn(navLinkClass, isActive && navLinkActiveClass)}
-        >
-          <FileClock aria-hidden className="size-4" />
-          Historial
-        </NavLink>
-        {/* Solo se ofrece a quien puede usarla: un enlace que lleva a un aviso de
-            permisos no informa, entorpece. */}
-        {puedeAdministrar ? (
-          <NavLink
-            to="/personas"
-            className={({ isActive }) => cn(navLinkClass, isActive && navLinkActiveClass)}
-          >
-            <Users aria-hidden className="size-4" />
-            Personas
-          </NavLink>
-        ) : null}
-      </nav>
+      <div>
+        <p className={seccionClass}>Menú</p>
+        <nav className="flex flex-col gap-1">
+          {ENLACES.map(({ to, etiqueta, Icono, end }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={end}
+              className={({ isActive }) => cn(navLinkClass, isActive && navLinkActiveClass)}
+            >
+              <Icono aria-hidden className="size-4" />
+              {etiqueta}
+            </NavLink>
+          ))}
+        </nav>
+      </div>
+      {/* Solo se ofrece a quien puede usarla: un enlace que lleva a un aviso de
+          permisos no informa, entorpece. */}
+      {puedeAdministrar ? (
+        <div>
+          <p className={seccionClass}>Administración</p>
+          <nav aria-label="Administración" className="flex flex-col gap-1">
+            {ENLACES_ADMINISTRACION.map(({ to, etiqueta, Icono }) => (
+              <NavLink
+                key={to}
+                to={to}
+                className={({ isActive }) => cn(navLinkClass, isActive && navLinkActiveClass)}
+              >
+                <Icono aria-hidden className="size-4" />
+                {etiqueta}
+              </NavLink>
+            ))}
+          </nav>
+        </div>
+      ) : null}
     </aside>
+  );
+}
+
+/** En pantallas estrechas la barra lateral no cabe; sin esto no habría forma de navegar. */
+function NavegacionMovil(): ReactNode {
+  const { puedeAdministrar } = useSession();
+  const enlaces = puedeAdministrar ? [...ENLACES, ...ENLACES_ADMINISTRACION] : ENLACES;
+
+  return (
+    <nav
+      aria-label="Navegación"
+      className="flex gap-1 overflow-x-auto border-b border-border/70 px-3 py-2 md:hidden"
+    >
+      {enlaces.map(({ to, etiqueta, Icono, end }) => (
+        <NavLink
+          key={to}
+          to={to}
+          end={end}
+          className={({ isActive }) =>
+            cn(
+              'flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground',
+              isActive ? 'bg-primary/8 text-primary' : 'hover:bg-accent hover:text-foreground',
+            )
+          }
+        >
+          <Icono aria-hidden className="size-4" />
+          {etiqueta}
+        </NavLink>
+      ))}
+    </nav>
   );
 }
 
@@ -94,7 +145,8 @@ function Layout({ children }: { children: ReactNode }): ReactNode {
       <div className="flex flex-1 flex-col px-2 pb-2">
         <div className="flex flex-1 flex-col overflow-hidden rounded-[18px] bg-card shadow-sm md:flex-row">
           <Sidebar />
-          <div className="flex flex-1 flex-col">
+          <div className="flex min-w-0 flex-1 flex-col">
+            <NavegacionMovil />
             <main className="w-full flex-1 p-6 sm:p-8 lg:p-10">{children}</main>
             <Footer />
           </div>
@@ -131,7 +183,7 @@ function RutaProtegida({
   if (soloAdmin && !puedeAdministrar) {
     return (
       <Alert variant="warning" title="No tienes permisos para esta sección">
-        Solo quien administra la organización puede gestionar personas.
+        Solo un administrador puede gestionar usuarios.
       </Alert>
     );
   }
@@ -195,13 +247,15 @@ function Contenido(): ReactNode {
         }
       />
       <Route
-        path="/personas"
+        path="/usuarios"
         element={
           <Protegida soloAdmin>
             <MembersPage />
           </Protegida>
         }
       />
+      {/* La sección se llamó «Personas»: un marcador guardado no debe acabar en 404. */}
+      <Route path="/personas" element={<Navigate to="/usuarios" replace />} />
       <Route
         path="*"
         element={

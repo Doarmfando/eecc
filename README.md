@@ -37,14 +37,14 @@ El frontend habla solo con la API; la API es lo único que habla con el worker.
 
 ## Acceso
 
-Cada persona entra con **su propio usuario y contraseña**. No hay registro abierto: las cuentas las crea quien administra la organización, desde la sección *Personas*.
+Cada persona entra con **su propio usuario y contraseña**. No hay registro abierto: las cuentas las crea un administrador, desde la sección *Usuarios*.
 
 | Rol | Qué puede hacer |
 | --- | --- |
-| `OWNER` | Todo, incluido gestionar a otros propietarios |
-| `ADMIN` | Gestiona personas y procesa documentos |
-| `MEMBER` | Procesa documentos y consulta el historial |
-| `VIEWER` | Solo consulta el historial |
+| `ADMIN` (Administrador) | Crea cuentas —también de otros administradores—, cambia nombre, correo y contraseña, desactiva y elimina usuarios, y ve cuántos documentos tiene cada uno. Además procesa documentos |
+| `MEMBER` (Usuario) | Procesa documentos y consulta el historial |
+
+Un administrador **nunca se elimina ni pasa a usuario**; sí se puede desactivar. Eliminar un usuario borra también sus documentos. Detalles en [`ADR-0008`](docs/decisiones/ADR-0008-administrador-y-usuario.md).
 
 La sesión vive en una cookie `httpOnly`, así que ningún script de la página puede leerla. El token es opaco y tiene fila propia en la base: revocar el acceso o cerrar sesión surte efecto en la petición siguiente, sin esperar a que caduque nada. Detalles en [`ADR-0005`](docs/decisiones/ADR-0005-identidad-de-usuarios-y-sesiones.md).
 
