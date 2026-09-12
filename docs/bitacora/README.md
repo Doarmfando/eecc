@@ -13,6 +13,14 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-09-12 — Producción al día y cuentas depuradas
+
+- Hecho: `eecc-api` redesplegada en Railway con `railway up`. Seguía con el código del 9 de septiembre mientras el frontend de Vercel ya era el nuevo, y la gestión de usuarios fallaba entre ambos. La migración `20260912120000_administrador_y_usuario` se aplicó sola al arrancar.
+- Hecho: en producción se crea `admin@eecc.local` como administrador y se eliminan desde la aplicación las cuentas de prueba (`prueba1..3@hotmail.com`), con sus documentos.
+- Hecho: el repositorio pasa a público. Vercel bloqueaba los despliegues de ambos autores desde el 12 de septiembre (el plan Hobby no admite colaboración en repositorios privados); antes de publicarlo se revisó el historial completo: nunca contuvo PDF, Excel, CSV, `.env`, claves ni números de cuenta.
+- Decisión: los despliegues bloqueados de Vercel no se reintentan solos; hace falta un commit nuevo o un *Redeploy*.
+- Pendiente: `diego@avax.pe` sigue como administrador en producción. La aplicación no elimina administradores; hay que quitarle el rol en la base y después eliminarlo desde *Usuarios*. Y retirar `BOOTSTRAP_ADMIN_EMAIL`/`BOOTSTRAP_ADMIN_PASSWORD` de `eecc-api`, que ya no hacen nada.
+
 ## 2026-09-12 — Solo correos de dominios admitidos, y un login que se entiende
 
 - Hecho: `ALLOWED_EMAIL_DOMAINS` (por defecto `hotmail.com,empresa.pe,eecc.local`) limita los correos al crear una cuenta o al cambiarle el correo; responde `EMAIL_DOMAIN_NOT_ALLOWED`. Coincidencia exacta del dominio: `empresa.pe` no admite `otra.empresa.pe` ni `empresa.pe.falso.com`. Vacía, admite cualquiera.
