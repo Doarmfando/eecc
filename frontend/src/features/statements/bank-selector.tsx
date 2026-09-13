@@ -3,10 +3,10 @@ import type { ReactNode } from 'react';
 
 import { cn } from '@/lib/utils';
 
-import bbvaLogo from '@/assets/banks/bbva.svg';
-import bcpLogo from '@/assets/banks/bcp.svg';
-import interbankLogo from '@/assets/banks/interbank.svg';
-import scotiabankLogo from '@/assets/banks/scotiabank.svg';
+import bbvaLogo from '@/assets/banks/bbva.png';
+import bcpLogo from '@/assets/banks/bcp.png';
+import interbankLogo from '@/assets/banks/interbank.webp';
+import scotiabankLogo from '@/assets/banks/scotiabank.webp';
 
 export type BankId = 'bcp' | 'bbva' | 'interbank' | 'scotiabank';
 
@@ -67,29 +67,20 @@ export function BankSelector({
                     : 'cursor-not-allowed border-slate-200 bg-slate-50/60',
                 )}
               >
-                <img
-                  src={bank.logo}
-                  alt={bank.name}
-                  className={cn(
-                    'h-6 w-auto max-w-16 shrink-0 object-contain',
-                    bank.available
-                      ? ''
-                      : 'grayscale opacity-50 transition-all duration-200 group-hover:opacity-80 group-hover:grayscale-0',
-                  )}
-                />
-
-                <span
-                  className={cn(
-                    'flex-1 truncate text-sm',
-                    selected
-                      ? 'font-semibold text-foreground'
-                      : bank.available
-                        ? 'text-foreground'
-                        : 'text-slate-400',
-                  )}
-                >
-                  {bank.name}
+                <span className="flex h-9 w-20 shrink-0 items-center justify-start">
+                  <img
+                    src={bank.logo}
+                    alt={bank.name}
+                    className={cn(
+                      'max-h-full max-w-full object-contain object-left',
+                      bank.available
+                        ? ''
+                        : 'grayscale opacity-50 transition-all duration-200 group-hover:opacity-80 group-hover:grayscale-0',
+                    )}
+                  />
                 </span>
+
+                <span className="flex-1" />
 
                 {selected ? (
                   <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white">
