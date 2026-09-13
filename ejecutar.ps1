@@ -78,6 +78,24 @@ function Test-Responde([string]$url) {
     }
 }
 
+function Test-PuertoTcp {
+    param([string]$Equipo, [int]$Puerto, [int]$TimeoutMs = 3000)
+
+    $cliente = New-Object System.Net.Sockets.TcpClient
+    try {
+        $conexion = $cliente.BeginConnect($Equipo, $Puerto, $null, $null)
+        if (-not $conexion.AsyncWaitHandle.WaitOne($TimeoutMs)) {
+            return $false
+        }
+        $cliente.EndConnect($conexion)
+        return $true
+    } catch {
+        return $false
+    } finally {
+        $cliente.Dispose()
+    }
+}
+
 function Wait-Servicio {
     param([string]$Nombre, [string]$Url, [int]$Segundos = 90)
 
@@ -109,6 +127,15 @@ try {
 
 $puertoApi = [int](Get-ValorEnv -Archivo $envApi -Clave 'PORT' -PorDefecto '3000')
 $puertoFront = 5173
+$databaseUrl = Get-ValorEnv -Archivo $envApi -Clave 'DATABASE_URL' -PorDefecto 'postgresql://eecc:cambia-esta-clave-local@127.0.0.1:5432/eecc'
+try {
+    $databaseUri = [uri]$databaseUrl
+    $hostPostgres = $databaseUri.Host
+    $puertoPostgres = if ($databaseUri.Port -gt 0) { $databaseUri.Port } else { 5432 }
+} catch {
+    Write-Host "DATABASE_URL no es una URL válida." -ForegroundColor Red
+    exit 1
+}
 
 $servicios = @(
     [pscustomobject]@{ Nombre = 'worker';   Puerto = $puertoWorker; Salud = "http://127.0.0.1:$puertoWorker/health" }
@@ -201,12 +228,12 @@ if ($ocupados.Count -gt 0) {
 
 # Sin PostgreSQL la API arranca y muere al primer intento de consulta: mejor
 # avisar aquí, cuando todavía se entiende la causa.
-if (-not (Get-NetTCPConnection -LocalPort 5432 -State Listen -ErrorAction SilentlyContinue)) {
+if (-not (Test-PuertoTcp -Equipo $hostPostgres -Puerto $puertoPostgres)) {
     Write-Host ''
-    Write-Host 'PostgreSQL no responde en 127.0.0.1:5432, y la API lo necesita.' -ForegroundColor Red
+    Write-Host "PostgreSQL no responde en ${hostPostgres}:$puertoPostgres, y la API lo necesita." -ForegroundColor Red
     Write-Host 'Levántalo con una de estas:' -ForegroundColor Red
     Write-Host '  docker compose up -d postgres' -ForegroundColor Red
-    Write-Host '  backendapi-backend\scripts\local-postgres.ps1 -Action start' -ForegroundColor Red
+    Write-Host '  backend\api-backend\scripts\local-postgres.ps1 -Action start' -ForegroundColor Red
     Write-Host ''
     exit 1
 }

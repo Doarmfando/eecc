@@ -1,9 +1,10 @@
 import { Check, CloudUpload, Cog, Download, ScrollText } from 'lucide-react';
-import type { ComponentType, ReactNode } from 'react';
+import { useState, type ComponentType, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { Alert } from '@/components/ui/alert';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { BankSelector, BANK_NAMES, type BankId } from '@/features/statements/bank-selector';
 import { JobSummary } from '@/features/statements/job-summary';
 import { RetentionNotice } from '@/features/statements/retention-notice';
 import { UploadForm, type UploadFormValues } from '@/features/statements/upload-form';
@@ -71,6 +72,7 @@ function FlowSteps({ current }: { current: number }): ReactNode {
 export function UploadPage(): ReactNode {
   const navigate = useNavigate();
   const upload = useUploadStatement();
+  const [selectedBank, setSelectedBank] = useState<BankId>('bcp');
 
   function handleSubmit(values: UploadFormValues): void {
     upload.mutate(values, {
@@ -99,10 +101,37 @@ export function UploadPage(): ReactNode {
 
       <Card>
         <CardHeader>
-          <CardTitle>1. Sube tu documento</CardTitle>
-          <CardDescription>Aceptamos estados de cuenta bancarios en formato PDF.</CardDescription>
+          <CardTitle>Selecciona tu banco y sube el documento</CardTitle>
+          <CardDescription>Por ahora procesamos estados de cuenta de BCP en PDF.</CardDescription>
         </CardHeader>
-        <UploadForm pending={upload.isPending} onSubmit={handleSubmit} />
+
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-12">
+          <div className="md:col-span-4">
+            <BankSelector value={selectedBank} onChange={setSelectedBank} />
+          </div>
+
+          <div className="md:col-span-8">
+            <p className="text-xs font-bold tracking-wider text-slate-400 uppercase">
+              2. Sube tu estado de cuenta
+            </p>
+
+            {selectedBank === 'bcp' ? (
+              <>
+                <span className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
+                  Cargando archivo para: {BANK_NAMES[selectedBank]}
+                </span>
+                <div className="mt-3">
+                  <UploadForm pending={upload.isPending} onSubmit={handleSubmit} />
+                </div>
+              </>
+            ) : (
+              <p className="mt-3 rounded-lg border border-border/60 bg-muted/20 p-4 text-sm text-muted-foreground">
+                Este banco todavía no está disponible. Selecciona BCP para continuar.
+              </p>
+            )}
+          </div>
+        </div>
+
         <div className="mt-3">
           <RetentionNotice />
         </div>
