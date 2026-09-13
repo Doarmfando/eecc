@@ -85,7 +85,7 @@ export function UploadPage(): ReactNode {
   const currentStep = upload.isSuccess ? 3 : upload.isPending ? 1 : 0;
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-8">
+    <div className="mx-auto w-full max-w-6xl space-y-8">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">
           Convertir un estado de cuenta

@@ -27,7 +27,7 @@ function SecondaryArtifact({
   const label = describeArtifact(artifact.kind, artifact.name);
   const isDownloading = handlers.isDownloading(artifact.id);
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3.5 transition-colors hover:border-slate-300 hover:bg-slate-50">
+    <div className="flex cursor-pointer items-center gap-3 rounded-lg border border-slate-200 bg-white p-3.5 transition-colors hover:border-blue-300 hover:bg-blue-50/40">
       <img src={pdfIcon} alt="" aria-hidden className="size-9 shrink-0" />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-slate-800">{label}</p>
