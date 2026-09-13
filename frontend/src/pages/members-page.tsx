@@ -347,7 +347,7 @@ export function MembersPage(): ReactNode {
                   setFiltro(opcion.valor);
                 }}
                 className={cn(
-                  'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+                  'cursor-pointer rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
                   filtro === opcion.valor
                     ? 'bg-card text-foreground shadow-xs'
                     : 'text-muted-foreground hover:text-foreground',

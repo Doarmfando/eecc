@@ -62,8 +62,8 @@ export function BankSelector({
                   'group flex items-center gap-3 rounded-xl border p-3 text-left transition-all duration-200',
                   bank.available
                     ? selected
-                      ? 'border-2 border-blue-600 bg-blue-50/60'
-                      : 'border-slate-200 bg-white hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-sm'
+                      ? 'cursor-pointer border-2 border-blue-600 bg-blue-50/60'
+                      : 'cursor-pointer border-slate-200 bg-white hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-sm'
                     : 'cursor-not-allowed border-slate-200 bg-slate-50/60',
                 )}
               >

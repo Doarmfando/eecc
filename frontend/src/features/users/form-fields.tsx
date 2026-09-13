@@ -37,7 +37,7 @@ export function PasswordInput({
         onClick={() => {
           setVisible((actual) => !actual);
         }}
-        className="absolute inset-y-0 right-0 flex w-10 items-center justify-center rounded-r-md text-muted-foreground hover:text-foreground"
+        className="absolute inset-y-0 right-0 flex w-10 cursor-pointer items-center justify-center rounded-r-md text-muted-foreground hover:text-foreground"
       >
         {visible ? (
           <EyeOff aria-hidden className="size-4" />

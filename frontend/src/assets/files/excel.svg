@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="Archivo Excel">
+  <path
+    d="M9 2h18l12 12v30a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z"
+    fill="#107C41"
+  />
+  <path d="M27 2 39 14H29a2 2 0 0 1-2-2V2Z" fill="#3FA872" />
+  <rect x="12" y="20" width="24" height="18" rx="1.5" fill="#FFFFFF" />
+  <path
+    d="M20 20v18M28 20v18M12 26h24M12 32h24"
+    stroke="#107C41"
+    stroke-width="1.4"
+    fill="none"
+  />
+</svg>

@@ -130,7 +130,7 @@ export function AccountMenu(): ReactNode {
         <button
           type="button"
           aria-label={conectado ? `Cuenta de ${usuario.displayName}` : 'Cuenta: sin sesión'}
-          className="relative inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition-colors hover:bg-white/15"
+          className="relative inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition-colors hover:bg-white/15"
         >
           <CircleUser aria-hidden className="size-5" />
           <span
