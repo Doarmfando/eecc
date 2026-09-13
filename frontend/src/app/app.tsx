@@ -3,6 +3,8 @@ import { FileClock, Home, Users, type LucideIcon } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
+import excelIcon from '@/assets/files/excel.svg';
+import pdfIcon from '@/assets/files/pdf.svg';
 import logo from '@/assets/logo.svg';
 import { Alert } from '@/components/ui/alert';
 import { AccountMenu } from '@/features/auth/account-menu';
@@ -30,10 +32,14 @@ function Header(): ReactNode {
 }
 
 const navLinkClass =
-  'flex items-center gap-3 rounded-lg border-l-2 border-transparent px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground';
+  'relative flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-all duration-200 ease-in-out will-change-transform hover:bg-accent hover:text-foreground';
 
+/** Barrita vertical antes que el borde: no reserva espacio en el estado inactivo. */
 const navLinkActiveClass =
-  'border-primary bg-primary/8 text-primary hover:bg-primary/8 hover:text-primary';
+  'bg-primary/8 text-primary before:absolute before:top-1/2 before:left-0 before:h-5 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-primary hover:bg-primary/8 hover:text-primary';
+
+/** Solo el ítem inactivo se desliza al pasar el cursor; el activo ya destaca con su barrita. */
+const navLinkHoverShiftClass = 'hover:translate-x-1';
 
 const seccionClass =
   'px-3 pb-2 text-[11px] font-semibold tracking-wide text-muted-foreground/70 uppercase';
@@ -52,6 +58,48 @@ const ENLACES: Enlace[] = [
 
 const ENLACES_ADMINISTRACION: Enlace[] = [{ to: '/usuarios', etiqueta: 'Usuarios', Icono: Users }];
 
+/**
+ * Ilustración conceptual del pie del sidebar: un PDF se desvanece hacia abajo
+ * mientras un Excel aparece desde arriba, en loop. Puramente decorativa —sin
+ * datos, sin red— y directamente sobre el fondo del sidebar, sin tarjeta.
+ */
+function SidebarConversionArt(): ReactNode {
+  return (
+    <div className="mt-auto border-t border-border/60 px-2 pt-6 pb-2">
+      <div className="relative mx-auto flex h-16 w-16 items-center justify-center">
+        {/* Rayado de hoja de cálculo, apenas insinuado: sin caja, sin borde. */}
+        <div
+          aria-hidden
+          className="absolute inset-x-1 top-1/2 flex -translate-y-1/2 flex-col gap-2"
+        >
+          <span className="h-px w-full bg-border/70" />
+          <span className="h-px w-full bg-border/70" />
+          <span className="h-px w-full bg-border/70" />
+        </div>
+
+        {/* Barrido del escáner, sincronizado con la fase "PDF" del ciclo. */}
+        <span
+          aria-hidden
+          className="absolute inset-x-1 h-px animate-doc-scan bg-primary shadow-[0_0_6px_1px_var(--color-primary)] will-change-transform motion-reduce:hidden"
+        />
+
+        <img
+          src={pdfIcon}
+          alt=""
+          aria-hidden
+          className="absolute size-8 animate-doc-pdf opacity-100 will-change-transform motion-reduce:animate-none"
+        />
+        <img
+          src={excelIcon}
+          alt=""
+          aria-hidden
+          className="absolute size-8 animate-doc-excel opacity-0 will-change-transform motion-reduce:hidden"
+        />
+      </div>
+    </div>
+  );
+}
+
 function Sidebar(): ReactNode {
   const { puedeAdministrar } = useSession();
 
@@ -68,7 +116,9 @@ function Sidebar(): ReactNode {
               key={to}
               to={to}
               end={end}
-              className={({ isActive }) => cn(navLinkClass, isActive && navLinkActiveClass)}
+              className={({ isActive }) =>
+                cn(navLinkClass, isActive ? navLinkActiveClass : navLinkHoverShiftClass)
+              }
             >
               <Icono aria-hidden className="size-4" />
               {etiqueta}
@@ -86,7 +136,9 @@ function Sidebar(): ReactNode {
               <NavLink
                 key={to}
                 to={to}
-                className={({ isActive }) => cn(navLinkClass, isActive && navLinkActiveClass)}
+                className={({ isActive }) =>
+                  cn(navLinkClass, isActive ? navLinkActiveClass : navLinkHoverShiftClass)
+                }
               >
                 <Icono aria-hidden className="size-4" />
                 {etiqueta}
@@ -95,6 +147,8 @@ function Sidebar(): ReactNode {
           </nav>
         </div>
       ) : null}
+
+      <SidebarConversionArt />
     </aside>
   );
 }

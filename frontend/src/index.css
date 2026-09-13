@@ -28,6 +28,59 @@
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
+  /* Ilustración "PDF -> Excel" del pie del sidebar: solo opacity/transform/posición
+     (GPU), sin JS, sin reflow. Un ciclo completo dura lo mismo para los tres. */
+  --animate-doc-pdf: doc-pdf 5s ease-in-out infinite;
+  --animate-doc-excel: doc-excel 5s ease-in-out infinite;
+  --animate-doc-scan: doc-scan 5s ease-in-out infinite;
+}
+
+@keyframes doc-pdf {
+  0%,
+  38% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  50%,
+  100% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.9);
+  }
+}
+
+@keyframes doc-excel {
+  0%,
+  38% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.9);
+  }
+  50%,
+  88% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.9);
+  }
+}
+
+@keyframes doc-scan {
+  0%,
+  100% {
+    top: 8%;
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  38% {
+    top: 88%;
+    opacity: 1;
+  }
+  46% {
+    opacity: 0;
+  }
 }
 
 :root {
