@@ -39,7 +39,8 @@ describe('AccountMenu', () => {
 
     const dialogo = await screen.findByRole('dialog');
     expect(dialogo).toHaveTextContent(TEST_USER.email);
-    expect(dialogo).toHaveTextContent('Organización de prueba · Administrador');
+    expect(dialogo).toHaveTextContent('Organización de prueba');
+    expect(dialogo).toHaveTextContent('Administrador');
   });
 
   it('cambia la propia contraseña y cierra la sesión explicando por qué', async () => {

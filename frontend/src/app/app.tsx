@@ -58,7 +58,7 @@ function Sidebar(): ReactNode {
   return (
     <aside
       aria-label="Navegación principal"
-      className="hidden w-60 shrink-0 flex-col gap-6 border-r border-border/70 p-4 md:flex"
+      className="hidden w-60 shrink-0 flex-col gap-6 overflow-y-auto border-r border-border/70 p-4 md:flex"
     >
       <div>
         <p className={seccionClass}>Menú</p>
@@ -140,14 +140,14 @@ function Footer(): ReactNode {
 
 function Layout({ children }: { children: ReactNode }): ReactNode {
   return (
-    <div className="flex min-h-screen flex-col bg-slate-900">
+    <div className="flex h-screen flex-col overflow-hidden bg-slate-900">
       <Header />
-      <div className="flex flex-1 flex-col px-2 pb-2">
-        <div className="flex flex-1 flex-col overflow-hidden rounded-[18px] bg-card shadow-sm md:flex-row">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-2">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[18px] bg-card shadow-sm md:flex-row">
           <Sidebar />
-          <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <NavegacionMovil />
-            <main className="w-full flex-1 p-6 sm:p-8 lg:p-10">{children}</main>
+            <main className="w-full flex-1 overflow-y-auto p-6 sm:p-8 lg:p-10">{children}</main>
             <Footer />
           </div>
         </div>

@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import 'tw-animate-css';
 
 /* Tokens de shadcn/ui. Los componentes de `components/ui` los consumen por nombre,
    de modo que un cambio de identidad visual no toca cada componente. */

@@ -102,7 +102,7 @@ export function UploadPage(): ReactNode {
       <Card>
         <CardHeader>
           <CardTitle>Selecciona tu banco y sube el documento</CardTitle>
-          <CardDescription>Por ahora procesamos estados de cuenta de BCP en PDF.</CardDescription>
+          <CardDescription>Por ahora se procesan estados de cuenta de BCP en PDF.</CardDescription>
         </CardHeader>
 
         <div className="grid grid-cols-1 gap-6 md:grid-cols-12">
