@@ -110,10 +110,10 @@ Esa suite crea sus propias organizaciones con prefijo reconocible y las borra al
 - `POST /v1/auth/password`: cambia la contraseña propia y cierra las demás sesiones.
 - `GET /v1/users`, `POST /v1/users`, `PATCH /v1/users/{userId}`, `POST /v1/users/{userId}/password-reset`, `DELETE /v1/users/{userId}`: gestión de cuentas, solo para `ADMIN` con sesión. Una credencial de servicio no las alcanza. El listado incluye `documentCount`; el alta y el cambio de contraseña aceptan `password` opcional (sin él, se genera una temporal); un administrador no se elimina ni se degrada. Reglas en [`ADR-0008`](../../docs/decisiones/ADR-0008-administrador-y-usuario.md).
 - `GET /health`: comprobación de vida, sin prefijo de versión.
-- `POST /v1/statements`: recibe el PDF por multipart, procesa y devuelve el resumen del trabajo. Acepta `Idempotency-Key`; sin ella, la clave se deriva del contenido y la versión del perfil.
-- `GET /v1/jobs`: historial de la organización, del más reciente al más antiguo, con paginación por cursor (`limit`, `cursor`). El cursor es opaco y combina fecha e identificador, de modo que insertar trabajos nuevos no repite ni salta filas.
-- `GET /v1/jobs/{jobId}`: estado del trabajo, siempre acotado a la organización de la credencial.
-- `GET /v1/jobs/{jobId}/artifacts/{artifactId}/content`: descarga el artefacto si pertenece a ese trabajo y a esa organización. El PDF de origen sale del almacenamiento propio; los resultados se piden al worker, que solo sirve lo que su manifiesto declara.
+- `POST /v1/statements`: recibe el PDF por multipart, procesa y devuelve el resumen del trabajo. Acepta `Idempotency-Key`; sin ella, la clave se deriva del contenido y la versión del perfil. La clave se reparte por quien sube: el mismo PDF de otra persona no se reutiliza.
+- `GET /v1/jobs`: historial de quien consulta —solo los documentos que subió, también para `ADMIN`—, del más reciente al más antiguo, con paginación por cursor (`limit`, `cursor`). El cursor es opaco y combina fecha e identificador, de modo que insertar trabajos nuevos no repite ni salta filas. Reglas en [`ADR-0009`](../../docs/decisiones/ADR-0009-cada-persona-ve-solo-sus-documentos.md).
+- `GET /v1/jobs/{jobId}`: estado del trabajo, acotado a la organización y a quien lo subió; uno ajeno responde `404`.
+- `GET /v1/jobs/{jobId}/artifacts/{artifactId}/content`: descarga el artefacto si pertenece a ese trabajo, a esa organización y a un documento de quien lo pide. El PDF de origen sale del almacenamiento propio; los resultados se piden al worker, que solo sirve lo que su manifiesto declara.
 
 Las respuestas contienen identificadores, estados, conteos y códigos. Nunca incluyen movimientos, importes, claves de objeto, rutas locales ni trazas.
 

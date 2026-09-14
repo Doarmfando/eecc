@@ -34,31 +34,30 @@ export class JobsController {
   ) {}
 
   @Get()
-  @ApiOperation({ summary: 'Historial de trabajos de la organización' })
+  @ApiOperation({ summary: 'Historial de los trabajos que subió quien consulta' })
   @ApiResponse({ status: 200, type: JobListDto })
   async list(
     @CurrentOrganization() organization: OrganizationContext,
     @Query() query: JobListQueryDto,
   ): Promise<JobListDto> {
-    return this.jobs.list(organization.organizationId, {
+    return this.jobs.list(organization.organizationId, organization.userId, {
       ...(query.limit === undefined ? {} : { limit: query.limit }),
       ...(query.cursor === undefined ? {} : { cursor: query.cursor }),
-      viewerUserId: organization.userId,
     });
   }
 
   @Get(':jobId')
-  @ApiOperation({ summary: 'Consulta el estado de un trabajo de la organización' })
+  @ApiOperation({ summary: 'Consulta el estado de un trabajo propio' })
   @ApiResponse({ status: 200, type: JobResponseDto })
   async findOne(
     @CurrentOrganization() organization: OrganizationContext,
     @Param('jobId', new ParseUUIDPipe({ version: '4' })) jobId: string,
   ): Promise<JobResponseDto> {
-    return this.jobs.findOne(organization.organizationId, jobId);
+    return this.jobs.findOne(organization.organizationId, organization.userId, jobId);
   }
 
   @Get(':jobId/artifacts/:artifactId/content')
-  @ApiOperation({ summary: 'Descarga un artefacto del trabajo autorizado' })
+  @ApiOperation({ summary: 'Descarga un artefacto de un trabajo propio' })
   @ApiResponse({ status: 200, description: 'Contenido binario del artefacto' })
   @Header('Cache-Control', 'private, no-store')
   async download(
@@ -67,7 +66,12 @@ export class JobsController {
     @Param('artifactId', new ParseUUIDPipe({ version: '4' })) artifactId: string,
     @Res() response: Response,
   ): Promise<void> {
-    const artifact = await this.downloads.download(organization.organizationId, jobId, artifactId);
+    const artifact = await this.downloads.download(
+      organization.organizationId,
+      organization.userId,
+      jobId,
+      artifactId,
+    );
     response
       .status(200)
       .type(artifact.contentType)

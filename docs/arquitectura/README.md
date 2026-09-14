@@ -31,9 +31,9 @@ Existente hoy en `frontend`:
 - carga del PDF con validación previa de extensión, tamaño y contenido vacío;
 - resumen del trabajo con estado, conteos, advertencias e invariantes evaluadas;
 - consulta de un trabajo por identificador con polling que se detiene en estados terminales;
-- historial de documentos procesados por la organización, con estado, fecha y conteos;
+- historial de los documentos que ha procesado quien ha entrado, con estado, fecha y conteos ([`ADR-0009`](../decisiones/ADR-0009-cada-persona-ve-solo-sus-documentos.md));
 - validación Zod de toda respuesta y mensajes accionables por código de error;
-- descarga de los archivos publicados, acotada a la organización de quien ha entrado;
+- descarga de los archivos publicados, acotada a los documentos de quien ha entrado;
 - inicio de sesión con correo y contraseña, menú de cuenta con cambio de la propia contraseña, y gestión de usuarios para el administrador ([`ADR-0008`](../decisiones/ADR-0008-administrador-y-usuario.md));
 - aviso del cupo de documentos antes de subir y en el historial, para que el borrado no sorprenda.
 
@@ -42,10 +42,10 @@ Existente hoy en `frontend`:
 Existente hoy en `backend/api-backend`:
 
 - `POST /v1/statements` autoriza por sesión o credencial de servicio, valida la carga, llama al worker y persiste trabajo, intento, advertencias, artefactos, auditoría y evento de outbox en una sola transacción.
-- `GET /v1/jobs` devuelve el historial de la organización con paginación por cursor.
-- `GET /v1/jobs/{jobId}` devuelve el estado del trabajo acotado a la organización de quien lo pide.
-- `GET /v1/jobs/{jobId}/artifacts/{artifactId}/content` entrega el archivo: el PDF de origen desde el almacenamiento propio y los resultados desde el worker, que solo sirve lo declarado en su manifiesto.
-- La idempotencia usa `Idempotency-Key` o, en su ausencia, una huella HMAC del contenido con alcance por organización más la versión del perfil.
+- `GET /v1/jobs` devuelve el historial de quien consulta —solo lo que subió, sea usuario o administrador— con paginación por cursor.
+- `GET /v1/jobs/{jobId}` devuelve el estado del trabajo si pertenece a la organización y lo subió quien lo pide; si no, `404`.
+- `GET /v1/jobs/{jobId}/artifacts/{artifactId}/content` entrega el archivo con la misma regla de dueño: el PDF de origen desde el almacenamiento propio y los resultados desde el worker, que solo sirve lo declarado en su manifiesto.
+- La idempotencia usa `Idempotency-Key` o, en su ausencia, una huella HMAC del contenido con alcance por organización más la versión del perfil; en ambos casos repartida por dueño, para no reutilizar el trabajo de otra persona.
 - Los errores públicos son códigos estables y llevan `x-request-id`; nunca trazas ni contenido del documento.
 
 Diferencias intencionales con el objetivo, todavía pendientes:

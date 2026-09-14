@@ -20,8 +20,8 @@ export function RetentionNotice(): ReactNode {
     return null;
   }
 
-  // Se cuentan solo los propios: el cupo es por persona, y el historial muestra
-  // los de toda la organización.
+  // El historial ya trae solo los propios; se filtra igual por si una API anterior
+  // todavía devolviera los de toda la organización.
   const mios = history.data.items.filter((job) => job.uploadedByMe).length;
   const enElTope = mios >= cupo;
 

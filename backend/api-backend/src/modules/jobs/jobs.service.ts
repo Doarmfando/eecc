@@ -17,15 +17,22 @@ export class JobsService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Historial de la organización, del más reciente al más antiguo.
+   * Historial de quien consulta, del más reciente al más antiguo: cada persona ve
+   * solo los documentos que subió, sea usuario o administrador. `viewerUserId`
+   * nulo es una credencial de servicio y ve los subidos por credenciales de
+   * servicio, el mismo grupo al que aplica el cupo.
    * Pide un elemento extra para saber si hay página siguiente sin contar el total.
    */
   async list(
     organizationId: string,
-    options: { limit?: number; cursor?: string; viewerUserId?: string | null } = {},
+    viewerUserId: string | null,
+    options: { limit?: number; cursor?: string } = {},
   ): Promise<JobListDto> {
     const limit = Math.min(options.limit ?? JOB_LIST_DEFAULT_LIMIT, JOB_LIST_MAX_LIMIT);
-    const where: Prisma.JobWhereInput = { organizationId };
+    const where: Prisma.JobWhereInput = {
+      organizationId,
+      statement: { uploadedById: viewerUserId },
+    };
 
     if (options.cursor !== undefined) {
       const cursor = decodeJobCursor(options.cursor);
@@ -52,7 +59,7 @@ export class JobsService {
     const page = rows.slice(0, limit);
     const last = page.at(-1);
     return {
-      items: page.map((job) => toListItem(job, options.viewerUserId ?? null)),
+      items: page.map((job) => toListItem(job, viewerUserId)),
       nextCursor:
         rows.length > limit && last
           ? encodeJobCursor({ createdAt: last.createdAt, id: last.id })
@@ -60,10 +67,18 @@ export class JobsService {
     };
   }
 
-  /** Toda consulta de un tenant exige su organización; no existe `findById(id)` a secas. */
-  async findOne(organizationId: string, jobId: string): Promise<JobResponseDto> {
+  /**
+   * Toda consulta exige organización y dueño; no existe `findById(id)` a secas.
+   * El trabajo de otra persona responde 404, igual que uno que no existe: saber
+   * su identificador no basta para verlo.
+   */
+  async findOne(
+    organizationId: string,
+    viewerUserId: string | null,
+    jobId: string,
+  ): Promise<JobResponseDto> {
     const job = await this.prisma.job.findFirst({
-      where: { id: jobId, organizationId },
+      where: { id: jobId, organizationId, statement: { uploadedById: viewerUserId } },
       include: {
         attempts: {
           orderBy: { attemptNumber: 'desc' },

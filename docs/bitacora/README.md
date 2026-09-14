@@ -13,6 +13,17 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-09-14 — Cada persona ve solo sus documentos
+
+- Defecto corregido: *Historial* mostraba los documentos de toda la organización. Una cuenta de usuario recién creada, con un solo PDF, veía también los de otras personas y podía abrirlos y descargarlos. El detalle y la descarga solo comprobaban la organización, así que bastaba el identificador.
+- Hecho: `GET /v1/jobs`, `GET /v1/jobs/{jobId}` y la descarga de artefactos filtran por `statement.uploadedById` igual a quien consulta. Un trabajo ajeno responde `404`. Una credencial de servicio ve lo subido por credenciales de servicio, el mismo grupo del cupo.
+- Decisión: la regla vale también para el administrador. Gestiona cuentas, no lee documentos ajenos; en *Usuarios* sigue viendo cuántos conserva cada cuenta. Motivos y alternativas en [`ADR-0009`](../decisiones/ADR-0009-cada-persona-ve-solo-sus-documentos.md).
+- Defecto corregido: la reutilización por idempotencia tenía alcance de organización, y subir un PDF que otra persona ya había procesado devolvía **su** trabajo. La clave guardada pasa a ser `sha256(dueño + clave)`. Consecuencia: la primera vez que alguien repita un PDF subido antes de este cambio, se procesa de nuevo.
+- Hecho: la interfaz deja de decir «de tu organización» en el historial, en su estado vacío y en `JOB_NOT_FOUND`.
+- Verificación: `api-backend npm run check` (163 pruebas) por código de salida. La suite contra PostgreSQL real (`RUN_DB_TESTS=1`) suma un caso con un administrador y un usuario de la misma organización: mismo PDF, historial de cada uno, detalle y descarga ajenos en `404`, y la credencial de servicio sin ver ninguno. **Contra el código anterior ese caso falla**. Frontend: `typecheck`, `lint` y `test:cov` (95 pruebas) en verde.
+- Pendiente: `frontend npm run check` no pasa `format:check` por 14 archivos del rediseño llegado en paralelo (`3d16b00` y anteriores: `app.tsx`, `artifact-list.tsx`, `bank-selector.tsx`, `index.css`…). Se dejaron sin tocar para no pisar trabajo en curso; se arreglan con `npx prettier --write src`.
+- Pendiente: redesplegar `eecc-api` en Railway; hasta entonces producción sigue mostrando el historial de toda la organización.
+
 ## 2026-09-12 — Producción al día y cuentas depuradas
 
 - Hecho: `eecc-api` redesplegada en Railway con `railway up`. Seguía con el código del 9 de septiembre mientras el frontend de Vercel ya era el nuevo, y la gestión de usuarios fallaba entre ambos. La migración `20260912120000_administrador_y_usuario` se aplicó sola al arrancar.

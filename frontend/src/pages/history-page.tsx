@@ -10,7 +10,7 @@ export function HistoryPage(): ReactNode {
           Documentos procesados
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Solo los de tu organización. Abre uno para revisar sus advertencias o descargar sus
+          Solo los que has subido tú. Abre uno para revisar sus advertencias o descargar sus
           archivos.
         </p>
       </div>

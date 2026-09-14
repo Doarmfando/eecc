@@ -7,6 +7,7 @@ import { JobsService } from './jobs.service';
 
 const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
 const JOB_ID = '33333333-3333-4333-8333-333333333333';
+const USER_ID = '44444444-4444-4444-8444-444444444444';
 
 function buildService(job: unknown): { service: JobsService; findFirst: jest.Mock } {
   const findFirst = jest.fn().mockResolvedValue(job);
@@ -15,7 +16,7 @@ function buildService(job: unknown): { service: JobsService; findFirst: jest.Moc
 }
 
 describe('JobsService', () => {
-  it('siempre acota la consulta a la organización del contexto', async () => {
+  it('siempre acota la consulta a la organización y a quien subió el documento', async () => {
     const { service, findFirst } = buildService({
       id: JOB_ID,
       statementId: 'statement-id',
@@ -42,10 +43,16 @@ describe('JobsService', () => {
       ],
     });
 
-    const response = await service.findOne(ORGANIZATION_ID, JOB_ID);
+    const response = await service.findOne(ORGANIZATION_ID, USER_ID, JOB_ID);
 
     expect(findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: JOB_ID, organizationId: ORGANIZATION_ID } }),
+      expect.objectContaining({
+        where: {
+          id: JOB_ID,
+          organizationId: ORGANIZATION_ID,
+          statement: { uploadedById: USER_ID },
+        },
+      }),
     );
     expect(response.status).toEqual(JobStatus.NEEDS_REVIEW);
     expect(response.attemptNumber).toEqual(2);
@@ -55,9 +62,9 @@ describe('JobsService', () => {
     ]);
   });
 
-  it('devuelve 404 para un trabajo de otra organización o sin intentos', async () => {
+  it('devuelve 404 para un trabajo ajeno o sin intentos', async () => {
     await expect(
-      buildService(null).service.findOne(ORGANIZATION_ID, JOB_ID),
+      buildService(null).service.findOne(ORGANIZATION_ID, USER_ID, JOB_ID),
     ).rejects.toBeInstanceOf(NotFoundException);
     await expect(
       buildService({
@@ -65,7 +72,7 @@ describe('JobsService', () => {
         statementId: 'statement-id',
         status: JobStatus.PENDING,
         attempts: [],
-      }).service.findOne(ORGANIZATION_ID, JOB_ID),
+      }).service.findOne(ORGANIZATION_ID, USER_ID, JOB_ID),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 });
@@ -83,6 +90,7 @@ describe('JobsService.list', () => {
       statementId: 'statement-id',
       status: 'SUCCEEDED',
       createdAt: new Date(`2026-08-2${String(index)}T10:00:00Z`),
+      statement: { uploadedById: USER_ID },
       attempts: [
         {
           extractorId: 'bcp-coordinate-v1',
@@ -93,14 +101,14 @@ describe('JobsService.list', () => {
     };
   }
 
-  it('devuelve el historial de la organización más reciente primero', async () => {
+  it('devuelve solo los documentos de quien consulta, más reciente primero', async () => {
     const { service, findMany } = buildList([row(1)]);
 
-    const result = await service.list(ORGANIZATION_ID);
+    const result = await service.list(ORGANIZATION_ID, USER_ID);
 
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { organizationId: ORGANIZATION_ID },
+        where: { organizationId: ORGANIZATION_ID, statement: { uploadedById: USER_ID } },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         take: 21,
       }),
@@ -111,13 +119,26 @@ describe('JobsService.list', () => {
       movementCount: 5,
       warningCount: 2,
       artifactCount: 6,
+      uploadedByMe: true,
     });
+  });
+
+  it('una credencial de servicio ve solo lo subido por credenciales de servicio', async () => {
+    const { service, findMany } = buildList([]);
+
+    await service.list(ORGANIZATION_ID, null);
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { organizationId: ORGANIZATION_ID, statement: { uploadedById: null } },
+      }),
+    );
   });
 
   it('entrega un cursor solo cuando hay más páginas', async () => {
     const { service } = buildList([row(1), row(2), row(3)]);
 
-    const result = await service.list(ORGANIZATION_ID, { limit: 2 });
+    const result = await service.list(ORGANIZATION_ID, USER_ID, { limit: 2 });
 
     expect(result.items).toHaveLength(2);
     expect(result.nextCursor).not.toBeNull();
@@ -126,7 +147,7 @@ describe('JobsService.list', () => {
   it('acota el límite pedido al máximo del contrato', async () => {
     const { service, findMany } = buildList([]);
 
-    await service.list(ORGANIZATION_ID, { limit: 1000 });
+    await service.list(ORGANIZATION_ID, USER_ID, { limit: 1000 });
 
     expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 101 }));
   });
@@ -138,7 +159,7 @@ describe('JobsService.list', () => {
       id: '33333333-3333-4333-8333-333333333333',
     });
 
-    await service.list(ORGANIZATION_ID, { cursor });
+    await service.list(ORGANIZATION_ID, USER_ID, { cursor });
 
     const where = (findMany.mock.calls[0]?.[0] as { where: { OR: unknown[] } }).where;
     expect(where.OR).toHaveLength(2);
@@ -151,11 +172,12 @@ describe('JobsService.list', () => {
         statementId: 'statement-id',
         status: 'PENDING',
         createdAt: new Date('2026-08-26T10:00:00Z'),
+        statement: { uploadedById: USER_ID },
         attempts: [],
       },
     ]);
 
-    const result = await service.list(ORGANIZATION_ID);
+    const result = await service.list(ORGANIZATION_ID, USER_ID);
 
     expect(result.items[0]).toMatchObject({
       status: 'PENDING',

@@ -44,12 +44,13 @@ export class ArtifactDownloadService {
   ) {}
 
   /**
-   * Resuelve el contenido de un artefacto que pertenece al trabajo y a la organización
-   * indicados. El nombre entregado al cliente se deriva del tipo, nunca del documento
-   * original ni de la clave de objeto.
+   * Resuelve el contenido de un artefacto que pertenece al trabajo, a la organización
+   * y a un documento subido por quien lo pide. El nombre entregado al cliente se
+   * deriva del tipo, nunca del documento original ni de la clave de objeto.
    */
   async download(
     organizationId: string,
+    viewerUserId: string | null,
     jobId: string,
     artifactId: string,
   ): Promise<DownloadableArtifact> {
@@ -58,6 +59,7 @@ export class ArtifactDownloadService {
         id: artifactId,
         organizationId,
         jobAttempt: { jobId, organizationId },
+        statement: { uploadedById: viewerUserId },
       },
       select: { kind: true, objectKey: true },
     });

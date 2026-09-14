@@ -57,9 +57,7 @@ export function JobHistory(): ReactNode {
           )}
         </>
       ) : (
-        <p className="text-sm text-muted-foreground">
-          Todavía no se ha procesado ningún documento en tu organización.
-        </p>
+        <p className="text-sm text-muted-foreground">Todavía no has procesado ningún documento.</p>
       )}
     </Card>
   );

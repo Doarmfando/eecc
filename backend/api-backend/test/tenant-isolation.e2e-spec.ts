@@ -6,6 +6,7 @@ import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
 import { SanitizedExceptionFilter } from '../src/common/http/sanitized-exception.filter';
+import { SESSION_COOKIE, hashSessionToken } from '../src/modules/auth/session-cookie';
 import { ObjectStorageService } from '../src/modules/storage/object-storage.service';
 import { WorkerClientService } from '../src/modules/worker-client/worker-client.service';
 
@@ -124,6 +125,8 @@ describeDatabase('Aislamiento multi-tenant (base real)', () => {
 
   afterAll(async () => {
     await prisma.organization.deleteMany({ where: { displayName: { startsWith: PREFIX } } });
+    // Las cuentas no cuelgan de la organización: sin esto quedarían huérfanas.
+    await prisma.user.deleteMany({ where: { emailNormalized: { startsWith: PREFIX } } });
     await prisma.$disconnect();
     await app?.close();
   });
@@ -217,6 +220,94 @@ describeDatabase('Aislamiento multi-tenant (base real)', () => {
 
     const foreignIds = (foreign.body.items as { jobId: string }[]).map((item) => item.jobId);
     expect(foreignIds).not.toContain(jobId);
+  });
+
+  describe('dentro de una misma organización', () => {
+    const PDF_COMPARTIDO = Buffer.from('%PDF-1.7\ncompartido\n%%EOF', 'utf8');
+
+    async function entrarComo(nombre: string, role: 'ADMIN' | 'MEMBER'): Promise<string> {
+      const user = await prisma.user.create({
+        data: {
+          emailNormalized: `${PREFIX}-${nombre}-${randomBytes(4).toString('hex')}@eecc.local`,
+          displayName: `${PREFIX}-${nombre}`,
+          status: 'ACTIVE',
+        },
+      });
+      await prisma.organizationMembership.create({
+        data: { organizationId: alpha.organizationId, userId: user.id, role },
+      });
+      const token = randomBytes(32).toString('base64url');
+      await prisma.session.create({
+        data: {
+          userId: user.id,
+          organizationId: alpha.organizationId,
+          tokenHash: hashSessionToken(token),
+          expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        },
+      });
+      return `${SESSION_COOKIE}=${token}`;
+    }
+
+    async function subir(cookie: string, pdf: Buffer): Promise<string> {
+      const respuesta = await request(app.getHttpServer())
+        .post('/v1/statements')
+        .set('Cookie', cookie)
+        .attach('document', pdf, 'estado.pdf')
+        .expect(201);
+      expect(respuesta.body.reused).toBe(false);
+      return respuesta.body.jobId as string;
+    }
+
+    async function historial(cookie: string): Promise<string[]> {
+      const respuesta = await request(app.getHttpServer())
+        .get('/v1/jobs')
+        .set('Cookie', cookie)
+        .expect(200);
+      return (respuesta.body.items as { jobId: string }[]).map((item) => item.jobId);
+    }
+
+    it('cada persona ve solo sus documentos, sea usuario o administrador', async () => {
+      const admin = await entrarComo('admin', 'ADMIN');
+      const usuario = await entrarComo('usuario', 'MEMBER');
+
+      const delAdmin = await subir(admin, PDF_COMPARTIDO);
+      // El mismo PDF subido por otra persona no reutiliza el trabajo ajeno.
+      const delUsuario = await subir(usuario, PDF_COMPARTIDO);
+      expect(delUsuario).not.toBe(delAdmin);
+
+      expect(await historial(usuario)).toEqual([delUsuario]);
+      expect(await historial(admin)).toEqual([delAdmin]);
+
+      // Lo subido por la credencial de servicio tampoco aparece a las personas,
+      // ni lo de las personas a la credencial.
+      const deServicio = await request(app.getHttpServer())
+        .get('/v1/jobs')
+        .set('x-api-key', alpha.token)
+        .expect(200);
+      const idsServicio = (deServicio.body.items as { jobId: string }[]).map((item) => item.jobId);
+      expect(idsServicio).toContain(jobId);
+      expect(idsServicio).not.toContain(delAdmin);
+      expect(idsServicio).not.toContain(delUsuario);
+
+      // Conocer el identificador no basta: detalle y descarga responden 404.
+      const ajeno = await request(app.getHttpServer())
+        .get(`/v1/jobs/${delAdmin}`)
+        .set('Cookie', usuario)
+        .expect(404);
+      expect(ajeno.body.code).toBe('JOB_NOT_FOUND');
+
+      const artefacto = await prisma.artifact.findFirstOrThrow({
+        where: { jobAttempt: { jobId: delAdmin }, kind: 'RESULT_XLSX' },
+      });
+      await request(app.getHttpServer())
+        .get(`/v1/jobs/${delAdmin}/artifacts/${artefacto.id}/content`)
+        .set('Cookie', admin)
+        .expect(200);
+      await request(app.getHttpServer())
+        .get(`/v1/jobs/${delAdmin}/artifacts/${artefacto.id}/content`)
+        .set('Cookie', usuario)
+        .expect(404);
+    });
   });
 
   it('rechaza dos trabajos con la misma clave de idempotencia en la organización', async () => {

@@ -228,6 +228,35 @@ describe('StatementsService', () => {
     expect(recorder.created).toHaveLength(0);
   });
 
+  it('no reutiliza el trabajo de otra persona que subió el mismo PDF', async () => {
+    const recorder: TransactionRecorder = { created: [] };
+    const { prisma, findUnique } = buildPrisma(null, recorder);
+    const service = buildService(prisma);
+    const subir = (userId: string | null): Promise<unknown> =>
+      service.process({
+        organizationId: ORGANIZATION_ID,
+        userId,
+        content: pdfBuffer(),
+        fileName: 'estado.pdf',
+        mimeType: 'application/pdf',
+      });
+
+    await subir('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+    await subir('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
+    await subir(null);
+    await subir('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+
+    const claves = findUnique.mock.calls.map(
+      (call) =>
+        (call[0] as { where: { organizationId_idempotencyKey: { idempotencyKey: string } } }).where
+          .organizationId_idempotencyKey.idempotencyKey,
+    );
+    expect(new Set(claves.slice(0, 3)).size).toBe(3);
+    // La misma persona con el mismo documento sí da con su trabajo anterior.
+    expect(claves[3]).toBe(claves[0]);
+    expect(claves.every((clave) => clave.length <= 128)).toBe(true);
+  });
+
   it('rechaza cargas que no son PDF o superan el límite antes de llamar al worker', async () => {
     const recorder: TransactionRecorder = { created: [] };
     const processStatement = jest.fn();

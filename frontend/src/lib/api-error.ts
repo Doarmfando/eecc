@@ -24,7 +24,7 @@ const MESSAGES: Record<string, string> = {
   STATEMENT_NOT_EXPORTABLE: 'La extracción no produjo un resultado publicable.',
   INVALID_IDEMPOTENCY_KEY: 'La clave de idempotencia tiene un formato inválido.',
   VALIDATION_FAILED: 'Revisa los datos enviados.',
-  JOB_NOT_FOUND: 'No existe ese trabajo en tu organización.',
+  JOB_NOT_FOUND: 'No existe ese trabajo o no lo subiste tú.',
   ARTIFACT_NOT_FOUND: 'Ese archivo ya no está disponible para descargar.',
   INVALID_CURSOR: 'La página solicitada no es válida; vuelve a cargar el historial.',
   WORKER_UNAVAILABLE: 'El procesador no está disponible. Intenta de nuevo en unos minutos.',

@@ -23,6 +23,6 @@ describe('HistoryPage', () => {
     renderWithProviders(<HistoryPage />);
 
     expect(screen.getByRole('heading', { name: 'Documentos procesados' })).toBeInTheDocument();
-    expect(await screen.findByText(/Todavía no se ha procesado/)).toBeInTheDocument();
+    expect(await screen.findByText(/Todavía no has procesado/)).toBeInTheDocument();
   });
 });

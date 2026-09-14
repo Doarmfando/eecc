@@ -34,3 +34,4 @@ Los Architecture Decision Records (ADR) explican decisiones duraderas y sus cons
 - [`ADR-0006-postgresql-como-unica-persistencia.md`](ADR-0006-postgresql-como-unica-persistencia.md)
 - [`ADR-0007-cupo-de-documentos-por-persona.md`](ADR-0007-cupo-de-documentos-por-persona.md)
 - [`ADR-0008-administrador-y-usuario.md`](ADR-0008-administrador-y-usuario.md)
+- [`ADR-0009-cada-persona-ve-solo-sus-documentos.md`](ADR-0009-cada-persona-ve-solo-sus-documentos.md)
