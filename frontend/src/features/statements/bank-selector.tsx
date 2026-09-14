@@ -20,13 +20,18 @@ interface BankOption {
 const BANK_OPTIONS: ReadonlyArray<BankOption> = [
   { id: 'bcp', name: 'BCP', logo: bcpLogo, available: true },
   { id: 'bbva', name: 'BBVA', logo: bbvaLogo, available: false },
-  { id: 'interbank', name: 'Interbank', logo: interbankLogo, available: false },
+  { id: 'interbank', name: 'Interbank', logo: interbankLogo, available: true },
   { id: 'scotiabank', name: 'Scotiabank', logo: scotiabankLogo, available: false },
 ];
 
 export const BANK_NAMES: Record<BankId, string> = Object.fromEntries(
   BANK_OPTIONS.map((bank) => [bank.id, bank.name]),
 ) as Record<BankId, string>;
+
+/** Bancos con extractor propio. El worker detecta la plantilla por sí mismo. */
+export const AVAILABLE_BANKS: ReadonlySet<BankId> = new Set(
+  BANK_OPTIONS.filter((bank) => bank.available).map((bank) => bank.id),
+);
 
 export function BankSelector({
   value,

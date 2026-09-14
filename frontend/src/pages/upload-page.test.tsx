@@ -116,6 +116,25 @@ describe('UploadPage', () => {
     expect(screen.getByRole('button', { name: 'Cuenta de Persona de prueba' })).toBeInTheDocument();
   });
 
+  it('permite subir un estado de cuenta de Interbank y no uno de un banco pendiente', async () => {
+    vi.stubGlobal(
+      'fetch',
+      routedFetch(() => jsonResponse(201, JOB)),
+    );
+    const user = userEvent.setup();
+    renderApp();
+    await esperarSesion();
+
+    await user.click(screen.getByRole('radio', { name: 'Interbank' }));
+    expect(screen.getByRole('radio', { name: 'Interbank' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+    expect(screen.getByLabelText('Estado de cuenta en PDF')).toBeInTheDocument();
+
+    expect(screen.getByRole('radio', { name: /BBVA/ })).toBeDisabled();
+  });
+
   it('avisa del cupo antes de subir, que es cuando el aviso sirve de algo', async () => {
     // Después de subir el más antiguo ya se ha borrado: el aviso solo evita una
     // pérdida si se lee junto al formulario.

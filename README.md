@@ -17,7 +17,7 @@ El segundo imprime la URL y la credencial. Detalle completo, modos y problemas c
 
 ```
 PDF  ──►  detección de plantilla  ──►  extracción  ──►  validación  ──►  XLSX + CSV
-              (BCP o genérica)                        (invariantes,
+       (BCP, Interbank o genérica)                    (invariantes,
                                                        reconciliación)
 ```
 

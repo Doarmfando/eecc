@@ -23,6 +23,7 @@ Núcleo Python dedicado exclusivamente al procesamiento de estados de cuenta ban
 | Configuración tipada por entorno | Implementada |
 | Registro de estrategias por banco | Implementado |
 | Estrategia BCP especializada | Implementada y validada con documentos reales |
+| Estrategia Interbank especializada (`interbank-savings-v1`) | Implementada y validada con un documento real: reconcilia saldo fila a fila, totales y saldo final |
 | Respaldo genérico para otros bancos | Implementado; nombra las columnas por su encabezado o las deduce de la aritmética |
 | Servicio de trabajo idempotente | Implementado |
 | API interna FastAPI | Implementada |

@@ -30,7 +30,8 @@
 - Hecho: mantener comparación ejecutable contra el exportador BCP legacy.
 - Hecho: validar la plantilla contra los estados de cuenta reales y corregir detector, agrupación de filas e invariantes con esa evidencia.
 - Hecho: respaldo genérico para bancos sin extractor especializado, con selección automática de estrategia.
-- Pendiente: extractores especializados por banco a medida que lleguen muestras; el respaldo solo reconcilia cuando el documento trae columna de saldo.
+- Hecho: extractor especializado de Interbank (cuenta de ahorro), validado con un documento real.
+- Pendiente: extractores especializados de BBVA y Scotiabank a medida que lleguen muestras; el respaldo solo reconcilia cuando el documento trae columna de saldo.
 
 ## Fase 2 — Ejecución asíncrona local
 

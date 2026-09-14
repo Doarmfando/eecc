@@ -4,7 +4,12 @@ import { useNavigate } from 'react-router-dom';
 
 import { Alert } from '@/components/ui/alert';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { BankSelector, BANK_NAMES, type BankId } from '@/features/statements/bank-selector';
+import {
+  AVAILABLE_BANKS,
+  BankSelector,
+  BANK_NAMES,
+  type BankId,
+} from '@/features/statements/bank-selector';
 import { JobSummary } from '@/features/statements/job-summary';
 import { RetentionNotice } from '@/features/statements/retention-notice';
 import { UploadForm, type UploadFormValues } from '@/features/statements/upload-form';
@@ -102,7 +107,9 @@ export function UploadPage(): ReactNode {
       <Card>
         <CardHeader>
           <CardTitle>Selecciona tu banco y sube el documento</CardTitle>
-          <CardDescription>Por ahora se procesan estados de cuenta de BCP en PDF.</CardDescription>
+          <CardDescription>
+            Por ahora se procesan estados de cuenta de BCP e Interbank en PDF.
+          </CardDescription>
         </CardHeader>
 
         <div className="grid grid-cols-1 gap-6 md:grid-cols-12">
@@ -115,7 +122,7 @@ export function UploadPage(): ReactNode {
               2. Sube tu estado de cuenta
             </p>
 
-            {selectedBank === 'bcp' ? (
+            {AVAILABLE_BANKS.has(selectedBank) ? (
               <>
                 <span className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
                   Cargando archivo para: {BANK_NAMES[selectedBank]}
@@ -126,7 +133,7 @@ export function UploadPage(): ReactNode {
               </>
             ) : (
               <p className="mt-3 rounded-lg border border-border/60 bg-muted/20 p-4 text-sm text-muted-foreground">
-                Este banco todavía no está disponible. Selecciona BCP para continuar.
+                Este banco todavía no está disponible. Selecciona BCP o Interbank para continuar.
               </p>
             )}
           </div>

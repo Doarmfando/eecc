@@ -24,6 +24,9 @@ const WARNING_LABELS: Record<string, string> = {
   GENERIC_AMOUNT_UNPARSEABLE: 'Un importe no pudo interpretarse con certeza.',
   GENERIC_BALANCE_COLUMN_MISSING:
     'La tabla no trae columna de saldo, así que no se pudo verificar la aritmética.',
+  INTERBANK_ROW_UNCLASSIFIED: 'Una fila con importes no se pudo clasificar como movimiento.',
+  INTERBANK_AMOUNT_SIDE_UNKNOWN: 'Un importe sin signo no se pudo asignar a ingresos ni a gastos.',
+  INTERBANK_DUPLICATE_OPENING_BALANCE: 'El documento declara más de un saldo inicial.',
 };
 
 const CHECK_LABELS: Record<string, string> = {
@@ -37,6 +40,11 @@ const CHECK_LABELS: Record<string, string> = {
   GENERIC_AMOUNTS_EXCLUSIVE: 'Cargo y abono son excluyentes',
   GENERIC_BALANCE_CONTINUITY: 'El saldo avanza de forma consistente',
   BCP_DOCUMENT_BALANCE: 'El saldo global cuadra',
+  INTERBANK_ROWS_PRESENT: 'Se extrajeron filas del documento',
+  INTERBANK_OPENING_BALANCE: 'Se encontró el saldo inicial',
+  INTERBANK_BALANCE_CONTINUITY: 'El saldo cuadra después de cada movimiento',
+  INTERBANK_DECLARED_TOTALS: 'Los totales de ingresos y gastos cuadran',
+  INTERBANK_CLOSING_BALANCE: 'El saldo final cuadra',
 };
 
 const CHECK_STATUS: Record<

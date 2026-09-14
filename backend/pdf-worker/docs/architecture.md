@@ -80,6 +80,22 @@ filas visuales → parseo tipado → unión conservadora
 
 El reporte valida filas presentes, clasificación completa, campos de movimientos, exclusividad cargo/abono, totales declarados y balance global. Los reportes solo contienen estados, códigos y conteos; no incluyen descripciones ni importes. La ausencia de un total o balance opcional produce `SKIPPED`, una discrepancia produce `NEEDS_REVIEW` y cero filas produce `FAILED`.
 
+## Extractor Interbank
+
+`extractors/interbank/` cubre el estado de cuenta de ahorro de Interbank (`interbank-savings-v1`). Sigue la misma separación que BCP: `pdfplumber_adapter.py` convierte palabras en filas visuales —repartiendo páginas entre procesos con `page_parallelism`— y `rows.py` las interpreta sin tocar el PDF.
+
+La plantilla trae su propia prueba de lectura, así que no hace falta deducir nada:
+
+- `EMPEZASTE <MES> CON <saldo>` es el saldo inicial;
+- cada movimiento es `dd/mm/aaaa <concepto> <±importe> <saldo>`; el signo decide si es ingreso o gasto, y solo un importe sin signo se asigna por la posición de las columnas de la cabecera;
+- `SALDO CONTABLE AL dd/mm <+ingresos> <-gastos> <saldo>` cierra el documento.
+
+`validation.py` exige cuatro cosas al céntimo, sin tolerancia: saldo inicial presente, saldo que avanza tras cada movimiento, totales declarados iguales a la suma de movimientos, y saldo final igual al último saldo y a `inicial + ingresos − gastos`. Si falta el cierre el resultado es `NEEDS_REVIEW`: un documento truncado también produce filas.
+
+La lectura se detiene en la fila de cierre. Después el banco imprime publicidad y una guía con un **ejemplo inventado** que reproduce la plantilla entera; la guía se descarta también por su título por si el cierre faltara. El Excel usa el esquema `eecc.statement.interbank` con los rótulos del propio documento (`Ingresos`, `Gastos`, `Saldo contable`) y no exporta titular, DNI ni número de cuenta.
+
+`resolve_best_strategy` prueba BCP, luego Interbank y solo después el respaldo genérico. La cabecera sola no basta para aceptar el documento: `Ingresos` y `Gastos` son rótulos comunes, y lo que identifica la plantilla es la fila `EMPEZASTE`.
+
 ## Respaldo genérico
 
 `extractors/generic/` cubre los bancos que todavía no tienen extractor especializado. Su regla es no adivinar: identifica el encabezado de la tabla, traduce cada columna a un rol conocido mediante sinónimos (`RETIROS`/`CARGOS`/`DEBE`, `DEPOSITOS`/`ABONOS`/`HABER`, `SALDO`) y solo lee las columnas que pudo nombrar. Si el encabezado no se reconoce, el resultado es `FAILED` con `GENERIC_HEADER_NOT_RECOGNISED`, nunca una asignación inventada de cargos y abonos.

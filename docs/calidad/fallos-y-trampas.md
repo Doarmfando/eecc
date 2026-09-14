@@ -27,6 +27,13 @@
 - Un total ausente no es un total en cero. Compararlo contra la suma real produce una discrepancia inventada; lo correcto es marcarlo como no evaluado.
 - Un estado de cuenta real tiene cientos de páginas. Detectar la plantilla antes de recorrerlas evita gastar medio minuto para luego rechazar el documento.
 
+## Plantilla Interbank confirmada con un documento real
+
+- Tras la fila de cierre, el banco añade una página publicitaria y una guía **«Te ayudamos a conocer tu Estado de Cuenta»** que ilustra la plantilla con un ejemplo inventado: trae su propia cabecera, su `EMPEZASTE <MES> CON` y movimientos de otro año con saldos que no cuadran. Leerla mezcla movimientos ajenos con los reales. Se deja de leer en la fila `SALDO CONTABLE AL`, y la guía se descarta además por su título.
+- Igual que en BCP, el nombre del banco va en el logo y no deja texto. La cabecera `Fecha | Concepto | Ingresos | Gastos | Saldo Contable` sola no identifica la plantilla —son rótulos corrientes—; lo que la distingue es la fila `EMPEZASTE <MES> CON`.
+- El signo del importe (`+120.00`, `-35.50`) dice la columna; la posición es solo el respaldo para un importe sin signo. Un concepto puede traer números (`TIENDA 305`): solo cuenta como importe lo que tiene dos decimales.
+- `EMPEZASTE <MES> CON` nombra el mes anterior al periodo (`DEL 30 DE ABRIL AL 31 DE MAYO` empieza con `EMPEZASTE ABRIL`). Es el saldo inicial, no un error de fecha.
+
 ## Extractor genérico
 
 - Adivinar si un importe es cargo o abono a partir de palabras de la descripción produce estados de cuenta plausibles y equivocados. El rol de una columna se toma de su encabezado o no se toma.

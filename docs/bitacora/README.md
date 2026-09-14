@@ -13,6 +13,18 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-09-14 — Estados de cuenta de Interbank
+
+- Hecho: nuevo extractor `interbank-savings-v1` en `pdf-worker` para la plantilla de ahorro de Interbank (`Fecha | Concepto | Ingresos | Gastos | Saldo Contable`). Lee el saldo inicial (`EMPEZASTE <MES> CON`), cada movimiento con su importe con signo y su saldo, y la fila de cierre con totales. La selección automática lo prueba después de BCP y antes del respaldo genérico.
+- Hecho: la reconciliación es completa y sin tolerancia: saldo fila a fila desde el inicial, totales de ingresos y gastos contra la suma de movimientos, y saldo final. Sin cierre, `NEEDS_REVIEW`.
+- Defecto evitado: tras el cierre, el PDF trae una guía con un **ejemplo inventado** de la misma plantilla (su propia cabecera, saldo inicial y movimientos de otro año). La lectura termina en el cierre y la guía se descarta además por su título. Anotado en `fallos-y-trampas.md`.
+- Hecho: Excel con esquema `eecc.statement.interbank` (Resumen con moneda, saldo inicial, totales y saldo final; Movimientos; Control_Paginas; Validaciones), y un CSV por hoja. No exporta titular, DNI ni número de cuenta.
+- Hecho: en la interfaz, Interbank deja de estar «Próximamente» en el selector de banco, y los códigos `INTERBANK_*` tienen su explicación en el resumen del trabajo.
+- Hecho: `tests/characterization/test_real_statements.py` reparte los PDF de `referencias/` por detector: los de Interbank ya no se caracterizan con el extractor de BCP.
+- Verificación: `pdf-worker scripts/check.ps1` en verde (238 pruebas, 94,5 % de cobertura, Ruff y mypy), con 27 pruebas nuevas sobre un PDF sintético que reproduce la plantilla (varias páginas, publicidad, guía con ejemplo, saldo roto, documento truncado, importes sin signo). Contra el estado de cuenta real de 8 páginas: detectado con confianza 0,90, 127 movimientos, las cinco comprobaciones en `PASSED` y `SUCCEEDED`, con la guía descartada; solo se imprimieron códigos y conteos. Frontend: `typecheck`, `lint` y 96 pruebas.
+- Pendiente: solo se ha visto la cuenta simple en soles. Otras cuentas de Interbank (dólares, empresas) o tarjetas pueden cambiar la plantilla; hay que confirmarlas con una muestra antes de darlas por soportadas.
+- Pendiente: redesplegar `eecc-worker` (y el frontend) para que llegue a producción.
+
 ## 2026-09-14 — Cada persona ve solo sus documentos
 
 - Defecto corregido: *Historial* mostraba los documentos de toda la organización. Una cuenta de usuario recién creada, con un solo PDF, veía también los de otras personas y podía abrirlos y descargarlos. El detalle y la descarga solo comprobaban la organización, así que bastaba el identificador.

@@ -21,16 +21,20 @@ from unittest import TestCase, skipUnless
 from openpyxl import load_workbook
 
 from statement_worker.domain.models import ExtractionStatus
+from statement_worker.extractors.bcp.detector import BcpTemplateDetector
 from statement_worker.extractors.bcp.document_processor import process_bcp_pdf
 from statement_worker.extractors.bcp.models import BcpRowType
+from statement_worker.extractors.bcp.pdfplumber_adapter import probe_bcp_pdf_with_pdfplumber
 from statement_worker.extractors.bcp.validation import BcpCheckStatus
+from statement_worker.extractors.interbank.detector import InterbankTemplateDetector
+from statement_worker.extractors.interbank.strategy import InterbankStatementStrategy
 from tests.characterization.legacy_harness import references_root
 
 ENABLED = os.environ.get("RUN_REAL_STATEMENTS") == "1"
 ROOT = references_root()
 
 
-def _available() -> tuple[Path, ...]:
+def _all_pdfs() -> tuple[Path, ...]:
     """Cualquier PDF que haya en `referencias/`, descubierto y no listado.
 
     Los nombres de los estados de cuenta reales llevan el titular y el número de
@@ -38,9 +42,40 @@ def _available() -> tuple[Path, ...]:
     además la ventaja de que la suite corre con los documentos que tengas tú.
     """
 
-    if ROOT is None:
+    if ROOT is None or not ENABLED:
         return ()
     return tuple(sorted(ROOT.glob("*.pdf")))
+
+
+def _available() -> tuple[Path, ...]:
+    """Los PDF de BCP: cada banco se caracteriza con su propio extractor."""
+
+    return tuple(
+        path
+        for path in _all_pdfs()
+        if BcpTemplateDetector().accepts(probe_bcp_pdf_with_pdfplumber(path))
+    )
+
+
+def _interbank_available() -> tuple[Path, ...]:
+    return tuple(
+        path
+        for path in _all_pdfs()
+        if InterbankTemplateDetector().accepts(probe_bcp_pdf_with_pdfplumber(path))
+    )
+
+
+@skipUnless(ENABLED and _interbank_available(), "Requiere RUN_REAL_STATEMENTS=1 y PDF de Interbank")
+class RealInterbankStatementTests(TestCase):
+    def test_every_interbank_statement_reconciles_to_the_cent(self) -> None:
+        for numero, path in enumerate(_interbank_available(), start=1):
+            with self.subTest(statement=f"documento {numero}"):
+                outcome = InterbankStatementStrategy().process(path)
+
+                self.assertGreater(outcome.movement_count, 0)
+                self.assertEqual(outcome.warning_codes, ())
+                self.assertEqual({status for _code, status in outcome.check_codes}, {"PASSED"})
+                self.assertEqual(outcome.status, ExtractionStatus.SUCCEEDED)
 
 
 @skipUnless(ENABLED and _available(), "Requiere RUN_REAL_STATEMENTS=1 y los PDF locales")
