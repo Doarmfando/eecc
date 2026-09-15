@@ -3,8 +3,7 @@ import { useMemo, useState } from 'react';
 import { filterByBanks } from '@/features/financial-center/use-financial-center';
 import type { FinancialTransaction } from '@/features/financial-center/types';
 import type { BankId } from '@/features/statements/bank-selector';
-
-import { daysInMonth } from './calendar-grid';
+import { daysInMonth } from '@/lib/month';
 
 export type ViewMode = 'flujo' | 'balance';
 

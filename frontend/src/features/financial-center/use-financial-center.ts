@@ -2,17 +2,18 @@ import { useEffect, useMemo, useState } from 'react';
 
 import type { BankId } from '@/features/statements/bank-selector';
 
-import type { FinancialTransaction } from './types';
+import type { FinancialStatement, FinancialTransaction } from './types';
 
 export const ALL_BANK_IDS: readonly BankId[] = ['bcp', 'bbva', 'interbank', 'scotiabank'];
 
 /** Cuántas filas se muestran de entrada; "Cargar más" las suma de a una página. */
-const PAGE_SIZE = 15;
+const PAGE_SIZE = 8;
 
-export interface FlowTotals {
-  incomeCents: number;
-  expenseCents: number;
-  netCents: number;
+export interface PeriodSummary {
+  saldoInicial: number;
+  abonos: number;
+  cargos: number;
+  saldoFinal: number;
   movementCount: number;
   reconciledCount: number;
 }
@@ -39,6 +40,28 @@ export function filterByBanks(
   return transactions.filter((transaction) => selectedBanks.has(transaction.bankId));
 }
 
+export function filterStatementsByBanks(
+  statements: readonly FinancialStatement[],
+  selectedBanks: ReadonlySet<BankId>,
+): FinancialStatement[] {
+  if (selectedBanks.size === 0) {
+    return [...statements];
+  }
+  return statements.filter((statement) => selectedBanks.has(statement.bancoOrigen));
+}
+
+export function filterStatementsByMonth(
+  statements: readonly FinancialStatement[],
+  monthKey: string,
+): FinancialStatement[] {
+  return statements.filter((statement) => statement.fechaPeriodo === monthKey);
+}
+
+/** Meses con al menos un EECC cargado, ordenados de más antiguo a más reciente. */
+export function computeAvailableMonths(statements: readonly FinancialStatement[]): string[] {
+  return Array.from(new Set(statements.map((statement) => statement.fechaPeriodo))).sort();
+}
+
 export function filterBySearch(
   transactions: readonly FinancialTransaction[],
   search: string,
@@ -54,50 +77,60 @@ export function filterBySearch(
   );
 }
 
-export function computeFlowTotals(transactions: readonly FinancialTransaction[]): FlowTotals {
-  let incomeCents = 0;
-  let expenseCents = 0;
+/**
+ * Agrega saldo inicial, abonos, cargos y saldo final declarados en cada EECC del
+ * periodo: es la ecuación de la tarjeta resumen, no un recálculo desde los
+ * movimientos — así se ve exactamente lo que el estado de cuenta declara.
+ */
+export function computePeriodSummary(statements: readonly FinancialStatement[]): PeriodSummary {
+  let saldoInicial = 0;
+  let abonos = 0;
+  let cargos = 0;
+  let saldoFinal = 0;
+  let movementCount = 0;
   let reconciledCount = 0;
 
-  for (const transaction of transactions) {
-    if (transaction.type === 'ABONO') {
-      incomeCents += transaction.amountCents;
-    } else {
-      expenseCents += transaction.amountCents;
-    }
-    if (transaction.reconciled) {
-      reconciledCount += 1;
-    }
+  for (const statement of statements) {
+    saldoInicial += statement.saldoInicial;
+    abonos += statement.abonos;
+    cargos += statement.cargos;
+    saldoFinal += statement.saldoFinal;
+    movementCount += statement.movimientos.length;
+    reconciledCount += statement.movimientos.filter((movimiento) => movimiento.reconciled).length;
   }
 
-  return {
-    incomeCents,
-    expenseCents,
-    netCents: incomeCents - expenseCents,
-    movementCount: transactions.length,
-    reconciledCount,
-  };
+  return { saldoInicial, abonos, cargos, saldoFinal, movementCount, reconciledCount };
 }
 
-/** Siempre los cuatro bancos, con o sin movimientos: la lista de cuentas no debe "saltar". */
-export function computeBankBalances(transactions: readonly FinancialTransaction[]): BankBalance[] {
-  const byBank = new Map<BankId, { balanceCents: number; movementCount: number }>(
-    ALL_BANK_IDS.map((bankId) => [bankId, { balanceCents: 0, movementCount: 0 }]),
+/**
+ * Un saldo por banco: el del EECC más reciente entre los cargados para ese banco,
+ * no una suma de movimientos. Es el mismo criterio que declara el estado de
+ * cuenta real, y no "salta" al filtrar por mes o buscar.
+ */
+export function computeBankBalances(statements: readonly FinancialStatement[]): BankBalance[] {
+  const byBank = new Map<
+    BankId,
+    { balanceCents: number; movementCount: number; latestPeriod: string }
+  >(
+    ALL_BANK_IDS.map((bankId) => [bankId, { balanceCents: 0, movementCount: 0, latestPeriod: '' }]),
   );
 
-  for (const transaction of transactions) {
-    const bucket = byBank.get(transaction.bankId);
-    if (bucket) {
-      bucket.balanceCents +=
-        transaction.type === 'ABONO' ? transaction.amountCents : -transaction.amountCents;
-      bucket.movementCount += 1;
+  for (const statement of statements) {
+    const bucket = byBank.get(statement.bancoOrigen);
+    if (!bucket) {
+      continue;
+    }
+    bucket.movementCount += statement.movimientos.length;
+    if (statement.fechaPeriodo >= bucket.latestPeriod) {
+      bucket.latestPeriod = statement.fechaPeriodo;
+      bucket.balanceCents = statement.saldoFinal;
     }
   }
 
-  return ALL_BANK_IDS.map((bankId) => ({
-    bankId,
-    ...(byBank.get(bankId) ?? { balanceCents: 0, movementCount: 0 }),
-  }));
+  return ALL_BANK_IDS.map((bankId) => {
+    const bucket = byBank.get(bankId) ?? { balanceCents: 0, movementCount: 0, latestPeriod: '' };
+    return { bankId, balanceCents: bucket.balanceCents, movementCount: bucket.movementCount };
+  });
 }
 
 export function groupByDate(transactions: readonly FinancialTransaction[]): TransactionGroup[] {
@@ -121,7 +154,14 @@ export interface FinancialCenterState {
   selectAllBanks: () => void;
   search: string;
   setSearch: (search: string) => void;
-  flowTotals: FlowTotals;
+  calendarMonth: string;
+  availableMonths: string[];
+  goToMonth: (monthKey: string) => void;
+  goToPreviousMonth: () => void;
+  goToNextMonth: () => void;
+  canGoPreviousMonth: boolean;
+  canGoNextMonth: boolean;
+  periodSummary: PeriodSummary;
   bankBalances: BankBalance[];
   movementGroups: TransactionGroup[];
   shownMovementCount: number;
@@ -133,11 +173,31 @@ export interface FinancialCenterState {
 }
 
 export function useFinancialCenter(
-  transactions: readonly FinancialTransaction[],
+  statements: readonly FinancialStatement[],
 ): FinancialCenterState {
   const [selectedBanks, setSelectedBanks] = useState<ReadonlySet<BankId>>(new Set());
   const [search, setSearch] = useState('');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  const bankFilteredStatements = useMemo(
+    () => filterStatementsByBanks(statements, selectedBanks),
+    [statements, selectedBanks],
+  );
+
+  const availableMonths = useMemo(
+    () => computeAvailableMonths(bankFilteredStatements),
+    [bankFilteredStatements],
+  );
+
+  const [calendarMonth, setCalendarMonth] = useState(() => availableMonths.at(-1) ?? '');
+
+  // Si el filtro de banco deja fuera el mes que se estaba mirando, se salta al
+  // más reciente disponible en vez de quedar mostrando un mes vacío.
+  useEffect(() => {
+    if (availableMonths.length > 0 && !availableMonths.includes(calendarMonth)) {
+      setCalendarMonth(availableMonths.at(-1) ?? '');
+    }
+  }, [availableMonths, calendarMonth]);
 
   const toggleBank = (bankId: BankId): void => {
     setSelectedBanks((current) => {
@@ -155,24 +215,54 @@ export function useFinancialCenter(
     setSelectedBanks(new Set());
   };
 
-  const filtered = useMemo(
-    () => filterBySearch(filterByBanks(transactions, selectedBanks), search),
-    [transactions, selectedBanks, search],
+  const monthIndex = availableMonths.indexOf(calendarMonth);
+  const canGoPreviousMonth = monthIndex > 0;
+  const canGoNextMonth = monthIndex >= 0 && monthIndex < availableMonths.length - 1;
+
+  const goToMonth = (monthKey: string): void => {
+    setCalendarMonth(monthKey);
+  };
+
+  const goToPreviousMonth = (): void => {
+    if (canGoPreviousMonth) {
+      setCalendarMonth(availableMonths[monthIndex - 1] ?? calendarMonth);
+    }
+  };
+
+  const goToNextMonth = (): void => {
+    if (canGoNextMonth) {
+      setCalendarMonth(availableMonths[monthIndex + 1] ?? calendarMonth);
+    }
+  };
+
+  const monthStatements = useMemo(
+    () => filterStatementsByMonth(bankFilteredStatements, calendarMonth),
+    [bankFilteredStatements, calendarMonth],
   );
+
+  const periodSummary = useMemo(() => computePeriodSummary(monthStatements), [monthStatements]);
+
+  // Las cuentas registradas son un catálogo de todos los EECC cargados, no del
+  // filtro activo: seleccionar "solo BCP" no debe hacer "desaparecer" las otras
+  // cuentas, y el mes elegido no cambia el saldo actual de una cuenta.
+  const bankBalances = useMemo(() => computeBankBalances(statements), [statements]);
+
+  const monthMovements = useMemo(
+    () =>
+      monthStatements
+        .flatMap((statement) => statement.movimientos)
+        .sort((a, b) => b.date.localeCompare(a.date)),
+    [monthStatements],
+  );
+
+  const filtered = useMemo(() => filterBySearch(monthMovements, search), [monthMovements, search]);
 
   // Un filtro nuevo vuelve a arrancar desde la primera página: si no, "Cargar más"
   // seguiría en un punto que ya no corresponde a lo que se está mirando.
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [selectedBanks, search]);
+  }, [selectedBanks, search, calendarMonth]);
 
-  const flowTotals = useMemo(() => computeFlowTotals(filtered), [filtered]);
-
-  // Las cuentas registradas son un catálogo de todos los bancos, no del filtro activo:
-  // seleccionar "solo BCP" no debe hacer "desaparecer" las otras cuentas de la persona.
-  const bankBalances = useMemo(() => computeBankBalances(transactions), [transactions]);
-
-  // `filtered` ya viene ordenado del más reciente al más antiguo (MOCK_TRANSACTIONS lo está).
   const shown = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
   const movementGroups = useMemo(() => groupByDate(shown), [shown]);
 
@@ -190,7 +280,14 @@ export function useFinancialCenter(
     selectAllBanks,
     search,
     setSearch,
-    flowTotals,
+    calendarMonth,
+    availableMonths,
+    goToMonth,
+    goToPreviousMonth,
+    goToNextMonth,
+    canGoPreviousMonth,
+    canGoNextMonth,
+    periodSummary,
     bankBalances,
     movementGroups,
     shownMovementCount: shown.length,

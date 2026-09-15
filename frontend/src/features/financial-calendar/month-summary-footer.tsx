@@ -3,9 +3,9 @@ import type { ComponentType, ReactNode } from 'react';
 
 import { Card } from '@/components/ui/card';
 import { formatSoles } from '@/lib/format';
+import { daysInMonth } from '@/lib/month';
 import { cn } from '@/lib/utils';
 
-import { daysInMonth } from './calendar-grid';
 import type { MonthSummary } from './use-financial-calendar';
 
 const MONTH_END_FORMATTER = new Intl.DateTimeFormat('es-PE', { day: 'numeric', month: 'short' });

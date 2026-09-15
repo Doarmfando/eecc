@@ -1,3 +1,5 @@
+import { daysInMonth } from '@/lib/month';
+
 export const WEEKDAY_LABELS: readonly string[] = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
 export interface CalendarCell {
@@ -8,28 +10,6 @@ export interface CalendarCell {
 function parseMonthKey(monthKey: string): [number, number] {
   const [yearStr, monthStr] = monthKey.split('-');
   return [Number(yearStr), Number(monthStr)];
-}
-
-export function toMonthKey(date: Date): string {
-  return `${String(date.getFullYear())}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-}
-
-export function daysInMonth(monthKey: string): number {
-  const [year, month] = parseMonthKey(monthKey);
-  return new Date(year, month, 0).getDate();
-}
-
-export function shiftMonth(monthKey: string, delta: number): string {
-  const [year, month] = parseMonthKey(monthKey);
-  return toMonthKey(new Date(year, month - 1 + delta, 1));
-}
-
-export function getMonthLabel(monthKey: string): string {
-  const [year, month] = parseMonthKey(monthKey);
-  const label = new Intl.DateTimeFormat('es-PE', { month: 'long', year: 'numeric' }).format(
-    new Date(year, month - 1, 1),
-  );
-  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 /**

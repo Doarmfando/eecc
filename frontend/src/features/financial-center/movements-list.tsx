@@ -86,7 +86,7 @@ export function MovementsList({
         <CardDescription>
           {search.trim()
             ? `Coincidencias con "${search.trim()}", más recientes primero.`
-            : 'Los más recientes según el filtro de banco activo.'}
+            : 'Del mes y los bancos que tienes filtrados, más recientes primero.'}
         </CardDescription>
       </CardHeader>
 

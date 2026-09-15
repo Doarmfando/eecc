@@ -3,9 +3,10 @@ import type { ReactNode } from 'react';
 
 import { Card } from '@/components/ui/card';
 import { formatCount } from '@/lib/format';
+import { getMonthLabel, shiftMonth } from '@/lib/month';
 import { cn } from '@/lib/utils';
 
-import { buildCalendarCells, getMonthLabel, shiftMonth, WEEKDAY_LABELS } from './calendar-grid';
+import { buildCalendarCells, WEEKDAY_LABELS } from './calendar-grid';
 import type { DailyFlow, ViewMode } from './use-financial-calendar';
 
 function isToday(date: string): boolean {

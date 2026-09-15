@@ -165,7 +165,7 @@ function NavegacionMovil(): ReactNode {
   return (
     <nav
       aria-label="Navegación"
-      className="flex gap-1 overflow-x-auto border-b border-border/70 px-3 py-2 md:hidden"
+      className="flex items-center justify-around gap-1 border-b border-border/70 px-2 py-1.5 md:hidden"
     >
       {enlaces.map(({ to, etiqueta, Icono, end }) => (
         <NavLink
@@ -176,15 +176,15 @@ function NavegacionMovil(): ReactNode {
           title={etiqueta}
           className={({ isActive }) =>
             cn(
-              'flex shrink-0 items-center justify-center gap-2 rounded-lg px-3.5 py-2.5 text-sm font-medium text-muted-foreground',
+              // 48×48: el mínimo recomendado para que un dedo lo toque sin fallar.
+              'flex size-12 shrink-0 items-center justify-center rounded-xl text-muted-foreground',
               isActive ? 'bg-primary/8 text-primary' : 'hover:bg-accent hover:text-foreground',
             )
           }
         >
-          <Icono aria-hidden className="size-5 shrink-0 sm:size-4" />
-          {/* Solo el ícono en el celular más angosto: con cinco enlaces, el texto ya no cabe
-              sin forzar scroll horizontal. Desde `sm` hay sitio de sobra para el rótulo. */}
-          <span className="hidden sm:inline">{etiqueta}</span>
+          {/* Solo el ícono: con cinco enlaces, el texto no cabe sin volver esto un
+              carrusel horizontal. El nombre completo sigue en el sidebar de escritorio. */}
+          <Icono aria-hidden className="size-5 shrink-0" />
         </NavLink>
       ))}
     </nav>

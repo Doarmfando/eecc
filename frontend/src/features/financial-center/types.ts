@@ -21,3 +21,22 @@ export interface FinancialTransaction {
   amountCents: number;
   reconciled: boolean;
 }
+
+/**
+ * Un estado de cuenta (EECC) ya procesado: un banco, un periodo, y lo que trae
+ * declarado — saldo inicial, saldo final y los movimientos de ese mes. Refleja
+ * el shape con el que el worker de PDF entrega cada documento, para que
+ * "preseleccionar del historial" tenga sentido con datos que se ven como los
+ * reales, no solo una lista plana de movimientos.
+ */
+export interface FinancialStatement {
+  id: string;
+  bancoOrigen: BankId;
+  fechaPeriodo: string;
+  periodoLabel: string;
+  saldoInicial: number;
+  abonos: number;
+  cargos: number;
+  saldoFinal: number;
+  movimientos: FinancialTransaction[];
+}

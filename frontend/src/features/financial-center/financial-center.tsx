@@ -2,20 +2,31 @@ import type { ReactNode } from 'react';
 
 import { AccountsConsolidated } from './accounts-consolidated';
 import { BankFilterPills } from './bank-filter';
-import { MOCK_TRANSACTIONS } from './mock-transactions';
 import { MovementsList } from './movements-list';
 import { MovementsSearch } from './movements-search';
 import { NetFlowHero } from './net-flow-hero';
+import type { FinancialStatement } from './types';
 import { useFinancialCenter } from './use-financial-center';
 
-export function FinancialCenter(): ReactNode {
+export function FinancialCenter({
+  statements,
+}: {
+  statements: readonly FinancialStatement[];
+}): ReactNode {
   const {
     selectedBanks,
     toggleBank,
     selectAllBanks,
     search,
     setSearch,
-    flowTotals,
+    calendarMonth,
+    availableMonths,
+    goToMonth,
+    goToPreviousMonth,
+    goToNextMonth,
+    canGoPreviousMonth,
+    canGoNextMonth,
+    periodSummary,
     bankBalances,
     movementGroups,
     shownMovementCount,
@@ -24,7 +35,7 @@ export function FinancialCenter(): ReactNode {
     canShowLess,
     showMore,
     showLess,
-  } = useFinancialCenter(MOCK_TRANSACTIONS);
+  } = useFinancialCenter(statements);
 
   return (
     <div className="space-y-6">
@@ -37,7 +48,16 @@ export function FinancialCenter(): ReactNode {
         <MovementsSearch value={search} onChange={setSearch} />
       </div>
 
-      <NetFlowHero totals={flowTotals} />
+      <NetFlowHero
+        summary={periodSummary}
+        calendarMonth={calendarMonth}
+        availableMonths={availableMonths}
+        onGoToMonth={goToMonth}
+        onPreviousMonth={goToPreviousMonth}
+        onNextMonth={goToNextMonth}
+        canGoPreviousMonth={canGoPreviousMonth}
+        canGoNextMonth={canGoNextMonth}
+      />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
         <div className="xl:col-span-2">
