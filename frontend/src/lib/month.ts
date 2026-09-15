@@ -7,6 +7,11 @@ export function toMonthKey(date: Date): string {
   return `${String(date.getFullYear())}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
 
+/** Fecha local a "YYYY-MM-DD", el mismo formato que usan los movimientos. */
+export function toDateKey(date: Date): string {
+  return `${toMonthKey(date)}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
 export function daysInMonth(monthKey: string): number {
   const [year, month] = parseMonthKey(monthKey);
   return new Date(year, month, 0).getDate();

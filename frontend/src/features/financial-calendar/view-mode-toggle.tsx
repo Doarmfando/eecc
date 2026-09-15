@@ -20,7 +20,7 @@ export function ViewModeToggle({
     <div
       role="tablist"
       aria-label="Modo de vista del calendario"
-      className="inline-flex gap-1 rounded-full bg-muted p-1"
+      className="inline-flex gap-1 rounded-xl bg-muted p-1"
     >
       {OPTIONS.map((option) => (
         <button
@@ -32,10 +32,10 @@ export function ViewModeToggle({
             onChange(option.value);
           }}
           className={cn(
-            'cursor-pointer rounded-full px-4 py-1.5 text-sm font-medium transition-colors',
+            'cursor-pointer rounded-lg border px-4 py-1.5 text-sm font-medium transition-colors',
             value === option.value
-              ? 'bg-card text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground',
+              ? 'border-primary/30 bg-primary/10 text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground',
           )}
         >
           {option.label}

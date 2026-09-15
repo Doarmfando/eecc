@@ -13,6 +13,14 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-09-15 — Calendario con el diseño de referencia
+
+- Hecho: rediseñado el *Calendario* (`features/financial-calendar`) siguiendo una captura de referencia. El mes va grande fuera de la tarjeta con sus flechas; dentro, el toggle Balance/Flujo y un botón de embudo que abre los bancos en un popover (en móvil, los cinco pills ocupaban tres filas). La cuadrícula siempre tiene seis semanas, con los días del mes vecino atenuados y no pulsables, cabecera de una letra y el día de hoy en un círculo.
+- Hecho: un día con movimientos es una «pestaña»: número sobre fondo tintado e importe debajo. En móvil el importe va compacto (`−66.4K`) porque `−66,387` se desbordaba de la celda; desde `sm` se ve entero. El flujo negativo pasa a tono neutro, el verde marca las entradas y el rojo queda para el saldo en contra.
+- Hecho: el resumen del mes pasa a una franja «Balance al · Saldo · Entradas · Salidas»; en móvil entradas y salidas se despliegan con un chevron. El `aria-label` de cada día lleva el importe exacto.
+- Verificación: frontend `typecheck`, `lint` y 157 pruebas; capturas con Playwright a 375 px y 1440 px (sesión simulada) en Flujo, Balance, día seleccionado y filtro abierto.
+- Pendiente: los datos siguen siendo los simulados de `mock-transactions.ts`, que arrancan en saldo 0 y dejan el saldo del mes muy negativo. `format:check` sigue fallando en archivos ajenos por finales de línea CRLF en disco (`core.autocrlf=true` frente a `endOfLine: lf`), no por su contenido.
+
 ## 2026-09-14 — Producción con Interbank e historial por persona
 
 - Hecho: `eecc-worker` y `eecc-api` redesplegados con `railway up` desde `c9d0ae5`; los dos en `SUCCESS`. La API arrancó sin migraciones pendientes y el worker sin errores.

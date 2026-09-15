@@ -8,6 +8,6 @@ describe('FinancialCalendarPage', () => {
     render(<FinancialCalendarPage />);
 
     expect(screen.getByRole('heading', { name: 'Calendario' })).toBeInTheDocument();
-    expect(screen.getByText(/^Balance al /)).toBeInTheDocument();
+    expect(screen.getByText('Balance al')).toBeInTheDocument();
   });
 });

@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react';
 
-import { BankFilterPills } from '@/features/financial-center/bank-filter';
+import { Card } from '@/components/ui/card';
 import { MOCK_MONTH_RANGE, MOCK_TRANSACTIONS } from '@/features/financial-center/mock-transactions';
 
+import { BankFilterMenu } from './bank-filter-menu';
+import { CalendarMonthHeader } from './calendar-month-header';
 import { DayDetailPanel } from './day-detail-panel';
 import { FinancialCalendarGrid } from './financial-calendar-grid';
 import { MonthSummaryFooter } from './month-summary-footer';
@@ -28,38 +30,45 @@ export function FinancialCalendarView(): ReactNode {
   } = useFinancialCalendar(MOCK_TRANSACTIONS, MOCK_MONTH_RANGE.max);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <ViewModeToggle value={viewMode} onChange={setViewMode} />
-        <BankFilterPills
-          selectedBanks={selectedBanks}
-          onToggleBank={toggleBank}
-          onSelectAllBanks={selectAllBanks}
+    <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+      <div className="space-y-4 xl:col-span-2">
+        <CalendarMonthHeader
+          calendarMonth={calendarMonth}
+          onMonthChange={goToMonth}
+          minMonth={MOCK_MONTH_RANGE.min}
+          maxMonth={MOCK_MONTH_RANGE.max}
         />
-      </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <div className="xl:col-span-2">
+        <Card className="gap-5 rounded-3xl p-3 pb-4 sm:p-6">
+          <div className="flex items-center justify-between gap-3">
+            <ViewModeToggle value={viewMode} onChange={setViewMode} />
+            <BankFilterMenu
+              selectedBanks={selectedBanks}
+              onToggleBank={toggleBank}
+              onSelectAllBanks={selectAllBanks}
+            />
+          </div>
           <FinancialCalendarGrid
             viewMode={viewMode}
             calendarMonth={calendarMonth}
-            onMonthChange={goToMonth}
             dailyFlows={dailyFlows}
             monthlyBalances={monthlyBalances}
             selectedDate={selectedDate}
             onSelectDate={selectDate}
-            minMonth={MOCK_MONTH_RANGE.min}
-            maxMonth={MOCK_MONTH_RANGE.max}
           />
-        </div>
+        </Card>
+
+        <MonthSummaryFooter summary={monthSummary} calendarMonth={calendarMonth} />
+      </div>
+
+      {/* En escritorio el panel arranca a la altura de la tarjeta, no de la cabecera del mes. */}
+      <div className="xl:pt-14">
         <DayDetailPanel
           selectedDate={selectedDate}
           transactions={dayTransactions}
           onClear={clearSelectedDate}
         />
       </div>
-
-      <MonthSummaryFooter summary={monthSummary} calendarMonth={calendarMonth} />
     </div>
   );
 }

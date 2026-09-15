@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { daysInMonth, getMonthLabel, getMonthShortLabel, shiftMonth, toMonthKey } from './month';
+import {
+  daysInMonth,
+  getMonthLabel,
+  getMonthShortLabel,
+  shiftMonth,
+  toDateKey,
+  toMonthKey,
+} from './month';
 
 describe('shiftMonth', () => {
   it('avanza y retrocede meses, cruzando el fin de año', () => {
@@ -14,6 +21,13 @@ describe('toMonthKey', () => {
   it('formatea una fecha como "aaaa-mm"', () => {
     expect(toMonthKey(new Date(2026, 8, 14))).toBe('2026-09');
     expect(toMonthKey(new Date(2026, 0, 1))).toBe('2026-01');
+  });
+});
+
+describe('toDateKey', () => {
+  it('formatea una fecha local como "aaaa-mm-dd"', () => {
+    expect(toDateKey(new Date(2026, 8, 4))).toBe('2026-09-04');
+    expect(toDateKey(new Date(2026, 11, 31))).toBe('2026-12-31');
   });
 });
 
