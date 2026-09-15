@@ -13,6 +13,13 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-09-14 — Producción con Interbank e historial por persona
+
+- Hecho: `eecc-worker` y `eecc-api` redesplegados con `railway up` desde `c9d0ae5`; los dos en `SUCCESS`. La API arrancó sin migraciones pendientes y el worker sin errores.
+- Verificación: `/health` responde `ok`; la página publicada ya incluye Interbank habilitado, los textos `INTERBANK_*` y el historial «Solo los que has subido tú»; `/v1/jobs` sin sesión responde `401`. `EECC_WORKER_DEFAULT_EXTRACTOR_ID` no está definida en el worker, así que la detección automática elige Interbank sin configuración adicional.
+- Pendiente: no se subió un documento en producción (no hay cuenta de prueba ahí). Queda confirmar en el navegador con una cuenta real: subir el PDF de Interbank y comprobar que otra cuenta no lo ve en *Historial*.
+- Pendiente: el frontend de Vercel despliega desde GitHub y no se pudo comprobar desde aquí (sin CLI de Vercel ni de GitHub).
+
 ## 2026-09-14 — Estados de cuenta de Interbank
 
 - Hecho: nuevo extractor `interbank-savings-v1` en `pdf-worker` para la plantilla de ahorro de Interbank (`Fecha | Concepto | Ingresos | Gastos | Saldo Contable`). Lee el saldo inicial (`EMPEZASTE <MES> CON`), cada movimiento con su importe con signo y su saldo, y la fila de cierre con totales. La selección automática lo prueba después de BCP y antes del respaldo genérico.
@@ -23,7 +30,6 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Hecho: `tests/characterization/test_real_statements.py` reparte los PDF de `referencias/` por detector: los de Interbank ya no se caracterizan con el extractor de BCP.
 - Verificación: `pdf-worker scripts/check.ps1` en verde (238 pruebas, 94,5 % de cobertura, Ruff y mypy), con 27 pruebas nuevas sobre un PDF sintético que reproduce la plantilla (varias páginas, publicidad, guía con ejemplo, saldo roto, documento truncado, importes sin signo). Contra el estado de cuenta real de 8 páginas: detectado con confianza 0,90, 127 movimientos, las cinco comprobaciones en `PASSED` y `SUCCEEDED`, con la guía descartada; solo se imprimieron códigos y conteos. Frontend: `typecheck`, `lint` y 96 pruebas.
 - Pendiente: solo se ha visto la cuenta simple en soles. Otras cuentas de Interbank (dólares, empresas) o tarjetas pueden cambiar la plantilla; hay que confirmarlas con una muestra antes de darlas por soportadas.
-- Pendiente: redesplegar `eecc-worker` (y el frontend) para que llegue a producción.
 
 ## 2026-09-14 — Cada persona ve solo sus documentos
 
@@ -34,7 +40,6 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Hecho: la interfaz deja de decir «de tu organización» en el historial, en su estado vacío y en `JOB_NOT_FOUND`.
 - Verificación: `api-backend npm run check` (163 pruebas) por código de salida. La suite contra PostgreSQL real (`RUN_DB_TESTS=1`) suma un caso con un administrador y un usuario de la misma organización: mismo PDF, historial de cada uno, detalle y descarga ajenos en `404`, y la credencial de servicio sin ver ninguno. **Contra el código anterior ese caso falla**. Frontend: `typecheck`, `lint` y `test:cov` (95 pruebas) en verde.
 - Pendiente: `frontend npm run check` no pasa `format:check` por 14 archivos del rediseño llegado en paralelo (`3d16b00` y anteriores: `app.tsx`, `artifact-list.tsx`, `bank-selector.tsx`, `index.css`…). Se dejaron sin tocar para no pisar trabajo en curso; se arreglan con `npx prettier --write src`.
-- Pendiente: redesplegar `eecc-api` en Railway; hasta entonces producción sigue mostrando el historial de toda la organización.
 
 ## 2026-09-12 — Producción al día y cuentas depuradas
 
