@@ -1,5 +1,5 @@
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
-import { ChartColumn, FileClock, Home, Users, type LucideIcon } from 'lucide-react';
+import { CalendarDays, ChartColumn, FileClock, Home, Users, type LucideIcon } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
@@ -9,6 +9,7 @@ import logo from '@/assets/logo.svg';
 import { Alert } from '@/components/ui/alert';
 import { AccountMenu } from '@/features/auth/account-menu';
 import { cn } from '@/lib/utils';
+import { FinancialCalendarPage } from '@/pages/financial-calendar-page';
 import { FinancialCenterPage } from '@/pages/financial-center-page';
 import { HistoryPage } from '@/pages/history-page';
 import { JobPage } from '@/pages/job-page';
@@ -56,6 +57,7 @@ const ENLACES: Enlace[] = [
   { to: '/', etiqueta: 'Nuevo documento', Icono: Home, end: true },
   { to: '/historial', etiqueta: 'Historial', Icono: FileClock },
   { to: '/centro-financiero', etiqueta: 'Centro Financiero', Icono: ChartColumn },
+  { to: '/calendario-financiero', etiqueta: 'Calendario Financiero', Icono: CalendarDays },
 ];
 
 const ENLACES_ADMINISTRACION: Enlace[] = [{ to: '/usuarios', etiqueta: 'Usuarios', Icono: Users }];
@@ -299,6 +301,14 @@ function Contenido(): ReactNode {
         element={
           <Protegida>
             <FinancialCenterPage />
+          </Protegida>
+        }
+      />
+      <Route
+        path="/calendario-financiero"
+        element={
+          <Protegida>
+            <FinancialCalendarPage />
           </Protegida>
         }
       />
