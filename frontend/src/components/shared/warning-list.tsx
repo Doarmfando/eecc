@@ -27,6 +27,12 @@ const WARNING_LABELS: Record<string, string> = {
   INTERBANK_ROW_UNCLASSIFIED: 'Una fila con importes no se pudo clasificar como movimiento.',
   INTERBANK_AMOUNT_SIDE_UNKNOWN: 'Un importe sin signo no se pudo asignar a ingresos ni a gastos.',
   INTERBANK_DUPLICATE_OPENING_BALANCE: 'El documento declara más de un saldo inicial.',
+  BANCO_NACION_HEADER_NOT_FOUND:
+    'No se encontró la cabecera de la tabla de movimientos, así que no se sabe qué importe es cargo, abono o saldo.',
+  BANCO_NACION_ROW_UNCLASSIFIED: 'Una fila con importes no se pudo clasificar como movimiento.',
+  BANCO_NACION_AMOUNT_SIDE_UNKNOWN: 'Un importe no se pudo asignar a cargos, abonos ni saldo.',
+  BANCO_NACION_DATE_WITHOUT_YEAR:
+    'Una fecha no trae año y el documento no declara su periodo; la fila se omitió.',
 };
 
 const CHECK_LABELS: Record<string, string> = {
@@ -45,6 +51,11 @@ const CHECK_LABELS: Record<string, string> = {
   INTERBANK_BALANCE_CONTINUITY: 'El saldo cuadra después de cada movimiento',
   INTERBANK_DECLARED_TOTALS: 'Los totales de ingresos y gastos cuadran',
   INTERBANK_CLOSING_BALANCE: 'El saldo final cuadra',
+  BANCO_NACION_ROWS_PRESENT: 'Se extrajeron filas del documento',
+  BANCO_NACION_OPENING_BALANCE: 'Se encontró el saldo inicial',
+  BANCO_NACION_BALANCE_CONTINUITY: 'El saldo cuadra después de cada movimiento',
+  BANCO_NACION_DECLARED_TOTALS: 'Los totales de cargos y abonos cuadran',
+  BANCO_NACION_CLOSING_BALANCE: 'El saldo final cuadra',
 };
 
 const CHECK_STATUS: Record<

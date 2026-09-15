@@ -17,8 +17,8 @@ El segundo imprime la URL y la credencial. Detalle completo, modos y problemas c
 
 ```
 PDF  ──►  detección de plantilla  ──►  extracción  ──►  validación  ──►  XLSX + CSV
-       (BCP, Interbank o genérica)                    (invariantes,
-                                                       reconciliación)
+       (BCP, Interbank, Banco de la                   (invariantes,
+        Nación o genérica)                             reconciliación)
 ```
 
 Una extracción no se da por buena solo porque produjo filas: tiene que pasar invariantes (totales por página, balance del documento, campos de movimiento) y las advertencias viajan en la respuesta.

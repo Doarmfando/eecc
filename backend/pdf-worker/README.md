@@ -24,6 +24,7 @@ Núcleo Python dedicado exclusivamente al procesamiento de estados de cuenta ban
 | Registro de estrategias por banco | Implementado |
 | Estrategia BCP especializada | Implementada y validada con documentos reales |
 | Estrategia Interbank especializada (`interbank-savings-v1`) | Implementada y validada con un documento real: reconcilia saldo fila a fila, totales y saldo final |
+| Estrategia Banco de la Nación (`banco-nacion-v1`) | Implementada con PDF sintético; **sin validar todavía con un documento real** (ver [`docs/architecture.md`](docs/architecture.md#extractor-banco-de-la-nación)) |
 | Respaldo genérico para otros bancos | Implementado; nombra las columnas por su encabezado o las deduce de la aritmética |
 | Servicio de trabajo idempotente | Implementado |
 | API interna FastAPI | Implementada |

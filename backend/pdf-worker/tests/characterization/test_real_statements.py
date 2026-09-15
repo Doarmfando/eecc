@@ -21,6 +21,8 @@ from unittest import TestCase, skipUnless
 from openpyxl import load_workbook
 
 from statement_worker.domain.models import ExtractionStatus
+from statement_worker.extractors.banco_nacion.detector import BancoNacionTemplateDetector
+from statement_worker.extractors.banco_nacion.strategy import BancoNacionStatementStrategy
 from statement_worker.extractors.bcp.detector import BcpTemplateDetector
 from statement_worker.extractors.bcp.document_processor import process_bcp_pdf
 from statement_worker.extractors.bcp.models import BcpRowType
@@ -63,6 +65,35 @@ def _interbank_available() -> tuple[Path, ...]:
         for path in _all_pdfs()
         if InterbankTemplateDetector().accepts(probe_bcp_pdf_with_pdfplumber(path))
     )
+
+
+def _banco_nacion_available() -> tuple[Path, ...]:
+    return tuple(
+        path
+        for path in _all_pdfs()
+        if BancoNacionTemplateDetector().accepts(probe_bcp_pdf_with_pdfplumber(path))
+    )
+
+
+@skipUnless(
+    ENABLED and _banco_nacion_available(),
+    "Requiere RUN_REAL_STATEMENTS=1 y PDF del Banco de la Nación",
+)
+class RealBancoNacionStatementTests(TestCase):
+    """La plantilla se construyó sin un documento real: esta es la primera prueba de verdad.
+
+    Si falla, los códigos de advertencia y de comprobación dicen qué parte de la
+    plantilla supuesta no coincide, sin imprimir nada del documento.
+    """
+
+    def test_every_banco_nacion_statement_reconciles_to_the_cent(self) -> None:
+        for numero, path in enumerate(_banco_nacion_available(), start=1):
+            with self.subTest(statement=f"documento {numero}"):
+                outcome = BancoNacionStatementStrategy().process(path)
+
+                self.assertGreater(outcome.movement_count, 0)
+                self.assertEqual(outcome.warning_codes, ())
+                self.assertEqual(outcome.status, ExtractionStatus.SUCCEEDED, outcome.check_codes)
 
 
 @skipUnless(ENABLED and _interbank_available(), "Requiere RUN_REAL_STATEMENTS=1 y PDF de Interbank")

@@ -34,6 +34,13 @@
 - El signo del importe (`+120.00`, `-35.50`) dice la columna; la posición es solo el respaldo para un importe sin signo. Un concepto puede traer números (`TIENDA 305`): solo cuenta como importe lo que tiene dos decimales.
 - `EMPEZASTE <MES> CON` nombra el mes anterior al periodo (`DEL 30 DE ABRIL AL 31 DE MAYO` empieza con `EMPEZASTE ABRIL`). Es el saldo inicial, no un error de fecha.
 
+## Banco de la Nación: plantilla sin confirmar
+
+- El extractor se escribió sin un documento real. Cuando llegue uno, lo primero es ejecutar la caracterización (`RUN_REAL_STATEMENTS=1`) y leer solo los códigos: `BANCO_NACION_HEADER_NOT_FOUND` dice que la cabecera no tiene los rótulos supuestos; `AMOUNT_SIDE_UNKNOWN`, que las columnas de dinero no se distinguen por posición; `OPENING_BALANCE` en `SKIPPED`, que el saldo inicial usa otro rótulo. Ajustar con esa evidencia, no con suposiciones nuevas.
+- `SALDO ANTERIOR`, `CARGOS | ABONOS | SALDO` o el formato de cuenta `00-000-000000` no identifican al banco: los usan otros. Por eso la detección exige el nombre; si resulta que solo va en el logo, habrá que encontrar otra firma propia en el texto antes de relajarla.
+- Un `SALDO ANTERIOR` en la segunda página no es otro saldo inicial sino el arrastre de la anterior. Tratarlo como apertura haría fallar la reconciliación de cualquier documento de varias páginas; se comprueba como punto de control.
+- La numeración de página centrada cae bajo la columna de descripción y se uniría como continuación del último movimiento. Se descarta por su texto (`PAGINA`, `HOJA`) y por la distancia vertical.
+
 ## Extractor genérico
 
 - Adivinar si un importe es cargo o abono a partir de palabras de la descripción produce estados de cuenta plausibles y equivocados. El rol de una columna se toma de su encabezado o no se toma.

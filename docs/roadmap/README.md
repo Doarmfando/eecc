@@ -31,6 +31,8 @@
 - Hecho: validar la plantilla contra los estados de cuenta reales y corregir detector, agrupación de filas e invariantes con esa evidencia.
 - Hecho: respaldo genérico para bancos sin extractor especializado, con selección automática de estrategia.
 - Hecho: extractor especializado de Interbank (cuenta de ahorro), validado con un documento real.
+- Hecho: extractor del Banco de la Nación (`banco-nacion-v1`) guiado por los rótulos del documento, probado solo con PDF sintético.
+- Pendiente: validar Banco de la Nación con un estado de cuenta real (dejarlo en `referencias/` y ejecutar la caracterización) y ajustar la plantilla con esa evidencia.
 - Pendiente: extractores especializados de BBVA y Scotiabank a medida que lleguen muestras; el respaldo solo reconcilia cuando el documento trae columna de saldo.
 
 ## Fase 2 — Ejecución asíncrona local

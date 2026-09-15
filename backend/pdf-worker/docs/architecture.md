@@ -96,6 +96,24 @@ La lectura se detiene en la fila de cierre. Después el banco imprime publicidad
 
 `resolve_best_strategy` prueba BCP, luego Interbank y solo después el respaldo genérico. La cabecera sola no basta para aceptar el documento: `Ingresos` y `Gastos` son rótulos comunes, y lo que identifica la plantilla es la fila `EMPEZASTE`.
 
+## Extractor Banco de la Nación
+
+`extractors/banco_nacion/` (`banco-nacion-v1`) se construyó **sin haber visto un estado de cuenta real del banco**. Por eso no se apoya en posiciones fijas ni en un único juego de rótulos, sino en lo que el documento declara de sí mismo, y cualquier cosa que no pueda demostrar deja el resultado en `NEEDS_REVIEW`:
+
+- la cabecera de la tabla (`FECHA`, `DESCRIPCION`/`CONCEPTO`/`DETALLE`/`GLOSA`, `SALDO` y al menos una columna de dinero) da la posición de `CARGOS`/`DEBITOS`/`RETIROS`, `ABONOS`/`CREDITOS`/`DEPOSITOS`, `IMPORTE`/`MONTO` con signo y `SALDO`; cada importe se asigna a la columna más cercana alineando por la izquierda, por la derecha o por el centro, porque la cabecera puede ir centrada sobre importes alineados a la derecha. La cabecera de la primera página vale para las siguientes;
+- un movimiento empieza con su fecha (`dd/mm/aaaa`, `dd/mm`, `dd-MMM`), puede traer una segunda fecha valor y termina con sus importes. Sin año, el año sale del periodo impreso (`DEL 01/06/2026 AL 30/06/2026`, también si cruza de año) o de `default_year`; si no hay ninguno, `BANCO_NACION_DATE_WITHOUT_YEAR`;
+- `SALDO ANTERIOR`/`SALDO INICIAL`, `SALDO FINAL`/`SALDO ACTUAL`, `SALDO AL`, `TOTAL CARGOS`/`TOTAL ABONOS` y las filas `TOTAL`/`TOTALES` (cuyos importes valen por su columna) se leen dentro de la tabla o en un resumen encima de ella. `VAN`/`VIENEN` y un `SALDO ANTERIOR` a mitad del documento son arrastres entre páginas;
+- una línea solo de texto bajo la descripción, pegada al movimiento anterior de la misma página, continúa su descripción; la numeración de página y lo que empieza a la izquierda de la descripción no;
+- sin cabecera solo se leen importes con signo explícito; un importe sin columna clara, una fila con importes que no es movimiento ni declaración, o un importe en medio del texto se señalan con advertencia, nunca se adivinan.
+
+`validation.py` exige, al céntimo: saldo inicial declarado (y único), saldo que avanza con cada movimiento —los arrastres y cierres intermedios son puntos de control—, y saldo final igual al último saldo y a `inicial + abonos - cargos`, coherente con el que declare el resumen. Los totales impresos son opcionales porque no todos los estados de cuenta los traen; si están, cada uno debe cuadrar con el documento entero, con lo leído hasta él o con el tramo desde el total anterior (subtotales por página).
+
+La detección exige el nombre del banco (`BANCO DE LA NACION`) además de la tabla: `SALDO ANTERIOR` o `CARGOS | ABONOS | SALDO` los usan varios bancos, y sin una firma confirmada un documento ajeno no debe leerse con estas reglas. Sin la marca, el documento sigue al respaldo genérico. `resolve_best_strategy` lo prueba después de BCP e Interbank.
+
+El Excel usa el esquema `eecc.statement.banco_nacion` (`Resumen`, `Movimientos` con fecha valor, `Control_Paginas`, `Validaciones`) y no exporta titular, documento de identidad ni número de cuenta. `tests/characterization` prueba cualquier PDF real del banco que se deje en `referencias/`: es la primera validación de verdad que tendrá la plantilla.
+
+Supuestos sin confirmar, que un documento real puede desmentir: que el nombre del banco sea texto y no solo logo; que la tabla tenga cabecera con esos rótulos en una sola línea; que los importes lleven dos decimales con coma de miles; y que el documento no sea una imagen escaneada (sin capa de texto, ningún extractor lo lee).
+
 ## Respaldo genérico
 
 `extractors/generic/` cubre los bancos que todavía no tienen extractor especializado. Su regla es no adivinar: identifica el encabezado de la tabla, traduce cada columna a un rol conocido mediante sinónimos (`RETIROS`/`CARGOS`/`DEBE`, `DEPOSITOS`/`ABONOS`/`HABER`, `SALDO`) y solo lee las columnas que pudo nombrar. Si el encabezado no se reconoce, el resultado es `FAILED` con `GENERIC_HEADER_NOT_RECOGNISED`, nunca una asignación inventada de cargos y abonos.
