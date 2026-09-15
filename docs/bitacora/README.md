@@ -13,6 +13,13 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-09-15 — Producción con Banco de la Nación y el calendario nuevo
+
+- Hecho: `eecc-worker` y `eecc-api` redesplegados con `railway up` desde `1790f5f`; los dos en `SUCCESS`. La imagen de la API compila también el frontend, así que el dominio de Railway pasa a servir el Centro Financiero y el Calendario llegados desde `c9d0ae5`. Sin migraciones pendientes; el worker arrancó sin errores.
+- Verificación: `/health` responde `ok`, `/v1/jobs` sin sesión responde `401`, y el bundle publicado contiene el calendario nuevo y los textos `BANCO_NACION_*`.
+- Defecto de despliegue: Vercel había bloqueado `75f9e60` y `1790f5f` («Deployment was blocked») porque el repositorio volvió a estar privado y el plan Hobby no despliega commits de colaboradores en repositorios privados. Con el repositorio de nuevo público, este commit dispara el despliegue: los bloqueados no se reintentan solos.
+- Pendiente: sigue sin subirse un documento en producción (no hay cuenta de prueba ahí).
+
 ## 2026-09-15 — Estados de cuenta del Banco de la Nación (sin muestra real)
 
 - Hecho: nuevo extractor `banco-nacion-v1` en `pdf-worker`. **No hay ningún estado de cuenta real del banco en el repositorio**, así que no se copió una plantilla: la lectura se guía por lo que el documento declara. La cabecera de la tabla da la posición de cargos, abonos (o un importe con signo) y saldo; `SALDO ANTERIOR`, `SALDO FINAL`, `SALDO AL`, `TOTAL CARGOS`/`TOTAL ABONOS` y `TOTALES` se leen dentro de la tabla o en un resumen encima; `VAN`/`VIENEN` se comprueban como arrastre entre páginas. Admite fecha valor, fechas `dd/mm` con el año del periodo (también si cruza de año), saldos negativos con el signo detrás y descripciones de dos líneas.
