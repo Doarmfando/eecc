@@ -6,116 +6,43 @@ import type { FinancialTransaction } from './types';
 
 export const ALL_BANK_IDS: readonly BankId[] = ['bcp', 'bbva', 'interbank', 'scotiabank'];
 
-export interface BankDistributionItem {
-  bankId: BankId;
-  count: number;
-  amountCents: number;
-  share: number;
-}
+/** Tope de filas en la lista de movimientos: legible en vez de volcar cientos de filas. */
+const MAX_MOVEMENTS_SHOWN = 40;
 
-export interface FlowBreakdown {
+export interface FlowTotals {
   incomeCents: number;
   expenseCents: number;
-  incomeShare: number;
-  expenseShare: number;
-}
-
-export interface FinancialKpis {
-  totalFlowCents: number;
+  netCents: number;
   movementCount: number;
   reconciledCount: number;
-  netBalanceCents: number;
-  precisionRate: number;
-  isBalanced: boolean;
 }
 
-export interface FinancialFilters {
-  selectedBanks: ReadonlySet<BankId>;
-  search: string;
-  monthFrom: string;
-  monthTo: string;
+export interface BankBalance {
+  bankId: BankId;
+  balanceCents: number;
+  movementCount: number;
+}
+
+export interface TransactionGroup {
+  date: string;
+  items: FinancialTransaction[];
 }
 
 /** `selectedBanks` vacío significa "todos los bancos": no hay filtro que aplicar. */
-export function filterTransactions(
+export function filterByBanks(
   transactions: readonly FinancialTransaction[],
-  filters: FinancialFilters,
+  selectedBanks: ReadonlySet<BankId>,
 ): FinancialTransaction[] {
-  const query = filters.search.trim().toLowerCase();
-
-  return transactions.filter((transaction) => {
-    if (filters.selectedBanks.size > 0 && !filters.selectedBanks.has(transaction.bankId)) {
-      return false;
-    }
-    const month = transaction.date.slice(0, 7);
-    if (filters.monthFrom && month < filters.monthFrom) {
-      return false;
-    }
-    if (filters.monthTo && month > filters.monthTo) {
-      return false;
-    }
-    if (
-      query &&
-      !transaction.description.toLowerCase().includes(query) &&
-      !transaction.category.toLowerCase().includes(query)
-    ) {
-      return false;
-    }
-    return true;
-  });
-}
-
-export function computeKpis(transactions: readonly FinancialTransaction[]): FinancialKpis {
-  let totalFlowCents = 0;
-  let netBalanceCents = 0;
-  let reconciledCount = 0;
-
-  for (const transaction of transactions) {
-    totalFlowCents += transaction.amountCents;
-    netBalanceCents +=
-      transaction.type === 'ABONO' ? transaction.amountCents : -transaction.amountCents;
-    if (transaction.reconciled) {
-      reconciledCount += 1;
-    }
+  if (selectedBanks.size === 0) {
+    return [...transactions];
   }
-
-  const movementCount = transactions.length;
-  return {
-    totalFlowCents,
-    movementCount,
-    reconciledCount,
-    netBalanceCents,
-    precisionRate: movementCount > 0 ? reconciledCount / movementCount : 1,
-    isBalanced: movementCount === 0 || reconciledCount === movementCount,
-  };
+  return transactions.filter((transaction) => selectedBanks.has(transaction.bankId));
 }
 
-export function computeBankDistribution(
-  transactions: readonly FinancialTransaction[],
-): BankDistributionItem[] {
-  const byBank = new Map<BankId, { count: number; amountCents: number }>(
-    ALL_BANK_IDS.map((bankId) => [bankId, { count: 0, amountCents: 0 }]),
-  );
-
-  for (const transaction of transactions) {
-    const bucket = byBank.get(transaction.bankId);
-    if (bucket) {
-      bucket.count += 1;
-      bucket.amountCents += transaction.amountCents;
-    }
-  }
-
-  const maxCount = Math.max(1, ...Array.from(byBank.values(), (bucket) => bucket.count));
-
-  return ALL_BANK_IDS.map((bankId) => {
-    const bucket = byBank.get(bankId) ?? { count: 0, amountCents: 0 };
-    return { bankId, ...bucket, share: bucket.count / maxCount };
-  });
-}
-
-export function computeFlowBreakdown(transactions: readonly FinancialTransaction[]): FlowBreakdown {
+export function computeFlowTotals(transactions: readonly FinancialTransaction[]): FlowTotals {
   let incomeCents = 0;
   let expenseCents = 0;
+  let reconciledCount = 0;
 
   for (const transaction of transactions) {
     if (transaction.type === 'ABONO') {
@@ -123,40 +50,71 @@ export function computeFlowBreakdown(transactions: readonly FinancialTransaction
     } else {
       expenseCents += transaction.amountCents;
     }
+    if (transaction.reconciled) {
+      reconciledCount += 1;
+    }
   }
 
-  const max = Math.max(1, incomeCents, expenseCents);
   return {
     incomeCents,
     expenseCents,
-    incomeShare: incomeCents / max,
-    expenseShare: expenseCents / max,
+    netCents: incomeCents - expenseCents,
+    movementCount: transactions.length,
+    reconciledCount,
   };
+}
+
+/** Siempre los cuatro bancos, con o sin movimientos: la lista de cuentas no debe "saltar". */
+export function computeBankBalances(transactions: readonly FinancialTransaction[]): BankBalance[] {
+  const byBank = new Map<BankId, { balanceCents: number; movementCount: number }>(
+    ALL_BANK_IDS.map((bankId) => [bankId, { balanceCents: 0, movementCount: 0 }]),
+  );
+
+  for (const transaction of transactions) {
+    const bucket = byBank.get(transaction.bankId);
+    if (bucket) {
+      bucket.balanceCents +=
+        transaction.type === 'ABONO' ? transaction.amountCents : -transaction.amountCents;
+      bucket.movementCount += 1;
+    }
+  }
+
+  return ALL_BANK_IDS.map((bankId) => ({
+    bankId,
+    ...(byBank.get(bankId) ?? { balanceCents: 0, movementCount: 0 }),
+  }));
+}
+
+export function groupByDate(transactions: readonly FinancialTransaction[]): TransactionGroup[] {
+  const byDate = new Map<string, FinancialTransaction[]>();
+  for (const transaction of transactions) {
+    const items = byDate.get(transaction.date);
+    if (items) {
+      items.push(transaction);
+    } else {
+      byDate.set(transaction.date, [transaction]);
+    }
+  }
+  return Array.from(byDate.entries())
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([date, items]) => ({ date, items }));
 }
 
 export interface FinancialCenterState {
   selectedBanks: ReadonlySet<BankId>;
   toggleBank: (bankId: BankId) => void;
   selectAllBanks: () => void;
-  search: string;
-  setSearch: (search: string) => void;
-  monthFrom: string;
-  setMonthFrom: (month: string) => void;
-  monthTo: string;
-  setMonthTo: (month: string) => void;
-  filtered: FinancialTransaction[];
-  kpis: FinancialKpis;
-  bankDistribution: BankDistributionItem[];
-  flowBreakdown: FlowBreakdown;
+  flowTotals: FlowTotals;
+  bankBalances: BankBalance[];
+  movementGroups: TransactionGroup[];
+  shownMovementCount: number;
+  totalMovementCount: number;
 }
 
 export function useFinancialCenter(
   transactions: readonly FinancialTransaction[],
 ): FinancialCenterState {
   const [selectedBanks, setSelectedBanks] = useState<ReadonlySet<BankId>>(new Set());
-  const [search, setSearch] = useState('');
-  const [monthFrom, setMonthFrom] = useState('');
-  const [monthTo, setMonthTo] = useState('');
 
   const toggleBank = (bankId: BankId): void => {
     setSelectedBanks((current) => {
@@ -175,27 +133,28 @@ export function useFinancialCenter(
   };
 
   const filtered = useMemo(
-    () => filterTransactions(transactions, { selectedBanks, search, monthFrom, monthTo }),
-    [transactions, selectedBanks, search, monthFrom, monthTo],
+    () => filterByBanks(transactions, selectedBanks),
+    [transactions, selectedBanks],
   );
 
-  const kpis = useMemo(() => computeKpis(filtered), [filtered]);
-  const bankDistribution = useMemo(() => computeBankDistribution(filtered), [filtered]);
-  const flowBreakdown = useMemo(() => computeFlowBreakdown(filtered), [filtered]);
+  const flowTotals = useMemo(() => computeFlowTotals(filtered), [filtered]);
+
+  // Las cuentas registradas son un catálogo de todos los bancos, no del filtro activo:
+  // seleccionar "solo BCP" no debe hacer "desaparecer" las otras cuentas de la persona.
+  const bankBalances = useMemo(() => computeBankBalances(transactions), [transactions]);
+
+  // `filtered` ya viene ordenado del más reciente al más antiguo (MOCK_TRANSACTIONS lo está).
+  const shown = useMemo(() => filtered.slice(0, MAX_MOVEMENTS_SHOWN), [filtered]);
+  const movementGroups = useMemo(() => groupByDate(shown), [shown]);
 
   return {
     selectedBanks,
     toggleBank,
     selectAllBanks,
-    search,
-    setSearch,
-    monthFrom,
-    setMonthFrom,
-    monthTo,
-    setMonthTo,
-    filtered,
-    kpis,
-    bankDistribution,
-    flowBreakdown,
+    flowTotals,
+    bankBalances,
+    movementGroups,
+    shownMovementCount: shown.length,
+    totalMovementCount: filtered.length,
   };
 }

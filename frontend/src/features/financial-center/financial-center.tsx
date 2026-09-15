@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react';
 
-import { BankDistributionCard, FlowBreakdownCard } from './analytics-panels';
-import { FilterBar } from './filter-bar';
-import { KpiCards } from './kpi-cards';
-import { MOCK_MONTH_RANGE, MOCK_TRANSACTIONS } from './mock-transactions';
-import { RecentTransactionsCard } from './recent-transactions';
+import { AccountsConsolidated } from './accounts-consolidated';
+import { BankFilterPills } from './bank-filter';
+import { MOCK_TRANSACTIONS } from './mock-transactions';
+import { MovementsList } from './movements-list';
+import { NetFlowHero } from './net-flow-hero';
 import { useFinancialCenter } from './use-financial-center';
 
 export function FinancialCenter(): ReactNode {
@@ -12,42 +12,33 @@ export function FinancialCenter(): ReactNode {
     selectedBanks,
     toggleBank,
     selectAllBanks,
-    search,
-    setSearch,
-    monthFrom,
-    setMonthFrom,
-    monthTo,
-    setMonthTo,
-    filtered,
-    kpis,
-    bankDistribution,
-    flowBreakdown,
+    flowTotals,
+    bankBalances,
+    movementGroups,
+    shownMovementCount,
+    totalMovementCount,
   } = useFinancialCenter(MOCK_TRANSACTIONS);
 
   return (
     <div className="space-y-6">
-      <FilterBar
+      <BankFilterPills
         selectedBanks={selectedBanks}
         onToggleBank={toggleBank}
         onSelectAllBanks={selectAllBanks}
-        search={search}
-        onSearchChange={setSearch}
-        monthFrom={monthFrom}
-        onMonthFromChange={setMonthFrom}
-        monthTo={monthTo}
-        onMonthToChange={setMonthTo}
-        monthBounds={MOCK_MONTH_RANGE}
       />
 
-      <KpiCards kpis={kpis} />
+      <NetFlowHero totals={flowTotals} />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
-        <div className="flex flex-col gap-6 xl:col-span-3">
-          <BankDistributionCard items={bankDistribution} />
-          <FlowBreakdownCard breakdown={flowBreakdown} />
-        </div>
         <div className="xl:col-span-2">
-          <RecentTransactionsCard transactions={filtered} search={search} />
+          <AccountsConsolidated balances={bankBalances} selectedBanks={selectedBanks} />
+        </div>
+        <div className="xl:col-span-3">
+          <MovementsList
+            groups={movementGroups}
+            totalCount={totalMovementCount}
+            shownCount={shownMovementCount}
+          />
         </div>
       </div>
     </div>

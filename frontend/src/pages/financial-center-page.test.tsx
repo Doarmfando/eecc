@@ -8,6 +8,6 @@ describe('FinancialCenterPage', () => {
     render(<FinancialCenterPage />);
 
     expect(screen.getByRole('heading', { name: 'Centro Financiero' })).toBeInTheDocument();
-    expect(screen.getByText('Flujo total procesado')).toBeInTheDocument();
+    expect(screen.getByText('Flujo neto consolidado')).toBeInTheDocument();
   });
 });
