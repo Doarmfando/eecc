@@ -1,7 +1,8 @@
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
 import type { ReactNode } from 'react';
 
-import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatCount, formatSoles } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
@@ -63,14 +64,31 @@ export function MovementsList({
   groups,
   totalCount,
   shownCount,
+  search,
+  canShowMore,
+  canShowLess,
+  onShowMore,
+  onShowLess,
 }: {
   groups: readonly TransactionGroup[];
   totalCount: number;
   shownCount: number;
+  search: string;
+  canShowMore: boolean;
+  canShowLess: boolean;
+  onShowMore: () => void;
+  onShowLess: () => void;
 }): ReactNode {
   return (
     <Card className="rounded-2xl">
-      <h2 className="text-lg font-semibold text-foreground">Movimientos</h2>
+      <CardHeader>
+        <CardTitle>Movimientos</CardTitle>
+        <CardDescription>
+          {search.trim()
+            ? `Coincidencias con "${search.trim()}", más recientes primero.`
+            : 'Los más recientes según el filtro de banco activo.'}
+        </CardDescription>
+      </CardHeader>
 
       {groups.length > 0 ? (
         <div className="flex flex-col">
@@ -91,11 +109,26 @@ export function MovementsList({
         <p className="text-sm text-muted-foreground">No hay movimientos para este filtro.</p>
       )}
 
-      {totalCount > shownCount ? (
-        <p className="text-xs text-muted-foreground">
-          Se muestran los {formatCount(shownCount)} movimientos más recientes de{' '}
-          {formatCount(totalCount)}.
-        </p>
+      {canShowMore || canShowLess ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-3">
+          <p className="text-xs text-muted-foreground">
+            Mostrando {formatCount(shownCount)} de {formatCount(totalCount)} movimientos.
+          </p>
+          <div className="flex gap-2">
+            {canShowLess ? (
+              <Button type="button" variant="ghost" size="sm" onClick={onShowLess}>
+                <ChevronUp aria-hidden />
+                Ver menos
+              </Button>
+            ) : null}
+            {canShowMore ? (
+              <Button type="button" variant="outline" size="sm" onClick={onShowMore}>
+                <ChevronDown aria-hidden />
+                Cargar más
+              </Button>
+            ) : null}
+          </div>
+        </div>
       ) : null}
     </Card>
   );

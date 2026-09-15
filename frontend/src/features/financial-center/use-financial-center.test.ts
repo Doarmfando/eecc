@@ -5,6 +5,7 @@ import {
   computeBankBalances,
   computeFlowTotals,
   filterByBanks,
+  filterBySearch,
   groupByDate,
 } from './use-financial-center';
 
@@ -53,6 +54,22 @@ describe('filterByBanks', () => {
   it('con selección solo deja los bancos elegidos', () => {
     const result = filterByBanks(SAMPLE, new Set(['bbva']));
     expect(result.map((t) => t.id)).toEqual(['c']);
+  });
+});
+
+describe('filterBySearch', () => {
+  it('sin texto devuelve todo', () => {
+    expect(filterBySearch(SAMPLE, '')).toHaveLength(3);
+    expect(filterBySearch(SAMPLE, '   ')).toHaveLength(3);
+  });
+
+  it('busca por descripción o categoría, sin distinguir mayúsculas', () => {
+    expect(filterBySearch(SAMPLE, 'sunat').map((t) => t.id)).toEqual(['b']);
+    expect(filterBySearch(SAMPLE, 'nómina').map((t) => t.id)).toEqual(['c']);
+  });
+
+  it('sin coincidencias devuelve una lista vacía', () => {
+    expect(filterBySearch(SAMPLE, 'no existe esto')).toEqual([]);
   });
 });
 

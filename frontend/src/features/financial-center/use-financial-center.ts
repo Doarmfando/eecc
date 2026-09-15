@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import type { BankId } from '@/features/statements/bank-selector';
 
@@ -6,8 +6,8 @@ import type { FinancialTransaction } from './types';
 
 export const ALL_BANK_IDS: readonly BankId[] = ['bcp', 'bbva', 'interbank', 'scotiabank'];
 
-/** Tope de filas en la lista de movimientos: legible en vez de volcar cientos de filas. */
-const MAX_MOVEMENTS_SHOWN = 40;
+/** Cuántas filas se muestran de entrada; "Cargar más" las suma de a una página. */
+const PAGE_SIZE = 15;
 
 export interface FlowTotals {
   incomeCents: number;
@@ -37,6 +37,21 @@ export function filterByBanks(
     return [...transactions];
   }
   return transactions.filter((transaction) => selectedBanks.has(transaction.bankId));
+}
+
+export function filterBySearch(
+  transactions: readonly FinancialTransaction[],
+  search: string,
+): FinancialTransaction[] {
+  const query = search.trim().toLowerCase();
+  if (!query) {
+    return [...transactions];
+  }
+  return transactions.filter(
+    (transaction) =>
+      transaction.description.toLowerCase().includes(query) ||
+      transaction.category.toLowerCase().includes(query),
+  );
 }
 
 export function computeFlowTotals(transactions: readonly FinancialTransaction[]): FlowTotals {
@@ -104,17 +119,25 @@ export interface FinancialCenterState {
   selectedBanks: ReadonlySet<BankId>;
   toggleBank: (bankId: BankId) => void;
   selectAllBanks: () => void;
+  search: string;
+  setSearch: (search: string) => void;
   flowTotals: FlowTotals;
   bankBalances: BankBalance[];
   movementGroups: TransactionGroup[];
   shownMovementCount: number;
   totalMovementCount: number;
+  canShowMore: boolean;
+  canShowLess: boolean;
+  showMore: () => void;
+  showLess: () => void;
 }
 
 export function useFinancialCenter(
   transactions: readonly FinancialTransaction[],
 ): FinancialCenterState {
   const [selectedBanks, setSelectedBanks] = useState<ReadonlySet<BankId>>(new Set());
+  const [search, setSearch] = useState('');
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const toggleBank = (bankId: BankId): void => {
     setSelectedBanks((current) => {
@@ -133,9 +156,15 @@ export function useFinancialCenter(
   };
 
   const filtered = useMemo(
-    () => filterByBanks(transactions, selectedBanks),
-    [transactions, selectedBanks],
+    () => filterBySearch(filterByBanks(transactions, selectedBanks), search),
+    [transactions, selectedBanks, search],
   );
+
+  // Un filtro nuevo vuelve a arrancar desde la primera página: si no, "Cargar más"
+  // seguiría en un punto que ya no corresponde a lo que se está mirando.
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [selectedBanks, search]);
 
   const flowTotals = useMemo(() => computeFlowTotals(filtered), [filtered]);
 
@@ -144,17 +173,31 @@ export function useFinancialCenter(
   const bankBalances = useMemo(() => computeBankBalances(transactions), [transactions]);
 
   // `filtered` ya viene ordenado del más reciente al más antiguo (MOCK_TRANSACTIONS lo está).
-  const shown = useMemo(() => filtered.slice(0, MAX_MOVEMENTS_SHOWN), [filtered]);
+  const shown = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
   const movementGroups = useMemo(() => groupByDate(shown), [shown]);
+
+  const showMore = (): void => {
+    setVisibleCount((current) => Math.min(current + PAGE_SIZE, filtered.length));
+  };
+
+  const showLess = (): void => {
+    setVisibleCount(PAGE_SIZE);
+  };
 
   return {
     selectedBanks,
     toggleBank,
     selectAllBanks,
+    search,
+    setSearch,
     flowTotals,
     bankBalances,
     movementGroups,
     shownMovementCount: shown.length,
     totalMovementCount: filtered.length,
+    canShowMore: shown.length < filtered.length,
+    canShowLess: visibleCount > PAGE_SIZE,
+    showMore,
+    showLess,
   };
 }

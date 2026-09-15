@@ -4,6 +4,7 @@ import { AccountsConsolidated } from './accounts-consolidated';
 import { BankFilterPills } from './bank-filter';
 import { MOCK_TRANSACTIONS } from './mock-transactions';
 import { MovementsList } from './movements-list';
+import { MovementsSearch } from './movements-search';
 import { NetFlowHero } from './net-flow-hero';
 import { useFinancialCenter } from './use-financial-center';
 
@@ -12,20 +13,29 @@ export function FinancialCenter(): ReactNode {
     selectedBanks,
     toggleBank,
     selectAllBanks,
+    search,
+    setSearch,
     flowTotals,
     bankBalances,
     movementGroups,
     shownMovementCount,
     totalMovementCount,
+    canShowMore,
+    canShowLess,
+    showMore,
+    showLess,
   } = useFinancialCenter(MOCK_TRANSACTIONS);
 
   return (
     <div className="space-y-6">
-      <BankFilterPills
-        selectedBanks={selectedBanks}
-        onToggleBank={toggleBank}
-        onSelectAllBanks={selectAllBanks}
-      />
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <BankFilterPills
+          selectedBanks={selectedBanks}
+          onToggleBank={toggleBank}
+          onSelectAllBanks={selectAllBanks}
+        />
+        <MovementsSearch value={search} onChange={setSearch} />
+      </div>
 
       <NetFlowHero totals={flowTotals} />
 
@@ -38,6 +48,11 @@ export function FinancialCenter(): ReactNode {
             groups={movementGroups}
             totalCount={totalMovementCount}
             shownCount={shownMovementCount}
+            search={search}
+            canShowMore={canShowMore}
+            canShowLess={canShowLess}
+            onShowMore={showMore}
+            onShowLess={showLess}
           />
         </div>
       </div>

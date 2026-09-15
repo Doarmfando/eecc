@@ -57,7 +57,7 @@ const ENLACES: Enlace[] = [
   { to: '/', etiqueta: 'Nuevo documento', Icono: Home, end: true },
   { to: '/historial', etiqueta: 'Historial', Icono: FileClock },
   { to: '/centro-financiero', etiqueta: 'Centro Financiero', Icono: ChartColumn },
-  { to: '/calendario-financiero', etiqueta: 'Calendario Financiero', Icono: CalendarDays },
+  { to: '/calendario-financiero', etiqueta: 'Calendario', Icono: CalendarDays },
 ];
 
 const ENLACES_ADMINISTRACION: Enlace[] = [{ to: '/usuarios', etiqueta: 'Usuarios', Icono: Users }];
@@ -172,15 +172,19 @@ function NavegacionMovil(): ReactNode {
           key={to}
           to={to}
           end={end}
+          aria-label={etiqueta}
+          title={etiqueta}
           className={({ isActive }) =>
             cn(
-              'flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground',
+              'flex shrink-0 items-center justify-center gap-2 rounded-lg px-3.5 py-2.5 text-sm font-medium text-muted-foreground',
               isActive ? 'bg-primary/8 text-primary' : 'hover:bg-accent hover:text-foreground',
             )
           }
         >
-          <Icono aria-hidden className="size-4" />
-          {etiqueta}
+          <Icono aria-hidden className="size-5 shrink-0 sm:size-4" />
+          {/* Solo el ícono en el celular más angosto: con cinco enlaces, el texto ya no cabe
+              sin forzar scroll horizontal. Desde `sm` hay sitio de sobra para el rótulo. */}
+          <span className="hidden sm:inline">{etiqueta}</span>
         </NavLink>
       ))}
     </nav>
