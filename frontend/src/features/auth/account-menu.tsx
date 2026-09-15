@@ -227,8 +227,8 @@ export function AccountMenu(): ReactNode {
           )
         ) : (
           <p className="p-4 text-sm text-muted-foreground">
-            No hay ninguna sesión activa. Entra con el correo y la contraseña que te haya
-            facilitado tu organización.
+            No hay ninguna sesión activa. Entra con el correo y la contraseña que te haya facilitado
+            tu organización.
           </p>
         )}
       </PopoverContent>

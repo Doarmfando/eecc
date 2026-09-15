@@ -7,9 +7,7 @@ export function Popover(props: ComponentProps<typeof PopoverPrimitive.Root>): Re
   return <PopoverPrimitive.Root data-slot="popover" {...props} />;
 }
 
-export function PopoverTrigger(
-  props: ComponentProps<typeof PopoverPrimitive.Trigger>,
-): ReactNode {
+export function PopoverTrigger(props: ComponentProps<typeof PopoverPrimitive.Trigger>): ReactNode {
   return <PopoverPrimitive.Trigger data-slot="popover-trigger" {...props} />;
 }
 

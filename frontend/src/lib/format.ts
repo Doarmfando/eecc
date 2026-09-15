@@ -17,3 +17,13 @@ export function formatBytes(bytes: number): string {
 export function formatCount(value: number): string {
   return new Intl.NumberFormat('es-PE').format(value);
 }
+
+const SOLES_FORMATTER = new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' });
+
+/** `cents` es un entero (soles × 100): evita que sumar muchas filas arrastre error de coma flotante. */
+export function formatSoles(cents: number): string {
+  if (!Number.isFinite(cents)) {
+    return '—';
+  }
+  return SOLES_FORMATTER.format(cents / 100);
+}

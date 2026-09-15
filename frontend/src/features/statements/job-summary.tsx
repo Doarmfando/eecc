@@ -131,11 +131,7 @@ export function JobSummary({ job }: { job: Job }): ReactNode {
           <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Metric label="Páginas" value={formatCount(job.pageCount)} Icon={FileStack} />
             <Metric label="Filas" value={formatCount(job.rowCount)} Icon={Layers} />
-            <Metric
-              label="Movimientos"
-              value={formatCount(job.movementCount)}
-              Icon={ListChecks}
-            />
+            <Metric label="Movimientos" value={formatCount(job.movementCount)} Icon={ListChecks} />
             <Metric
               label="Advertencias"
               value={formatCount(job.warningCodes.length)}
