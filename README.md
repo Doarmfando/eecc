@@ -17,9 +17,21 @@ El segundo imprime la URL y la credencial. Detalle completo, modos y problemas c
 
 ```
 PDF  ──►  detección de plantilla  ──►  extracción  ──►  validación  ──►  XLSX + CSV
-       (BCP, Interbank, Banco de la                   (invariantes,
-        Nación o genérica)                             reconciliación)
+      (BCP, Interbank, BBVA, Banco de              (invariantes,
+       la Nación o genérica)                        reconciliación)
 ```
+
+### Bancos soportados
+
+| Banco | Extractor | Validado con un documento real |
+| --- | --- | --- |
+| BCP | `bcp-coordinate-v1` | Sí |
+| Interbank | `interbank-savings-v1` | Sí, solo cuenta de ahorro en soles |
+| Banco de la Nación | `banco-nacion-v1` | Sí, solo cuenta corriente en soles |
+| BBVA | `bbva-account-v1` | Sí, solo cuenta corriente en dólares |
+| Scotiabank y otros | `generic-table-v1` | Respaldo: solo reconcilia si el documento trae columna de saldo |
+
+El banco **no se elige**: el worker detecta la plantilla por su cuenta, así que un documento se procesa con su extractor aunque en la interfaz se marque otro. Un banco «validado» lo está con las muestras que aparecen en la tabla; otra variante de cuenta puede cambiar la plantilla, y entonces el resultado queda en `NEEDS_REVIEW` en vez de dar cifras equivocadas.
 
 Una extracción no se da por buena solo porque produjo filas: tiene que pasar invariantes (totales por página, balance del documento, campos de movimiento) y las advertencias viajan en la respuesta.
 

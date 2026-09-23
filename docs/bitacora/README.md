@@ -27,7 +27,8 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Hecho: comprobado que **la lectura no depende de la divisa**. Los importes se imprimen sin símbolo y la moneda se declara una sola vez, en `MONEDA:`; una prueba genera el mismo documento sintético en soles y en dólares y exige idéntico resultado, con la etiqueta `PEN` o `USD` en el Excel.
 - Pendiente: la muestra real es **una cuenta corriente en dólares de dos páginas**. Lo que puede cambiar en una cuenta de ahorro, en soles o de más páginas no es la divisa sino la plantilla —otras columnas, otro cierre— y eso solo lo dirá una muestra.
 - Pendiente: **Scotiabank** sigue sin muestra y sin extractor.
-- Pendiente: en la interfaz, el selector de banco de la carga sigue marcando BBVA como «Próximamente»; como el worker detecta solo, un PDF suyo ya se procesa igual.
+- Pendiente (interfaz): los códigos `BBVA_*` no tienen explicación en `warning-list.tsx`, que sí traduce los de Interbank y Banco de la Nación. Un trabajo de BBVA con advertencias mostraría el código crudo en vez de una frase.
+- Pendiente (interfaz): el selector de banco de la carga sigue marcando BBVA como «Próximamente» y sin ofrecer Banco de la Nación; como el worker detecta solo, un PDF de cualquiera de los dos ya se procesa igual.
 
 ## 2026-09-22 — Banco de la Nación, validado con un documento real
 

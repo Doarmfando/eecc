@@ -36,6 +36,7 @@
 - Pendiente: la muestra es una cuenta corriente en soles; confirmar ahorro y dólares antes de darlos por soportados.
 - Hecho: extractor de BBVA (`bbva-account-v1`), construido midiendo un estado de cuenta real. `CARGO/ABONO` en una sola columna con signo, ITF en columna propia que descuenta del saldo y fechas sin año resueltas con la emisión del pie. Da `SUCCEEDED` con 60 movimientos y las cinco invariantes en `PASSED`.
 - Pendiente: la muestra de BBVA es una cuenta corriente en dólares de dos páginas; ahorro, soles y documentos largos sin confirmar.
+- Pendiente: en la interfaz, traducir los códigos `BBVA_*` en `warning-list.tsx` y ofrecer BBVA y Banco de la Nación en el selector de carga.
 - Pendiente: extractor de Scotiabank cuando llegue una muestra; el respaldo solo reconcilia cuando el documento trae columna de saldo.
 
 ## Fase 2 — Ejecución asíncrona local

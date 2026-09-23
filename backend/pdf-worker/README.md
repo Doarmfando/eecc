@@ -24,7 +24,9 @@ Núcleo Python dedicado exclusivamente al procesamiento de estados de cuenta ban
 | Registro de estrategias por banco | Implementado |
 | Estrategia BCP especializada | Implementada y validada con documentos reales |
 | Estrategia Interbank especializada (`interbank-savings-v1`) | Implementada y validada con un documento real: reconcilia saldo fila a fila, totales y saldo final |
-| Estrategia Banco de la Nación (`banco-nacion-v1`) | Implementada con PDF sintético; **sin validar todavía con un documento real** (ver [`docs/architecture.md`](docs/architecture.md#extractor-banco-de-la-nación)) |
+| Estrategia Banco de la Nación (`banco-nacion-v1`) | Implementada y **validada con un documento real de 144 páginas**: 7.450 movimientos y las cinco invariantes en `PASSED`. La primera versión, escrita sin muestra, no reconocía el documento (ver [`docs/architecture.md`](docs/architecture.md#extractor-banco-de-la-nación)) |
+| Estrategia BBVA (`bbva-account-v1`) | Implementada y **validada con un documento real**: `CARGO/ABONO` en una sola columna con signo e ITF en columna propia que descuenta del saldo. Solo se ha visto una cuenta corriente en dólares (ver [`docs/architecture.md`](docs/architecture.md#extractor-bbva)) |
+| Estrategia Scotiabank | **No existe**: hace falta una muestra. Sus documentos siguen al respaldo genérico |
 | Respaldo genérico para otros bancos | Implementado; nombra las columnas por su encabezado o las deduce de la aritmética |
 | Servicio de trabajo idempotente | Implementado |
 | API interna FastAPI | Implementada |
