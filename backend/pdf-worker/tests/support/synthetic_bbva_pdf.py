@@ -73,13 +73,15 @@ def create_synthetic_bbva_pdf(
     include_itf_totals: bool = True,
     include_issue_date: bool = True,
     wrong_itf_totals: bool = False,
+    currency: str = "DOLARES US",
 ) -> Decimal:
     """Genera el documento y devuelve el saldo contable final.
 
     `broken_balance` altera un saldo intermedio; `include_itf_totals=False` deja el
     documento sin el bloque de cierre; `include_issue_date=False` quita la fecha del
     pie, que es de donde sale el año; `wrong_itf_totals` declara un total de ITF que
-    no cuadra con la columna.
+    no cuadra con la columna; `currency` cambia lo que declara `MONEDA:`, para
+    comprobar que la lectura no depende de la divisa.
     """
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -112,7 +114,7 @@ def create_synthetic_bbva_pdf(
         top -= 10
         canvas.drawString(_X_DATE, top, "TITULARES: EMPRESA FICTICIA SAC")
         top -= 10
-        canvas.drawString(_X_DATE, top, "MONEDA: DOLARES US")
+        canvas.drawString(_X_DATE, top, f"MONEDA: {currency}")
         top -= 20
 
         _header(canvas, top)

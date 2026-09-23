@@ -145,7 +145,9 @@ No hay fila de saldo final: el cierre es el saldo contable de la última fila. `
 
 El Excel usa el esquema `eecc.statement.bbva` (`Resumen`, `Movimientos` con `Cargo/Abono` con signo e `ITF` en columna propia, `Control_Paginas`, `Validaciones`) y no exporta titular, documento de identidad ni número de cuenta.
 
-Supuestos sin confirmar: la muestra es **una cuenta corriente en dólares de dos páginas**. Cuentas de ahorro, en soles o de varias páginas pueden cambiar la plantilla.
+La lectura **no depende de la divisa**: los importes se imprimen sin símbolo y la moneda se declara una sola vez, en `MONEDA:`, de donde sale la etiqueta del Excel. Hay una prueba que lo fija en soles y en dólares sobre el mismo documento sintético.
+
+Supuestos sin confirmar: la muestra real es **una cuenta corriente en dólares de dos páginas**. No se ha visto un estado de cuenta en soles, ni de ahorro, ni de más páginas; lo que puede cambiar en ellos no es la divisa sino la plantilla —otras columnas, otro cierre— y eso solo lo dirá una muestra.
 
 ## Respaldo genérico
 

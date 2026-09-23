@@ -94,6 +94,29 @@ class BbvaStatementTests(TestCase):
         self.assertTrue(all(row.posting_date is not None for row in movements))
         self.assertEqual({row.posting_date.year for row in movements if row.posting_date}, {2026})
 
+    def test_reads_the_same_in_soles_and_in_dollars(self) -> None:
+        """La lectura no depende de la divisa: los importes no llevan símbolo.
+
+        El documento real con el que se construyó la plantilla es en dólares. La
+        moneda solo se declara una vez, en `MONEDA:`, y de ahí sale la etiqueta
+        del Excel; la tabla imprime cifras desnudas. Esta prueba fija que cambiar
+        la divisa no cambia nada más, que es lo que hoy permite suponer —sin
+        muestra en soles— que la plantilla vale para las dos.
+        """
+
+        for divisa, esperado in (("DOLARES US", "USD"), ("SOLES", "PEN")):
+            with self.subTest(moneda=divisa):
+                path = self.root / f"bbva-{esperado}.pdf"
+                create_synthetic_bbva_pdf(path, currency=divisa)
+
+                outcome = BbvaStatementStrategy().process(path)
+                read = read_bbva_pdf(path)
+                document = read_bbva_rows(read.pages, first_page_text=read.probe.first_page_text)
+
+                self.assertEqual(document.currency, esperado)
+                self.assertEqual(outcome.status, ExtractionStatus.SUCCEEDED, outcome.check_codes)
+                self.assertEqual(outcome.movement_count, 8)
+
     def test_without_a_year_anywhere_the_rows_are_flagged_instead_of_guessed(self) -> None:
         path, _closing = self._build(include_issue_date=False)
 

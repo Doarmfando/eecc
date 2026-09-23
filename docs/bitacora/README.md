@@ -24,7 +24,8 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Hecho: Excel con esquema `eecc.statement.bbva` (`Resumen`, `Movimientos` con `Cargo/Abono` con signo e `ITF` en columna propia, `Control_Paginas`, `Validaciones`) y un CSV por hoja. No exporta titular, documento ni número de cuenta.
 - Hecho: la cabecera del documento ocupa **tres líneas**, así que los rótulos se buscan sueltos: en el texto plano `SALDO CONTABLE` y `FECHA VALOR` nunca aparecen juntos. Y la marca del banco solo sobrevive dentro de `WWW.BBVABANCOCONTINENTAL.COM`, donde `BBVA` no casa.
 - Verificación: `pdf-worker scripts/check.ps1` en verde (290 pruebas, 93,11 % de cobertura, Ruff y mypy), con 10 nuevas sobre un PDF sintético que reproduce la plantilla: saldo roto, totales de ITF que no cuadran, bloque de cierre ausente, documento sin año, y que no reclama documentos de BCP, Interbank ni Banco de la Nación. La caracterización con `RUN_REAL_STATEMENTS=1` pasa contra el documento real.
-- Pendiente: la muestra es **una cuenta corriente en dólares de dos páginas**. Ahorro, soles y documentos largos pueden cambiar la plantilla.
+- Hecho: comprobado que **la lectura no depende de la divisa**. Los importes se imprimen sin símbolo y la moneda se declara una sola vez, en `MONEDA:`; una prueba genera el mismo documento sintético en soles y en dólares y exige idéntico resultado, con la etiqueta `PEN` o `USD` en el Excel.
+- Pendiente: la muestra real es **una cuenta corriente en dólares de dos páginas**. Lo que puede cambiar en una cuenta de ahorro, en soles o de más páginas no es la divisa sino la plantilla —otras columnas, otro cierre— y eso solo lo dirá una muestra.
 - Pendiente: **Scotiabank** sigue sin muestra y sin extractor.
 - Pendiente: en la interfaz, el selector de banco de la carga sigue marcando BBVA como «Próximamente»; como el worker detecta solo, un PDF suyo ya se procesa igual.
 
