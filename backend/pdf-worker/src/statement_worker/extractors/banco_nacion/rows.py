@@ -51,6 +51,9 @@ _MONEY = re.compile(
     r"|^\((?:S/\.?|US\$)?(?:\d{1,3}(?:,\d{3})+|\d+)\.\d{2}\)$"
 )
 _CURRENCY_WORDS = frozenset({"S/", "S/.", "US$"})
+# Relleno de protección: el saldo final se imprime `*********12,345.67`, como en un
+# cheque, para que nadie pueda anteponerle cifras. Los asteriscos no son el importe.
+_PROTECTIVE_FILL = re.compile(r"^\*+(?=[\d(])")
 # El punto no se admite como separador de fecha: `01.06` también es un importe.
 _DATE_TOKEN = re.compile(
     r"^\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?$|^\d{1,2}[/-]?[A-Z]{3}(?:[/-]?\d{2,4})?$"
@@ -63,7 +66,12 @@ _CREDIT_LABELS = frozenset(
     {"ABONO", "ABONOS", "CREDITO", "CREDITOS", "DEPOSITO", "DEPOSITOS", "HABER"}
 )
 _SIGNED_LABELS = frozenset({"IMPORTE", "MONTO"})
-_DESCRIPTION_LABELS = frozenset({"DESCRIPCION", "CONCEPTO", "DETALLE", "GLOSA"})
+# `CODIFICACION` es como el Banco de la Nación rotula su columna de detalle.
+_DESCRIPTION_LABELS = frozenset({"DESCRIPCION", "CONCEPTO", "DETALLE", "GLOSA", "CODIFICACION"})
+# `SALDOS DIA` es un saldo por día, no por fila: la columna existe igual.
+_BALANCE_COLUMN_LABELS = frozenset({"SALDO", "SALDOS"})
+# La fecha puede rotularse `FECHA` o, en el Banco de la Nación, `DIA`.
+_DATE_COLUMN_LABELS = frozenset({"FECHA", "DIA"})
 
 
 class _Role(StrEnum):
@@ -133,7 +141,7 @@ def _money_role(token: str) -> _Role | None:
         return _Role.CREDIT
     if token in _SIGNED_LABELS:
         return _Role.SIGNED
-    if token == "SALDO":
+    if token in _BALANCE_COLUMN_LABELS:
         return _Role.BALANCE
     return None
 
@@ -227,6 +235,7 @@ class _Columns:
     def __init__(self) -> None:
         self.money: dict[_Role, _Span] = {}
         self.description_x0: Decimal | None = None
+        self.date: _Span | None = None
 
     @property
     def learned(self) -> bool:
@@ -235,6 +244,7 @@ class _Columns:
     def learn(self, words: tuple[BancoNacionWord, ...]) -> None:
         money: dict[_Role, _Span] = {}
         description_x0: Decimal | None = None
+        date: _Span | None = None
         for word in words:
             token = _token(word.text)
             role = _money_role(token)
@@ -242,9 +252,44 @@ class _Columns:
                 money[role] = _Span(word.x0, word.x1)
             if token in _DESCRIPTION_LABELS and description_x0 is None:
                 description_x0 = word.x0
+            if token in _DATE_COLUMN_LABELS and date is None:
+                date = _Span(word.x0, word.x1)
         if money:
             self.money = money
             self.description_x0 = description_x0
+            self.date = date
+
+    def date_index(self, words: tuple[BancoNacionWord, ...]) -> int | None:
+        """Posición de la fecha del movimiento según la columna que la rotula.
+
+        El Banco de la Nación imprime la fecha en la última columna (`DIA`), no en
+        la primera. Buscarla por su columna, y no por ser la primera palabra de la
+        fila, sirve para las dos disposiciones sin tener que elegir una.
+        """
+
+        if self.date is None:
+            return None
+        best: tuple[int, Decimal] | None = None
+        for index, word in enumerate(words):
+            if not _DATE_TOKEN.match(normalized_upper(word.text)):
+                continue
+            distance = self.date.distance(word)
+            # La tolerancia es el ancho del propio rótulo: basta para absorber que la
+            # fecha vaya centrada o alineada a la derecha bajo él, y no tanto como
+            # para capturar una fecha impresa dentro de la descripción.
+            if distance > (self.date.x1 - self.date.x0) + Decimal("12"):
+                continue
+            if best is None or distance < best[1]:
+                best = (index, distance)
+        return best[0] if best is not None else None
+
+    @property
+    def date_is_trailing(self) -> bool:
+        """`True` si la columna de fecha va a la derecha de todos los importes."""
+
+        if self.date is None or not self.money:
+            return False
+        return self.date.x0 > max(span.x1 for span in self.money.values())
 
     def role_of(self, word: BancoNacionWord) -> _Role | None:
         ranked = sorted((span.distance(word), role) for role, span in self.money.items())
@@ -262,10 +307,17 @@ class _Columns:
 
 
 def _is_header(words: tuple[BancoNacionWord, ...]) -> bool:
+    """Una cabecera nombra las cuatro cosas: fecha, detalle, dinero y saldo.
+
+    Se pregunta por el papel de cada rótulo y no por una palabra concreta, porque
+    la misma tabla se rotula `FECHA ... DESCRIPCION ... SALDO` en unos documentos y
+    `CODIFICACION CARGOS ABONOS SALDOS DIA` en los del Banco de la Nación.
+    """
+
     tokens = {_token(word.text) for word in words}
     return (
-        "FECHA" in tokens
-        and "SALDO" in tokens
+        bool(tokens & _DATE_COLUMN_LABELS)
+        and bool(tokens & _BALANCE_COLUMN_LABELS)
         and bool(tokens & _DESCRIPTION_LABELS)
         and bool(tokens & (_DEBIT_LABELS | _CREDIT_LABELS | _SIGNED_LABELS))
     )
@@ -275,7 +327,7 @@ def _prepare(raw_row: tuple[BancoNacionWord, ...]) -> tuple[BancoNacionWord, ...
     """Ordena, quita símbolos de moneda sueltos y une los signos separados del importe."""
 
     words = [
-        word
+        replace(word, text=_PROTECTIVE_FILL.sub("", word.text))
         for word in sorted(raw_row, key=lambda word: word.x0)
         if word.text.upper() not in _CURRENCY_WORDS
     ]
@@ -473,6 +525,78 @@ def _declarations(
     return tuple(rows) or None
 
 
+@dataclass(frozen=True, slots=True)
+class _LabelRow:
+    """Fila de cierre que solo trae rótulos; sus importes van en la fila de abajo.
+
+    El Banco de la Nación cierra con `TOTAL | TOTAL CARGOS | TOTAL ABONOS | SALDO
+    ACTUAL` en una línea y los valores en la siguiente, cada uno bajo su rótulo. No
+    es la forma habitual —en BCP e Interbank rótulo e importe comparten fila— así
+    que se reconoce aparte en vez de forzar la lectura de una sola línea.
+    """
+
+    spans: tuple[tuple[_Span, _Label], ...]
+    top: Decimal
+
+
+def _label_row(words: tuple[BancoNacionWord, ...]) -> _LabelRow | None:
+    """Los rótulos de cierre de una fila sin importes, con la posición de cada uno."""
+
+    if any(_is_money(word) for word in words):
+        return None
+    found = _find_labels(words)
+    if not found:
+        return None
+    spans: list[tuple[_Span, _Label]] = []
+    for start, end, label in found:
+        if label not in _CLOSING_KINDS and label not in _BALANCE_LABELS:
+            return None
+        spans.append((_Span(words[start].x0, words[end - 1].x1), label))
+    return _LabelRow(tuple(spans), words[0].top)
+
+
+def _declarations_below(
+    pending: _LabelRow, words: tuple[BancoNacionWord, ...], *, page: int
+) -> tuple[BancoNacionParsedRow, ...] | None:
+    """Reparte los importes de una fila entre los rótulos de la fila de encima."""
+
+    amounts = [word for word in words if _is_money(word)]
+    if not amounts:
+        return None
+    declared = _Declared()
+    for word in amounts:
+        _, label = min(pending.spans, key=lambda item: item[0].distance(word))
+        value = _money(word)
+        if label is _Label.TOTAL_DEBITS and declared.debits is None:
+            declared.debits = abs(value)
+        elif label is _Label.TOTAL_CREDITS and declared.credits is None:
+            declared.credits = abs(value)
+        elif label in _BALANCE_LABELS and declared.closing is None:
+            declared.closing = value
+        else:
+            # Un importe que no cae claramente bajo un rótulo no se adivina.
+            return None
+
+    rows: list[BancoNacionParsedRow] = []
+    if declared.debits is not None or declared.credits is not None:
+        rows.append(
+            BancoNacionParsedRow(
+                BancoNacionRowType.DECLARED_TOTALS,
+                page,
+                "TOTALES",
+                debit=declared.debits,
+                credit=declared.credits,
+            )
+        )
+    if declared.closing is not None:
+        rows.append(
+            BancoNacionParsedRow(
+                BancoNacionRowType.CLOSING_BALANCE, page, "SALDO FINAL", balance=declared.closing
+            )
+        )
+    return tuple(rows) or None
+
+
 def _continuation_gap(readout: BancoNacionPageReadout) -> Decimal | None:
     """Hueco vertical máximo entre una línea y la que la continúa en esta página."""
 
@@ -525,6 +649,8 @@ def read_banco_nacion_rows(
         # altura de la última línea que se le unió. No cruza páginas.
         target: int | None = None
         target_top: Decimal | None = None
+        # Fila de rótulos de cierre a la espera de la fila de importes de debajo.
+        pending: _LabelRow | None = None
 
         for index, words in enumerate(prepared):
             if not words or index == header_index:
@@ -543,10 +669,18 @@ def read_banco_nacion_rows(
                     rows.extend(declared)
                 continue
 
-            if _DATE_TOKEN.match(normalized_upper(words[0].text)):
-                rest = words[1:]
+            # La fecha se busca por su columna; solo si la cabecera no la nombró se
+            # recurre a la convención de que abra la fila.
+            date_index = columns.date_index(words)
+            if date_index is None and _DATE_TOKEN.match(normalized_upper(words[0].text)):
+                date_index = 0
+
+            if date_index is not None:
+                date_word = words[date_index]
+                rest = words[:date_index] + words[date_index + 1 :]
                 value_date: date | None = None
-                if rest and _DATE_TOKEN.match(normalized_upper(rest[0].text)):
+                # La fecha valor solo existe pegada a la de proceso, al abrir la fila.
+                if date_index == 0 and rest and _DATE_TOKEN.match(normalized_upper(rest[0].text)):
                     value_date = _resolve_date(rest[0].text, period, default_year)
                     rest = rest[1:]
                 has_money = any(_is_money(word) for word in rest)
@@ -569,11 +703,11 @@ def read_banco_nacion_rows(
                         warnings.append(BancoNacionWarningCode.ROW_UNCLASSIFIED)
                     target = None
                     continue
-                posting_date = _resolve_date(words[0].text, period, default_year)
+                posting_date = _resolve_date(date_word.text, period, default_year)
                 if posting_date is None:
                     warnings.append(
                         BancoNacionWarningCode.DATE_WITHOUT_YEAR
-                        if not _HAS_YEAR.search(normalized_upper(words[0].text))
+                        if not _HAS_YEAR.search(normalized_upper(date_word.text))
                         else BancoNacionWarningCode.ROW_UNCLASSIFIED
                     )
                     target = None
@@ -598,7 +732,16 @@ def read_banco_nacion_rows(
                 )
                 movements_read = True
                 target, target_top = len(rows) - 1, words[0].top
+
                 continue
+
+            if pending is not None and any(_is_money(word) for word in words):
+                below = _declarations_below(pending, words, page=readout.page)
+                pending = None
+                if below is not None:
+                    rows.extend(below)
+                    target = None
+                    continue
 
             declared = _declarations(
                 words, columns=columns, page=readout.page, movements_read=movements_read
@@ -609,6 +752,11 @@ def read_banco_nacion_rows(
                 continue
 
             if not any(_is_money(word) for word in words):
+                label_row = _label_row(words)
+                if label_row is not None:
+                    pending = label_row
+                    target = None
+                    continue
                 text = " ".join(word.text for word in words)
                 joins = (
                     target is not None

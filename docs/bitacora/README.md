@@ -13,6 +13,19 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-09-22 — Banco de la Nación, validado con un documento real
+
+- Defecto corregido: `banco-nacion-v1` **no reconocía un estado de cuenta del propio banco**. Se escribió sin muestra, adivinando la plantilla, y contra el documento real (144 páginas) sacaba confianza 0,25 frente a un mínimo de 0,75. Caía al respaldo genérico, que fallaba entero: `FAILED`, cero filas, `GENERIC_HEADER_NOT_RECOGNISED`. Hoy da `SUCCEEDED` con 7.450 movimientos y las cinco invariantes en `PASSED`, en 4 segundos.
+- Hecho: la detección deja de exigir el nombre del banco. **El documento no lo menciona en ninguna parte** —cabecera, pie ni metadatos—, así que el techo de confianza alcanzable era 0,60 y ningún documento real podía pasar. La firma pasa a ser estructural: `CODIFICACION` (0,35), `SALDOS DIA` (0,20), `NRO CHEQUE` (0,10), más el formato de cuenta y `SALDO ANTERIOR`. La marca sigue sumando 0,45 cuando está. Comprobado que ni BCP, ni Interbank, ni el BBVA real quedan reclamados por error.
+- Hecho: la fecha se busca **por su columna**, no por abrir la fila. El banco la imprime en la última (`DIA`). Sin cabecera que la nombre se mantiene la convención anterior, así que las dos disposiciones conviven.
+- Hecho: el saldo se imprime **una vez por día** (`SALDOS DIA`), no por movimiento: de ~280 filas muestreadas, 3 lo traían. La reconciliación ya lo admitía —compara solo donde hay saldo impreso y arrastra el resto—, así que no hubo que tocarla; lo que faltaba era leer bien las filas.
+- Hecho: el cierre va en **dos líneas** (`TOTAL | TOTAL CARGOS | TOTAL ABONOS | SALDO ACTUAL` arriba, importes alineados debajo) y el saldo final lleva **relleno de asteriscos** (`*********12,345.67`). Sin lo primero el cierre quedaba sin leer; sin lo segundo el importe no coincidía con ningún patrón. Las dos cosas eran la diferencia entre `NEEDS_REVIEW` y `SUCCEEDED`.
+- Decisión: `CODIFICACION` entra como rótulo de detalle y `SALDOS` como columna de saldo; `_is_header` pregunta por el **papel** de cada rótulo y no por una palabra concreta. Así la misma tabla se reconoce rotulada `FECHA ... DESCRIPCION ... SALDO` o `CODIFICACION CARGOS ABONOS SALDOS DIA`.
+- Verificación: `pdf-worker scripts/check.ps1` en verde (280 pruebas, 93,64 % de cobertura, Ruff y mypy), con 7 nuevas sobre un PDF sintético que reproduce la plantilla real —fecha a la derecha, saldo por día, cierre a dos líneas, asteriscos, sin nombre del banco— incluidas las de que un saldo diario alterado deja `NEEDS_REVIEW` y que no reclama documentos de otros bancos. La caracterización con `RUN_REAL_STATEMENTS=1` pasa contra el documento real; **contra el código anterior ese caso falla**. Las 35 pruebas de la plantilla anterior siguen verdes: no se retiró, cubre otra disposición válida.
+- Pendiente: la muestra es **cuenta corriente en soles**. Ahorro y dólares pueden cambiar la plantilla; hay que confirmarlos antes de darlos por soportados.
+- Pendiente: **BBVA**. Hay muestra real (cuenta corriente en dólares, 2 páginas) y hoy el documento acaba en el respaldo genérico con `FAILED` y `GENERIC_ROW_WITHOUT_DATE`. No existe extractor. De Scotiabank no hay muestra.
+- Pendiente: en la interfaz, el selector de banco de la carga sigue sin ofrecer Banco de la Nación; como el worker detecta solo, un PDF suyo se procesa igual aunque se elija otro.
+
 ## 2026-09-22 — El Centro Financiero deja de ser una demo
 
 - Hecho: el *Centro Financiero* ya no muestra los datos simulados de `mock-transactions.ts`. La preselección lista el **historial real** de quien entra (`GET /v1/jobs`, solo documentos con artefactos publicados) y, al consolidar, el navegador descarga los CSV de `Movimientos` y `Resumen` de cada trabajo elegido y arma con ellos los saldos, totales y movimientos.

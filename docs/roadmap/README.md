@@ -31,9 +31,11 @@
 - Hecho: validar la plantilla contra los estados de cuenta reales y corregir detector, agrupación de filas e invariantes con esa evidencia.
 - Hecho: respaldo genérico para bancos sin extractor especializado, con selección automática de estrategia.
 - Hecho: extractor especializado de Interbank (cuenta de ahorro), validado con un documento real.
-- Hecho: extractor del Banco de la Nación (`banco-nacion-v1`) guiado por los rótulos del documento, probado solo con PDF sintético.
-- Pendiente: validar Banco de la Nación con un estado de cuenta real (dejarlo en `referencias/` y ejecutar la caracterización) y ajustar la plantilla con esa evidencia.
-- Pendiente: extractores especializados de BBVA y Scotiabank a medida que lleguen muestras; el respaldo solo reconcilia cuando el documento trae columna de saldo.
+- Hecho: extractor del Banco de la Nación (`banco-nacion-v1`) guiado por los rótulos del documento.
+- Hecho: validado con un estado de cuenta real de 144 páginas. La versión escrita sin muestra no reconocía el documento; corregidas detección, columna de fecha, saldo por día, cierre a dos líneas y relleno de asteriscos, da `SUCCEEDED` con 7.450 movimientos y las cinco invariantes en `PASSED`.
+- Pendiente: la muestra es una cuenta corriente en soles; confirmar ahorro y dólares antes de darlos por soportados.
+- Pendiente: extractor de BBVA. Hay una muestra real de cuenta corriente en dólares (2 páginas); hoy el documento acaba en el respaldo genérico y falla con `GENERIC_ROW_WITHOUT_DATE`.
+- Pendiente: extractor de Scotiabank cuando llegue una muestra; el respaldo solo reconcilia cuando el documento trae columna de saldo.
 
 ## Fase 2 — Ejecución asíncrona local
 
