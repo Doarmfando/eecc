@@ -64,6 +64,8 @@
 - Pendiente: login de usuarios; hoy se usa una credencial de servicio que vive solo en memoria.
 - Hecho: prueba de extremo a extremo con navegador real sobre la pila completa.
 - Hecho: historial de documentos con paginación por cursor en la API y listado en la interfaz.
+- Hecho: el Centro Financiero se alimenta del historial real leyendo los CSV publicados de cada trabajo, sin persistir movimientos ([`ADR-0010`](../decisiones/ADR-0010-centro-financiero-lee-los-csv-publicados.md)).
+- Pendiente: pasar el Calendario a esos mismos datos; hoy sigue con los simulados de `mock-transactions.ts`.
 
 ## Fase 5 — Preparación comercial
 

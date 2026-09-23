@@ -1,23 +1,34 @@
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 
+import { StatusBadge } from '@/components/shared/status-badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { formatCount, formatSoles } from '@/lib/format';
+import { formatProcessedAt } from '@/features/statements/format-processed-at';
+import { formatCount } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import type { JobListItem } from '@/types/job';
 
-import { BANK_ACCENTS } from './bank-accent';
-import type { FinancialStatement } from './types';
+import { BANK_ACCENTS, bankFromExtractor } from './bank-accent';
+import { BankMark } from './bank-mark';
 
+/**
+ * Preselección sobre el historial real.
+ *
+ * Cada fila es un documento que esta persona procesó; el periodo todavía no se
+ * conoce aquí, porque sale de los CSV que se leen al consolidar. Por eso la fila
+ * muestra lo que el historial sí sabe: banco detectado, cuándo se procesó y
+ * cuántos movimientos trae.
+ */
 export function StatementSelector({
-  statements,
+  jobs,
   onConfirm,
 }: {
-  statements: readonly FinancialStatement[];
+  jobs: readonly JobListItem[];
   onConfirm: (selectedIds: ReadonlySet<string>) => void;
 }): ReactNode {
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(
-    () => new Set(statements.map((statement) => statement.id)),
+    () => new Set(jobs.map((job) => job.jobId)),
   );
 
   const toggle = (id: string): void => {
@@ -32,9 +43,9 @@ export function StatementSelector({
     });
   };
 
-  const allSelected = selectedIds.size === statements.length;
+  const allSelected = selectedIds.size === jobs.length;
   const toggleAll = (): void => {
-    setSelectedIds(allSelected ? new Set() : new Set(statements.map((statement) => statement.id)));
+    setSelectedIds(allSelected ? new Set() : new Set(jobs.map((job) => job.jobId)));
   };
 
   return (
@@ -56,22 +67,23 @@ export function StatementSelector({
           {allSelected ? 'Quitar todos' : 'Marcar todos'}
         </button>
         <span className="text-xs text-muted-foreground">
-          {formatCount(selectedIds.size)} de {formatCount(statements.length)} seleccionados
+          {formatCount(selectedIds.size)} de {formatCount(jobs.length)} seleccionados
         </span>
       </div>
 
       <ul className="max-h-[26rem] divide-y divide-border overflow-y-auto rounded-xl border border-border/60">
-        {statements.map((statement) => {
-          const accent = BANK_ACCENTS[statement.bancoOrigen];
-          const checked = selectedIds.has(statement.id);
+        {jobs.map((job) => {
+          const bankId = bankFromExtractor(job.extractorId);
+          const accent = BANK_ACCENTS[bankId];
+          const checked = selectedIds.has(job.jobId);
           return (
-            <li key={statement.id}>
+            <li key={job.jobId}>
               <label className="flex cursor-pointer items-center gap-3 px-4 py-3 hover:bg-accent/50">
                 <input
                   type="checkbox"
                   checked={checked}
                   onChange={() => {
-                    toggle(statement.id);
+                    toggle(job.jobId);
                   }}
                   className={cn(
                     'size-4 shrink-0 rounded border-border text-primary',
@@ -84,22 +96,18 @@ export function StatementSelector({
                     accent.badgeClassName,
                   )}
                 >
-                  <img
-                    src={accent.logo}
-                    alt=""
-                    aria-hidden
-                    className="h-4 w-auto max-w-6 object-contain"
-                  />
+                  <BankMark bankId={bankId} className="h-4 w-auto max-w-6" />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium text-foreground">
-                    {accent.name} — {statement.periodoLabel}
+                    {accent.name} — {formatProcessedAt(job.createdAt)}
                   </span>
                   <span className="block text-xs text-muted-foreground">
-                    {formatCount(statement.movimientos.length)} movimientos · Saldo final{' '}
-                    {formatSoles(statement.saldoFinal)}
+                    {formatCount(job.movementCount)} movimientos
+                    {job.warningCount > 0 ? ` · ${formatCount(job.warningCount)} advertencias` : ''}
                   </span>
                 </span>
+                <StatusBadge status={job.status} />
               </label>
             </li>
           );

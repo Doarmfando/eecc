@@ -173,12 +173,21 @@ describe('computePeriodSummary', () => {
 });
 
 describe('computeBankBalances', () => {
-  it('incluye los cuatro bancos aunque no tengan EECC cargados', () => {
+  it('solo incluye los bancos con EECC cargados, en orden de presentación', () => {
     const balances = computeBankBalances(SAMPLE_STATEMENTS);
-    const byBank = Object.fromEntries(balances.map((b) => [b.bankId, b]));
 
-    expect(byBank.interbank).toEqual({ bankId: 'interbank', balanceCents: 0, movementCount: 0 });
-    expect(byBank.scotiabank).toEqual({ bankId: 'scotiabank', balanceCents: 0, movementCount: 0 });
+    // Un banco sin documentos no tiene saldo que mostrar: una fila en cero se
+    // leería como «tu cuenta está vacía».
+    expect(balances.map((balance) => balance.bankId)).toEqual(['bcp', 'bbva']);
+  });
+
+  it('da lugar a los bancos que no están en el selector de carga', () => {
+    const balances = computeBankBalances([
+      statement({ id: 'n', bancoOrigen: 'nacion', saldoFinal: 5000 }),
+      statement({ id: 'o', bancoOrigen: 'otro', saldoFinal: 700 }),
+    ]);
+
+    expect(balances.map((balance) => balance.bankId)).toEqual(['nacion', 'otro']);
   });
 
   it('usa el saldo final del EECC más reciente de cada banco, no una suma', () => {

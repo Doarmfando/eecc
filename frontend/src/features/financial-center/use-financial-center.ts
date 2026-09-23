@@ -1,10 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import type { BankId } from '@/features/statements/bank-selector';
-
+import { orderBanks, type SourceBankId } from './bank-accent';
 import type { FinancialStatement, FinancialTransaction } from './types';
-
-export const ALL_BANK_IDS: readonly BankId[] = ['bcp', 'bbva', 'interbank', 'scotiabank'];
 
 /** Cuántas filas se muestran de entrada; "Cargar más" las suma de a una página. */
 const PAGE_SIZE = 8;
@@ -19,7 +16,7 @@ export interface PeriodSummary {
 }
 
 export interface BankBalance {
-  bankId: BankId;
+  bankId: SourceBankId;
   balanceCents: number;
   movementCount: number;
 }
@@ -32,7 +29,7 @@ export interface TransactionGroup {
 /** `selectedBanks` vacío significa "todos los bancos": no hay filtro que aplicar. */
 export function filterByBanks(
   transactions: readonly FinancialTransaction[],
-  selectedBanks: ReadonlySet<BankId>,
+  selectedBanks: ReadonlySet<SourceBankId>,
 ): FinancialTransaction[] {
   if (selectedBanks.size === 0) {
     return [...transactions];
@@ -42,7 +39,7 @@ export function filterByBanks(
 
 export function filterStatementsByBanks(
   statements: readonly FinancialStatement[],
-  selectedBanks: ReadonlySet<BankId>,
+  selectedBanks: ReadonlySet<SourceBankId>,
 ): FinancialStatement[] {
   if (selectedBanks.size === 0) {
     return [...statements];
@@ -109,25 +106,25 @@ export function computePeriodSummary(statements: readonly FinancialStatement[]):
  */
 export function computeBankBalances(statements: readonly FinancialStatement[]): BankBalance[] {
   const byBank = new Map<
-    BankId,
+    SourceBankId,
     { balanceCents: number; movementCount: number; latestPeriod: string }
-  >(
-    ALL_BANK_IDS.map((bankId) => [bankId, { balanceCents: 0, movementCount: 0, latestPeriod: '' }]),
-  );
+  >();
 
   for (const statement of statements) {
-    const bucket = byBank.get(statement.bancoOrigen);
-    if (!bucket) {
-      continue;
-    }
+    const bucket = byBank.get(statement.bancoOrigen) ?? {
+      balanceCents: 0,
+      movementCount: 0,
+      latestPeriod: '',
+    };
     bucket.movementCount += statement.movimientos.length;
     if (statement.fechaPeriodo >= bucket.latestPeriod) {
       bucket.latestPeriod = statement.fechaPeriodo;
       bucket.balanceCents = statement.saldoFinal;
     }
+    byBank.set(statement.bancoOrigen, bucket);
   }
 
-  return ALL_BANK_IDS.map((bankId) => {
+  return orderBanks(byBank.keys()).map((bankId) => {
     const bucket = byBank.get(bankId) ?? { balanceCents: 0, movementCount: 0, latestPeriod: '' };
     return { bankId, balanceCents: bucket.balanceCents, movementCount: bucket.movementCount };
   });
@@ -149,8 +146,10 @@ export function groupByDate(transactions: readonly FinancialTransaction[]): Tran
 }
 
 export interface FinancialCenterState {
-  selectedBanks: ReadonlySet<BankId>;
-  toggleBank: (bankId: BankId) => void;
+  /** Bancos presentes en los estados de cuenta cargados, en orden de presentación. */
+  banks: SourceBankId[];
+  selectedBanks: ReadonlySet<SourceBankId>;
+  toggleBank: (bankId: SourceBankId) => void;
   selectAllBanks: () => void;
   search: string;
   setSearch: (search: string) => void;
@@ -175,7 +174,7 @@ export interface FinancialCenterState {
 export function useFinancialCenter(
   statements: readonly FinancialStatement[],
 ): FinancialCenterState {
-  const [selectedBanks, setSelectedBanks] = useState<ReadonlySet<BankId>>(new Set());
+  const [selectedBanks, setSelectedBanks] = useState<ReadonlySet<SourceBankId>>(new Set());
   const [search, setSearch] = useState('');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
@@ -199,7 +198,7 @@ export function useFinancialCenter(
     }
   }, [availableMonths, calendarMonth]);
 
-  const toggleBank = (bankId: BankId): void => {
+  const toggleBank = (bankId: SourceBankId): void => {
     setSelectedBanks((current) => {
       const next = new Set(current);
       if (next.has(bankId)) {
@@ -275,6 +274,7 @@ export function useFinancialCenter(
   };
 
   return {
+    banks: bankBalances.map((balance) => balance.bankId),
     selectedBanks,
     toggleBank,
     selectAllBanks,

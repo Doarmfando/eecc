@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 
 import { filterByBanks } from '@/features/financial-center/use-financial-center';
 import type { FinancialTransaction } from '@/features/financial-center/types';
-import type { BankId } from '@/features/statements/bank-selector';
+import { orderBanks, type SourceBankId } from '@/features/financial-center/bank-accent';
 import { daysInMonth } from '@/lib/month';
 
 export type ViewMode = 'flujo' | 'balance';
@@ -117,8 +117,10 @@ export function computeMonthSummary(
 }
 
 export interface FinancialCalendarState {
-  selectedBanks: ReadonlySet<BankId>;
-  toggleBank: (bankId: BankId) => void;
+  /** Bancos presentes en los movimientos cargados, en orden de presentación. */
+  banks: SourceBankId[];
+  selectedBanks: ReadonlySet<SourceBankId>;
+  toggleBank: (bankId: SourceBankId) => void;
   selectAllBanks: () => void;
   viewMode: ViewMode;
   setViewMode: (mode: ViewMode) => void;
@@ -137,12 +139,12 @@ export function useFinancialCalendar(
   transactions: readonly FinancialTransaction[],
   initialMonth: string,
 ): FinancialCalendarState {
-  const [selectedBanks, setSelectedBanks] = useState<ReadonlySet<BankId>>(new Set());
+  const [selectedBanks, setSelectedBanks] = useState<ReadonlySet<SourceBankId>>(new Set());
   const [viewMode, setViewMode] = useState<ViewMode>('flujo');
   const [calendarMonth, setCalendarMonth] = useState(initialMonth);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
-  const toggleBank = (bankId: BankId): void => {
+  const toggleBank = (bankId: SourceBankId): void => {
     setSelectedBanks((current) => {
       const next = new Set(current);
       if (next.has(bankId)) {
@@ -204,6 +206,7 @@ export function useFinancialCalendar(
   );
 
   return {
+    banks: orderBanks(transactions.map((transaction) => transaction.bankId)),
     selectedBanks,
     toggleBank,
     selectAllBanks,

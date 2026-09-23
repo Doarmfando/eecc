@@ -1,6 +1,6 @@
-import type { BankId } from '@/features/statements/bank-selector';
+import type { SourceBankId } from './bank-accent';
 
-export type { BankId };
+export type { SourceBankId };
 
 export type MovementType = 'ABONO' | 'CARGO';
 
@@ -13,25 +13,31 @@ export type MovementType = 'ABONO' | 'CARGO';
  */
 export interface FinancialTransaction {
   id: string;
-  bankId: BankId;
+  bankId: SourceBankId;
   date: string;
   description: string;
   category: string;
   type: MovementType;
   amountCents: number;
+  /**
+   * El saldo que declara el documento después de esta fila coincide con el que
+   * resulta de arrastrar el saldo inicial. `false` también cuando el estado de
+   * cuenta no trae columna de saldo: entonces no hay nada que comprobar.
+   */
   reconciled: boolean;
 }
 
 /**
  * Un estado de cuenta (EECC) ya procesado: un banco, un periodo, y lo que trae
- * declarado — saldo inicial, saldo final y los movimientos de ese mes. Refleja
- * el shape con el que el worker de PDF entrega cada documento, para que
- * "preseleccionar del historial" tenga sentido con datos que se ven como los
- * reales, no solo una lista plana de movimientos.
+ * declarado — saldo inicial, saldo final y los movimientos de ese mes.
+ *
+ * Se arma en el navegador leyendo los CSV que el worker ya publicó para ese
+ * trabajo; no hay tabla de movimientos en la base de datos. Ver `ADR-0010`.
  */
 export interface FinancialStatement {
+  /** El `jobId` del trabajo que lo produjo: es lo que lo identifica en el historial. */
   id: string;
-  bancoOrigen: BankId;
+  bancoOrigen: SourceBankId;
   fechaPeriodo: string;
   periodoLabel: string;
   saldoInicial: number;

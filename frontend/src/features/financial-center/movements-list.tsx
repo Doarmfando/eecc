@@ -6,7 +6,7 @@ import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/ca
 import { formatCount, formatSoles } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
-import { BANK_ACCENTS } from './bank-accent';
+import { BankMark } from './bank-mark';
 import type { FinancialTransaction } from './types';
 import type { TransactionGroup } from './use-financial-center';
 
@@ -25,16 +25,14 @@ function formatGroupDate(isoDate: string): string {
 }
 
 function TransactionRow({ transaction }: { transaction: FinancialTransaction }): ReactNode {
-  const accent = BANK_ACCENTS[transaction.bankId];
   const isIncome = transaction.type === 'ABONO';
 
   return (
     <li className="flex items-center gap-3 py-3.5">
-      <img
-        src={accent.logo}
-        alt={accent.name}
-        title={accent.name}
-        className="h-7 w-11 shrink-0 object-contain object-left"
+      <BankMark
+        bankId={transaction.bankId}
+        labelled
+        className="h-7 w-11 shrink-0 object-left text-muted-foreground"
       />
       <div className="min-w-0 flex-1">
         <p className="truncate text-[15px] font-medium text-foreground">

@@ -146,12 +146,12 @@ export interface DownloadedArtifact {
   fileName: string;
 }
 
-/** Descarga autorizada: el nombre lo decide el servidor, no el documento original. */
-export async function downloadArtifact(
+async function requestArtifact(
   options: ApiClientOptions,
   jobId: string,
   artifactId: string,
-): Promise<DownloadedArtifact> {
+  signal?: AbortSignal,
+): Promise<Response> {
   const path = `v1/jobs/${encodeURIComponent(jobId)}/artifacts/${encodeURIComponent(artifactId)}/content`;
 
   let response: Response;
@@ -159,6 +159,7 @@ export async function downloadArtifact(
     response = await fetch(joinUrl(options.baseUrl, path), {
       method: 'GET',
       credentials: 'include',
+      ...(signal ? { signal } : {}),
     });
   } catch {
     throw new ApiError('NETWORK_ERROR', 0);
@@ -166,10 +167,35 @@ export async function downloadArtifact(
   if (!response.ok) {
     throw await readError(response);
   }
+  return response;
+}
+
+/** Descarga autorizada: el nombre lo decide el servidor, no el documento original. */
+export async function downloadArtifact(
+  options: ApiClientOptions,
+  jobId: string,
+  artifactId: string,
+): Promise<DownloadedArtifact> {
+  const response = await requestArtifact(options, jobId, artifactId);
   return {
     blob: await response.blob(),
     fileName: readFileName(response) ?? `${jobId}-${artifactId}`,
   };
+}
+
+/**
+ * El mismo artefacto, pero como texto para leerlo en la página en vez de
+ * guardarlo. Solo tiene sentido con los CSV del resultado; el Centro Financiero
+ * arma con ellos los movimientos, que no se guardan en ninguna base de datos.
+ */
+export async function fetchArtifactText(
+  options: ApiClientOptions,
+  jobId: string,
+  artifactId: string,
+  signal?: AbortSignal,
+): Promise<string> {
+  const response = await requestArtifact(options, jobId, artifactId, signal);
+  return response.text();
 }
 
 function readFileName(response: Response): string | null {

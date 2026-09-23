@@ -1,11 +1,11 @@
 import type { ReactNode } from 'react';
 
 import { Card } from '@/components/ui/card';
-import type { BankId } from '@/features/statements/bank-selector';
 import { formatCount, formatSoles } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
-import { BANK_ACCENTS } from './bank-accent';
+import { BANK_ACCENTS, type SourceBankId } from './bank-accent';
+import { BankMark } from './bank-mark';
 import type { BankBalance } from './use-financial-center';
 
 export function AccountsConsolidated({
@@ -13,7 +13,7 @@ export function AccountsConsolidated({
   selectedBanks,
 }: {
   balances: readonly BankBalance[];
-  selectedBanks: ReadonlySet<BankId>;
+  selectedBanks: ReadonlySet<SourceBankId>;
 }): ReactNode {
   return (
     <Card className="gap-4 rounded-2xl">
@@ -32,11 +32,7 @@ export function AccountsConsolidated({
               )}
             >
               <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-muted">
-                <img
-                  src={accent.logo}
-                  alt={accent.name}
-                  className="h-6 w-auto max-w-8 object-contain"
-                />
+                <BankMark bankId={balance.bankId} className="h-6 w-auto max-w-8" />
               </span>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-muted-foreground">{accent.name}</p>

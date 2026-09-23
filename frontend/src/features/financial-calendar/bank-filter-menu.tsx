@@ -2,8 +2,8 @@ import { Filter } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import type { SourceBankId } from '@/features/financial-center/bank-accent';
 import { BankFilterPills } from '@/features/financial-center/bank-filter';
-import type { BankId } from '@/features/statements/bank-selector';
 import { cn } from '@/lib/utils';
 
 /**
@@ -12,12 +12,14 @@ import { cn } from '@/lib/utils';
  * filtro puesto sin necesidad de abrirlo.
  */
 export function BankFilterMenu({
+  banks,
   selectedBanks,
   onToggleBank,
   onSelectAllBanks,
 }: {
-  selectedBanks: ReadonlySet<BankId>;
-  onToggleBank: (bankId: BankId) => void;
+  banks: readonly SourceBankId[];
+  selectedBanks: ReadonlySet<SourceBankId>;
+  onToggleBank: (bankId: SourceBankId) => void;
   onSelectAllBanks: () => void;
 }): ReactNode {
   const activeCount = selectedBanks.size;
@@ -56,6 +58,7 @@ export function BankFilterMenu({
           Bancos
         </p>
         <BankFilterPills
+          banks={banks}
           selectedBanks={selectedBanks}
           onToggleBank={onToggleBank}
           onSelectAllBanks={onSelectAllBanks}

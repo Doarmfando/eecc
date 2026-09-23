@@ -1,21 +1,22 @@
 import type { ReactNode } from 'react';
 
-import type { BankId } from '@/features/statements/bank-selector';
 import { cn } from '@/lib/utils';
 
-import { BANK_ACCENTS } from './bank-accent';
-import { ALL_BANK_IDS } from './use-financial-center';
+import { BANK_ACCENTS, type SourceBankId } from './bank-accent';
+import { BankMark } from './bank-mark';
 
 const pillClass =
   'inline-flex cursor-pointer items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-colors';
 
 export function BankFilterPills({
+  banks,
   selectedBanks,
   onToggleBank,
   onSelectAllBanks,
 }: {
-  selectedBanks: ReadonlySet<BankId>;
-  onToggleBank: (bankId: BankId) => void;
+  banks: readonly SourceBankId[];
+  selectedBanks: ReadonlySet<SourceBankId>;
+  onToggleBank: (bankId: SourceBankId) => void;
   onSelectAllBanks: () => void;
 }): ReactNode {
   return (
@@ -33,7 +34,7 @@ export function BankFilterPills({
       >
         Todos los bancos
       </button>
-      {ALL_BANK_IDS.map((bankId) => {
+      {banks.map((bankId) => {
         const accent = BANK_ACCENTS[bankId];
         const active = selectedBanks.has(bankId);
         return (
@@ -51,12 +52,7 @@ export function BankFilterPills({
                 : 'border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground',
             )}
           >
-            <img
-              src={accent.logo}
-              alt=""
-              aria-hidden
-              className="h-4 w-auto max-w-8 object-contain"
-            />
+            <BankMark bankId={bankId} className="h-4 w-auto max-w-8" />
             {accent.name}
           </button>
         );

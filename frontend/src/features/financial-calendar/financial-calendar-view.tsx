@@ -13,6 +13,7 @@ import { ViewModeToggle } from './view-mode-toggle';
 
 export function FinancialCalendarView(): ReactNode {
   const {
+    banks,
     selectedBanks,
     toggleBank,
     selectAllBanks,
@@ -43,6 +44,7 @@ export function FinancialCalendarView(): ReactNode {
           <div className="flex items-center justify-between gap-3">
             <ViewModeToggle value={viewMode} onChange={setViewMode} />
             <BankFilterMenu
+              banks={banks}
               selectedBanks={selectedBanks}
               onToggleBank={toggleBank}
               onSelectAllBanks={selectAllBanks}

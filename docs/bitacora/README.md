@@ -13,6 +13,18 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-09-22 — El Centro Financiero deja de ser una demo
+
+- Hecho: el *Centro Financiero* ya no muestra los datos simulados de `mock-transactions.ts`. La preselección lista el **historial real** de quien entra (`GET /v1/jobs`, solo documentos con artefactos publicados) y, al consolidar, el navegador descarga los CSV de `Movimientos` y `Resumen` de cada trabajo elegido y arma con ellos los saldos, totales y movimientos.
+- Decisión: **no se añadió tabla de movimientos ni endpoint nuevo.** Los archivos ya existen y su descarga ya está autorizada por persona y trabajo; la API sigue sin interpretar hojas de cálculo. Motivos y alternativas en [`ADR-0010`](../decisiones/ADR-0010-centro-financiero-lee-los-csv-publicados.md).
+- Decisión: lo que el documento declara no se recalcula. Totales y saldo final salen del `Resumen`; el saldo inicial, del `Resumen` o de la fila `SALDO ANTERIOR` de BCP (que su resumen no imprime). Solo se deriva lo que ningún extractor declara. Los importes se leen como centavos enteros desde los dígitos del decimal, nunca con `Number(x) * 100`.
+- Hecho: el banco de origen se amplía a `nacion` y `otro`. El worker detecta la plantilla por su cuenta, así que un estado de cuenta del Banco de la Nación —o uno resuelto por el respaldo genérico— ya se ve en el Centro Financiero, con un ícono neutro en vez de un logotipo que el proyecto no tiene. Los bancos listados salen de los documentos cargados: se acabaron las filas en cero de BBVA y Scotiabank.
+- Hecho: un movimiento se marca conciliado si el saldo de su fila cuadra con el arrastre desde la anterior; un descuadre puntual no ensucia las filas siguientes. Sin columna de saldo no se marca ninguno.
+- Hecho: estados propios de datos reales — historial cargando, sin documentos que consolidar (con enlace a subir uno), y aviso de cuántos documentos quedaron fuera del consolidado cuando alguno no se pudo leer.
+- Verificación: frontend `typecheck`, `lint` y 197 pruebas con 94,95 % de cobertura. 40 pruebas nuevas: el lector de CSV (comillas, CRLF, BOM), los importes en centavos (incluido que mil sumas de `0.07` den exactamente `70.00`), y la construcción del estado de cuenta contra CSV sintéticos con las cabeceras reales de los cuatro exportadores. La página se prueba de extremo a extremo con `fetch` simulado: lista, detalle, descarga de los dos CSV y consolidado.
+- Pendiente: **no se ha probado contra un documento real en el navegador.** Hace falta subir un estado de cuenta, consolidarlo y comprobar que los números coinciden con el Excel descargado.
+- Pendiente: el *Calendario* sigue con los datos simulados; comparte tipos y acentos, así que le falta solo cambiar la fuente. `format:check` sigue fallando en 15 archivos ajenos por finales de línea CRLF en disco, no por su contenido.
+
 ## 2026-09-15 — Producción con Banco de la Nación y el calendario nuevo
 
 - Hecho: `eecc-worker` y `eecc-api` redesplegados con `railway up` desde `1790f5f`; los dos en `SUCCESS`. La imagen de la API compila también el frontend, así que el dominio de Railway pasa a servir el Centro Financiero y el Calendario llegados desde `c9d0ae5`. Sin migraciones pendientes; el worker arrancó sin errores.

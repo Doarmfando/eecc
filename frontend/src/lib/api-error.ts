@@ -26,6 +26,8 @@ const MESSAGES: Record<string, string> = {
   VALIDATION_FAILED: 'Revisa los datos enviados.',
   JOB_NOT_FOUND: 'No existe ese trabajo o no lo subiste tú.',
   ARTIFACT_NOT_FOUND: 'Ese archivo ya no está disponible para descargar.',
+  STATEMENT_NOT_CONSOLIDABLE:
+    'Ese documento no publicó el CSV de movimientos, así que no se puede consolidar.',
   INVALID_CURSOR: 'La página solicitada no es válida; vuelve a cargar el historial.',
   WORKER_UNAVAILABLE: 'El procesador no está disponible. Intenta de nuevo en unos minutos.',
   WORKER_REJECTED_DOCUMENT: 'El procesador rechazó el documento.',

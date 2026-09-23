@@ -14,6 +14,7 @@ export function FinancialCenter({
   statements: readonly FinancialStatement[];
 }): ReactNode {
   const {
+    banks,
     selectedBanks,
     toggleBank,
     selectAllBanks,
@@ -41,6 +42,7 @@ export function FinancialCenter({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <BankFilterPills
+          banks={banks}
           selectedBanks={selectedBanks}
           onToggleBank={toggleBank}
           onSelectAllBanks={selectAllBanks}

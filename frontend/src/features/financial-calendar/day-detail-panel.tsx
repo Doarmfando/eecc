@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 
 import { Card } from '@/components/ui/card';
 import { BANK_ACCENTS } from '@/features/financial-center/bank-accent';
+import { BankMark } from '@/features/financial-center/bank-mark';
 import type { FinancialTransaction } from '@/features/financial-center/types';
 import { formatSoles } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -35,12 +36,7 @@ function TransactionRow({ transaction }: { transaction: FinancialTransaction }):
           accent.badgeClassName,
         )}
       >
-        <img
-          src={accent.logo}
-          alt={accent.name}
-          title={accent.name}
-          className="h-5 w-8 object-contain"
-        />
+        <BankMark bankId={transaction.bankId} labelled className="h-5 w-8" />
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-foreground">{transaction.description}</p>
