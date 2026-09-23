@@ -34,7 +34,8 @@
 - Hecho: extractor del Banco de la Nación (`banco-nacion-v1`) guiado por los rótulos del documento.
 - Hecho: validado con un estado de cuenta real de 144 páginas. La versión escrita sin muestra no reconocía el documento; corregidas detección, columna de fecha, saldo por día, cierre a dos líneas y relleno de asteriscos, da `SUCCEEDED` con 7.450 movimientos y las cinco invariantes en `PASSED`.
 - Pendiente: la muestra es una cuenta corriente en soles; confirmar ahorro y dólares antes de darlos por soportados.
-- Pendiente: extractor de BBVA. Hay una muestra real de cuenta corriente en dólares (2 páginas); hoy el documento acaba en el respaldo genérico y falla con `GENERIC_ROW_WITHOUT_DATE`.
+- Hecho: extractor de BBVA (`bbva-account-v1`), construido midiendo un estado de cuenta real. `CARGO/ABONO` en una sola columna con signo, ITF en columna propia que descuenta del saldo y fechas sin año resueltas con la emisión del pie. Da `SUCCEEDED` con 60 movimientos y las cinco invariantes en `PASSED`.
+- Pendiente: la muestra de BBVA es una cuenta corriente en dólares de dos páginas; ahorro, soles y documentos largos sin confirmar.
 - Pendiente: extractor de Scotiabank cuando llegue una muestra; el respaldo solo reconcilia cuando el documento trae columna de saldo.
 
 ## Fase 2 — Ejecución asíncrona local

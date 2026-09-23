@@ -48,6 +48,15 @@ El extractor se escribió **sin muestra**, adivinando la plantilla, y se corrigi
 - Un `SALDO ANTERIOR` en la segunda página no es otro saldo inicial sino el arrastre de la anterior. Tratarlo como apertura haría fallar la reconciliación de cualquier documento de varias páginas; se comprueba como punto de control.
 - La numeración de página centrada cae bajo la columna de descripción y se uniría como continuación del último movimiento. Se descarta por su texto (`PAGINA`, `HOJA`) y por la distancia vertical.
 
+## BBVA: impuesto en columna propia y cabecera partida
+
+- **Un impuesto en columna aparte no es decorativo.** El ITF se imprime fuera de `CARGO/ABONO` pero descuenta del saldo igual. Comprobarlo cuesta poco y decide la lectura: sobre el documento real, `saldo = anterior + cargo` cuadra 31 veces y falla 28; `saldo = anterior + cargo - itf` cuadra 59 y falla 0. Ante una columna cuyo papel no está claro, probar las dos ecuaciones y quedarse con la que el documento demuestra, en vez de razonar sobre lo que «debería» ser.
+- **Una cabecera partida en varias líneas rompe la búsqueda por frases.** Aquí ocupa tres (`FECHA | FECHA | SALDO`, luego `DESCRIPCION ... CARGO/ABONO ITF`, luego `OPER. | VALOR | CONTABLE`), así que en el texto plano `SALDO CONTABLE` y `FECHA VALOR` **nunca aparecen juntos**. Los rótulos se buscan sueltos.
+- **No aprendas las columnas de cualquier fila.** El título del documento —«MOVIMIENTO Y SALDO A LA FECHA»— lleva la palabra `SALDO` a la izquierda de la página; tomarlo por la columna de saldo, que está al otro extremo, deja cero movimientos sin ningún error visible. Aprender solo del bloque de cabecera.
+- **Con columnas juntas, el orden es más fiable que la distancia.** `CARGO/ABONO`, `ITF` y `SALDO` están a pocos puntos: el rótulo más cercano se decide por un margen de 3, que cambia con el tamaño de la fuente y hace que un PDF sintético falle donde el real funciona. El orden de las columnas es un hecho de la plantilla; la geometría sirve mejor para **comprobar** el reparto que para decidirlo.
+- **La marca del banco puede sobrevivir solo dentro de una URL.** Aquí únicamente en `WWW.BBVABANCOCONTINENTAL.COM`, donde `BBVA` no casa porque no hay frontera de palabra tras `BBVA`.
+- **El pie de página puede arrastrar una cifra.** Sin descartarlo se señala como fila con importes sin clasificar y el documento nunca llega a `SUCCEEDED`, aunque todo lo demás cuadre.
+
 ## Extractor genérico
 
 - Adivinar si un importe es cargo o abono a partir de palabras de la descripción produce estados de cuenta plausibles y equivocados. El rol de una columna se toma de su encabezado o no se toma.

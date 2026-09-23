@@ -13,6 +13,21 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-09-22 — Estados de cuenta del BBVA
+
+- Hecho: nuevo extractor `bbva-account-v1`, construido **midiendo un estado de cuenta real** (cuenta corriente en dólares, 2 páginas) en vez de suponer la plantilla. Antes ese documento caía al respaldo genérico y fallaba entero: `FAILED`, cero filas, `GENERIC_ROW_WITHOUT_DATE`. Ahora da `SUCCEEDED` con 60 movimientos y las cinco invariantes en `PASSED`.
+- Decisión: **el ITF descuenta del saldo**, aunque el banco lo imprima en columna aparte. No se dedujo, se midió: `saldo = anterior + cargo` cuadra 31 veces y falla 28; `saldo = anterior + cargo - itf` cuadra 59 y falla 0. La ecuación con impuesto es la que el documento demuestra.
+- Decisión: `CARGO/ABONO` es **una sola columna con signo**, así que la fila guarda `amount` tal como lo imprime el banco y deriva cargo y abono como propiedades. Perder el signo original habría obligado a reconstruirlo después.
+- Hecho: las fechas son `dd-mm` **sin año** y el documento no declara periodo. El único año está en la fecha de emisión del pie: un mes posterior al de emisión pertenece al año anterior, que es lo que fecha bien un periodo que cruza diciembre. Sin esa fecha ni `default_year`, la fila se señala con `BBVA_DATE_WITHOUT_YEAR`.
+- Defecto evitado: las columnas se aprenden **solo del bloque de cabecera**. Aprendiendo de cualquier fila, el `SALDO` del título («MOVIMIENTO Y SALDO A LA FECHA», impreso a la izquierda) se tomaba por la columna de saldo, que está al otro extremo de la página: el resultado eran cero movimientos sin ningún error visible.
+- Decisión: los importes de una fila se reparten **por orden** de columna y no por cercanía al rótulo. `CARGO/ABONO`, `ITF` y `SALDO` están a pocos puntos y el rótulo más cercano se decidía por un margen de 3, que cambia con el tamaño de la fuente: el PDF sintético fallaba donde el real funcionaba. La geometría se conserva para **comprobar** el reparto, no para decidirlo.
+- Hecho: Excel con esquema `eecc.statement.bbva` (`Resumen`, `Movimientos` con `Cargo/Abono` con signo e `ITF` en columna propia, `Control_Paginas`, `Validaciones`) y un CSV por hoja. No exporta titular, documento ni número de cuenta.
+- Hecho: la cabecera del documento ocupa **tres líneas**, así que los rótulos se buscan sueltos: en el texto plano `SALDO CONTABLE` y `FECHA VALOR` nunca aparecen juntos. Y la marca del banco solo sobrevive dentro de `WWW.BBVABANCOCONTINENTAL.COM`, donde `BBVA` no casa.
+- Verificación: `pdf-worker scripts/check.ps1` en verde (290 pruebas, 93,11 % de cobertura, Ruff y mypy), con 10 nuevas sobre un PDF sintético que reproduce la plantilla: saldo roto, totales de ITF que no cuadran, bloque de cierre ausente, documento sin año, y que no reclama documentos de BCP, Interbank ni Banco de la Nación. La caracterización con `RUN_REAL_STATEMENTS=1` pasa contra el documento real.
+- Pendiente: la muestra es **una cuenta corriente en dólares de dos páginas**. Ahorro, soles y documentos largos pueden cambiar la plantilla.
+- Pendiente: **Scotiabank** sigue sin muestra y sin extractor.
+- Pendiente: en la interfaz, el selector de banco de la carga sigue marcando BBVA como «Próximamente»; como el worker detecta solo, un PDF suyo ya se procesa igual.
+
 ## 2026-09-22 — Banco de la Nación, validado con un documento real
 
 - Defecto corregido: `banco-nacion-v1` **no reconocía un estado de cuenta del propio banco**. Se escribió sin muestra, adivinando la plantilla, y contra el documento real (144 páginas) sacaba confianza 0,25 frente a un mínimo de 0,75. Caía al respaldo genérico, que fallaba entero: `FAILED`, cero filas, `GENERIC_HEADER_NOT_RECOGNISED`. Hoy da `SUCCEEDED` con 7.450 movimientos y las cinco invariantes en `PASSED`, en 4 segundos.

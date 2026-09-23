@@ -121,6 +121,32 @@ Particularidades de la plantilla real, todas confirmadas contra el documento:
 
 Lo que sigue sin confirmarse: que estas reglas valgan para cuentas de ahorro y en dólares —la muestra es una cuenta corriente en soles— y que el documento no sea una imagen escaneada (sin capa de texto, ningún extractor lo lee).
 
+## Extractor BBVA
+
+`extractors/bbva/` (`bbva-account-v1`) se construyó midiendo un estado de cuenta real de cuenta corriente en dólares. Su tabla reparte la cabecera en **tres líneas**, lo que obliga a buscar los rótulos sueltos y no como frases —en el texto plano `SALDO CONTABLE` y `FECHA VALOR` nunca aparecen juntos—:
+
+```
+FECHA        FECHA                                              SALDO
+             DESCRIPCION  OFICINA  CAN  N OPER.  CARGO/ABONO    ITF
+OPER.        VALOR                                              CONTABLE
+```
+
+Tres rasgos la separan de las demás plantillas del proyecto:
+
+- **`CARGO/ABONO` es una sola columna con signo.** El cargo va negativo y el abono positivo, en vez de dos columnas de magnitudes. `BbvaParsedRow` conserva ese signo en `amount` y deriva `debit`/`credit` como propiedades, para no perder lo que el documento declara;
+- **el ITF tiene columna propia y descuenta del saldo.** La ecuación es `saldo = anterior + cargo/abono - itf`. No es una interpretación entre varias: sobre el documento real esa forma cuadra en las 59 transiciones y la que ignora el impuesto falla en 28. El cierre `TOTALES POR ITF` reparte el impuesto en `CARGOS`, `ABONOS`, `DEVOLUCIONES` y `PAGOS`, cuya suma es exactamente la columna;
+- **las fechas son `dd-mm` sin año y el documento no declara periodo.** El único año está en la fecha de emisión del pie (`dd-mm-aaaa`): un mes posterior al de emisión pertenece al año anterior, que es lo que fecha bien un periodo que cruza diciembre. Sin esa fecha ni `default_year`, la fila se señala con `BBVA_DATE_WITHOUT_YEAR` y no se adivina.
+
+Los importes de una fila se reparten **por orden**, no por cercanía al rótulo: las tres columnas van siempre `CARGO/ABONO`, `ITF`, `SALDO CONTABLE` de izquierda a derecha, y están tan juntas que la distancia al rótulo más cercano se decide por un par de puntos. La geometría sí comprueba el resultado —el saldo tiene que caer en la columna de saldo, la única separada del resto— y una fila que no encaje se señala con `BBVA_AMOUNT_COLUMN_UNKNOWN`.
+
+Las columnas se aprenden **solo del bloque de cabecera** (la línea de `CARGO/ABONO` y sus vecinas). Aprender de cualquier fila hacía que el `SALDO` del título del documento —«MOVIMIENTO Y SALDO A LA FECHA», impreso a la izquierda— se tomara por la columna de saldo, que está al otro extremo de la página.
+
+No hay fila de saldo final: el cierre es el saldo contable de la última fila. `validation.py` exige saldo inicial declarado, continuidad fila a fila y saldo final igual al último saldo y a `inicial + movimientos - itf`; los totales de ITF son opcionales y, si están, tienen que cuadrar.
+
+El Excel usa el esquema `eecc.statement.bbva` (`Resumen`, `Movimientos` con `Cargo/Abono` con signo e `ITF` en columna propia, `Control_Paginas`, `Validaciones`) y no exporta titular, documento de identidad ni número de cuenta.
+
+Supuestos sin confirmar: la muestra es **una cuenta corriente en dólares de dos páginas**. Cuentas de ahorro, en soles o de varias páginas pueden cambiar la plantilla.
+
 ## Respaldo genérico
 
 `extractors/generic/` cubre los bancos que todavía no tienen extractor especializado. Su regla es no adivinar: identifica el encabezado de la tabla, traduce cada columna a un rol conocido mediante sinónimos (`RETIROS`/`CARGOS`/`DEBE`, `DEPOSITOS`/`ABONOS`/`HABER`, `SALDO`) y solo lee las columnas que pudo nombrar. Si el encabezado no se reconoce, el resultado es `FAILED` con `GENERIC_HEADER_NOT_RECOGNISED`, nunca una asignación inventada de cargos y abonos.

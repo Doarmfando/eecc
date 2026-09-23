@@ -23,6 +23,8 @@ from openpyxl import load_workbook
 from statement_worker.domain.models import ExtractionStatus
 from statement_worker.extractors.banco_nacion.detector import BancoNacionTemplateDetector
 from statement_worker.extractors.banco_nacion.strategy import BancoNacionStatementStrategy
+from statement_worker.extractors.bbva.detector import BbvaTemplateDetector
+from statement_worker.extractors.bbva.strategy import BbvaStatementStrategy
 from statement_worker.extractors.bcp.detector import BcpTemplateDetector
 from statement_worker.extractors.bcp.document_processor import process_bcp_pdf
 from statement_worker.extractors.bcp.models import BcpRowType
@@ -59,6 +61,14 @@ def _available() -> tuple[Path, ...]:
     )
 
 
+def _bbva_available() -> tuple[Path, ...]:
+    return tuple(
+        path
+        for path in _all_pdfs()
+        if BbvaTemplateDetector().accepts(probe_bcp_pdf_with_pdfplumber(path))
+    )
+
+
 def _interbank_available() -> tuple[Path, ...]:
     return tuple(
         path
@@ -90,6 +100,21 @@ class RealBancoNacionStatementTests(TestCase):
         for numero, path in enumerate(_banco_nacion_available(), start=1):
             with self.subTest(statement=f"documento {numero}"):
                 outcome = BancoNacionStatementStrategy().process(path)
+
+                self.assertGreater(outcome.movement_count, 0)
+                self.assertEqual(outcome.warning_codes, ())
+                self.assertEqual(outcome.status, ExtractionStatus.SUCCEEDED, outcome.check_codes)
+
+
+@skipUnless(ENABLED and _bbva_available(), "Requiere RUN_REAL_STATEMENTS=1 y PDF del BBVA")
+class RealBbvaStatementTests(TestCase):
+    """El ITF va en columna propia y descuenta del saldo: si eso se lee mal, la
+    continuidad falla y estas aserciones lo dicen sin imprimir ningún importe."""
+
+    def test_every_bbva_statement_reconciles_to_the_cent(self) -> None:
+        for numero, path in enumerate(_bbva_available(), start=1):
+            with self.subTest(statement=f"documento {numero}"):
+                outcome = BbvaStatementStrategy().process(path)
 
                 self.assertGreater(outcome.movement_count, 0)
                 self.assertEqual(outcome.warning_codes, ())

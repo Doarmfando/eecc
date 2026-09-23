@@ -8,6 +8,7 @@ from statement_worker.domain.errors import UnsupportedDocumentError
 from statement_worker.services.strategy import StatementStrategy
 
 from .banco_nacion.strategy import BANCO_NACION_STRATEGY_ID, BancoNacionStatementStrategy
+from .bbva.strategy import BBVA_STRATEGY_ID, BbvaStatementStrategy
 from .bcp.strategy import BCP_STRATEGY_ID, BcpStatementStrategy
 from .generic.strategy import GENERIC_STRATEGY_ID, GenericStatementStrategy
 from .interbank.strategy import INTERBANK_STRATEGY_ID, InterbankStatementStrategy
@@ -20,6 +21,7 @@ _SPECIALISED: dict[str, type[StatementStrategy]] = {
     BCP_STRATEGY_ID: BcpStatementStrategy,
     INTERBANK_STRATEGY_ID: InterbankStatementStrategy,
     BANCO_NACION_STRATEGY_ID: BancoNacionStatementStrategy,
+    BBVA_STRATEGY_ID: BbvaStatementStrategy,
 }
 _FALLBACK: dict[str, type[StatementStrategy]] = {
     GENERIC_STRATEGY_ID: GenericStatementStrategy,
@@ -59,6 +61,7 @@ def resolve_best_strategy(
     from statement_worker.services.pdf_sanitizer import sanitized_pdf_path
 
     from .banco_nacion.detector import BancoNacionTemplateDetector
+    from .bbva.detector import BbvaTemplateDetector
     from .bcp.detector import BcpTemplateDetector
     from .bcp.pdfplumber_adapter import probe_bcp_pdf_with_pdfplumber
     from .interbank.detector import InterbankTemplateDetector
@@ -71,7 +74,8 @@ def resolve_best_strategy(
         return BcpStatementStrategy()
     if InterbankTemplateDetector().accepts(probe):
         return InterbankStatementStrategy()
-    # Banco de la Nación exige su marca; sin ella, el documento sigue al respaldo.
+    if BbvaTemplateDetector().accepts(probe):
+        return BbvaStatementStrategy()
     if BancoNacionTemplateDetector().accepts(probe):
         return BancoNacionStatementStrategy()
 
