@@ -13,6 +13,16 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-09-23 — Producción con BBVA, Banco de la Nación y el Centro Financiero real
+
+- Hecho: `eecc-worker` y `eecc-api` redesplegados con `railway up` desde `972f22c`, con el árbol limpio y sincronizado con `origin/main`. Las dos imágenes se construyeron y publicaron; el worker arrancó sin errores y escucha en el 8000.
+- Contexto: producción llevaba desde el 15 de septiembre con el código de `1790f5f`. **Railway no despliega desde GitHub**: hasta este `railway up`, todo lo de los dos últimos días estaba en el repositorio y en ninguna otra parte. Un PDF del Banco de la Nación o del BBVA seguía fallando entero en producción, y el Centro Financiero seguía mostrando datos inventados.
+- Verificación: `/health` responde `ok` y `/v1/jobs` sin sesión responde `401`. El bundle servido cambió de `index-jc29LJge.js` a `index-D8SLGor6.js` —el mismo hash que produce el build local— y contiene los textos nuevos del Centro Financiero (`Elegir otros documentos`, `Banco de la Nación`, `Otro banco`), que antes no estaban.
+- Sin migraciones pendientes: los extractores nuevos no cambian el esquema. `bbva-account-v1` (15 caracteres) cabe en `extractor_id` (64) y `BBVA_DUPLICATE_OPENING_BALANCE` (30) en `code` (64). La última migración sigue siendo la del 12 de septiembre.
+- Sin cambios en la API: no hay lista blanca de extractores, `extractorId` viaja como texto hasta el registro del worker.
+- Pendiente: **no se comprobó el worker desplegado por dentro.** No tiene dominio público y `railway ssh` pide una clave SSH que no existe en esta máquina, así que `/internal/extractors` no se pudo consultar. Que la imagen trae los extractores nuevos se deduce de que se construyó desde este árbol, no de haberlo visto responder.
+- Pendiente: sigue sin subirse un documento real en producción; no hay contraseña de ninguna cuenta de ahí.
+
 ## 2026-09-22 — Estados de cuenta del BBVA
 
 - Hecho: nuevo extractor `bbva-account-v1`, construido **midiendo un estado de cuenta real** (cuenta corriente en dólares, 2 páginas) en vez de suponer la plantilla. Antes ese documento caía al respaldo genérico y fallaba entero: `FAILED`, cero filas, `GENERIC_ROW_WITHOUT_DATE`. Ahora da `SUCCEEDED` con 60 movimientos y las cinco invariantes en `PASSED`.
