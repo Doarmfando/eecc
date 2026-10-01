@@ -21,6 +21,7 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Decisión: la elección de documentos **sale del Centro Financiero y pasa al Historial**, como un check por fila; las dos vistas consolidan directamente lo marcado. Se guardan los *excluidos* en `localStorage` por persona —solo identificadores de trabajo, nunca importes—, así que un documento nuevo entra solo. Solo se ofrece el check en documentos con archivos publicados.
 - Hecho: estados propios en las dos vistas: sin documentos (subir uno) y ninguno marcado (ir al Historial). Se retiraron `statement-selector.tsx` y `mock-transactions.ts`.
 - Verificación: frontend `typecheck`, `lint`, build y 190 pruebas con 94,28 % de cobertura. Nuevas: el Calendario de extremo a extremo con `fetch` simulado (mes del documento, días con movimientos, saldo 1000 + 500 − 200), el arrastre desde el saldo inicial con dos bancos, el check del Historial y que desmarcarlo todo deja las dos vistas remitiendo allí.
+- Despliegue: `eecc-api` redesplegada con `railway up` desde `7a14d4f` (`SUCCESS`); el worker no cambió. Railway y Vercel sirven el mismo bundle que el build local (`index-C_bYAOng.js` en Railway, con los textos nuevos también en Vercel); `/health` 200 y `/v1/jobs` sin sesión 401. Ojo: la raíz responde 404 a un `curl` sin `Accept: text/html`; es el respaldo de la SPA, no una caída.
 - Pendiente: la selección vive en el navegador; en otro equipo vuelve a estar todo marcado.
 
 ## 2026-09-23 — Producción con BBVA, Banco de la Nación y el Centro Financiero real
