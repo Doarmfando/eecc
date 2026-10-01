@@ -39,7 +39,7 @@ Al mismo tiempo, esos movimientos **ya existen publicados**: cada trabajo produc
 - Un trabajo que no publicó su CSV de movimientos no se puede consolidar. Queda fuera y la pantalla avisa cuántos quedaron fuera, en vez de mostrar un consolidado incompleto en silencio.
 - Los artefactos viven hoy en el disco del worker. Si se cambia su directorio, los trabajos anteriores pierden la descarga y, con ella, su lugar en el Centro Financiero. Es la misma limitación que ya tenía la descarga.
 - La **categoría** de cada movimiento se deduce de palabras de la descripción. Ningún extractor exporta categorías: es una ayuda de lectura y de búsqueda, no un dato del banco, y lo que no encaja queda en «Otros movimientos».
-- El *Calendario* sigue con los datos simulados. Comparte los tipos y el acento de banco, así que puede pasar a los datos reales sin volver a diseñar nada.
+- ~~El *Calendario* sigue con los datos simulados.~~ Resuelto el 2026-09-30: el Calendario lee los mismos estados de cuenta, y la selección de documentos pasó del Centro Financiero al *Historial*, compartida por las dos vistas (ver la bitácora).
 
 ## Criterio de revisión
 

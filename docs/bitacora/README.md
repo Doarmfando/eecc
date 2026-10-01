@@ -13,6 +13,16 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-09-30 — El Calendario usa los documentos reales y la selección pasa al Historial
+
+- Defecto corregido: el *Calendario* **seguía pintando `mock-transactions.ts`**. Con un único estado de cuenta de agosto, mostraba setiembre con saldos de −S/ 2 millones que no eran de nadie: «no está sincronizado» con el Centro Financiero porque nunca leyó lo mismo.
+- Hecho: el Calendario lee los estados de cuenta del historial igual que el Centro Financiero (los CSV publicados, `ADR-0010`), abre en el mes más reciente con datos y solo navega entre el primero y el último.
+- Decisión: el saldo diario **arranca en el saldo inicial que declara el documento más antiguo de cada banco** y se arrastra sumando movimientos. Sumar el inicial de cada documento lo duplicaría (el inicial de setiembre es el final de agosto). Antes arrancaba en cero.
+- Decisión: la elección de documentos **sale del Centro Financiero y pasa al Historial**, como un check por fila; las dos vistas consolidan directamente lo marcado. Se guardan los *excluidos* en `localStorage` por persona —solo identificadores de trabajo, nunca importes—, así que un documento nuevo entra solo. Solo se ofrece el check en documentos con archivos publicados.
+- Hecho: estados propios en las dos vistas: sin documentos (subir uno) y ninguno marcado (ir al Historial). Se retiraron `statement-selector.tsx` y `mock-transactions.ts`.
+- Verificación: frontend `typecheck`, `lint`, build y 190 pruebas con 94,28 % de cobertura. Nuevas: el Calendario de extremo a extremo con `fetch` simulado (mes del documento, días con movimientos, saldo 1000 + 500 − 200), el arrastre desde el saldo inicial con dos bancos, el check del Historial y que desmarcarlo todo deja las dos vistas remitiendo allí.
+- Pendiente: la selección vive en el navegador; en otro equipo vuelve a estar todo marcado.
+
 ## 2026-09-23 — Producción con BBVA, Banco de la Nación y el Centro Financiero real
 
 - Hecho: `eecc-worker` y `eecc-api` redesplegados con `railway up` desde `972f22c`, con el árbol limpio y sincronizado con `origin/main`. Las dos imágenes se construyeron y publicaron; el worker arrancó sin errores y escucha en el 8000.

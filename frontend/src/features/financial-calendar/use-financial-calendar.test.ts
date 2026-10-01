@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import type { FinancialTransaction } from '@/features/financial-center/types';
+import type { FinancialStatement, FinancialTransaction } from '@/features/financial-center/types';
 
 import {
   computeBalanceBeforeMonth,
   computeDailyFlows,
   computeMonthlyBalances,
+  computeMonthRange,
   computeMonthSummary,
+  computeOpeningBalances,
   filterByDate,
   filterByMonth,
 } from './use-financial-calendar';
@@ -114,5 +116,73 @@ describe('computeMonthSummary', () => {
       closingBalanceCents: 12000,
       movementCount: 0,
     });
+  });
+});
+
+function statement(overrides: Partial<FinancialStatement>): FinancialStatement {
+  return {
+    id: 'job-1',
+    bancoOrigen: 'bcp',
+    fechaPeriodo: '2026-01',
+    periodoLabel: 'Enero de 2026',
+    saldoInicial: 0,
+    abonos: 0,
+    cargos: 0,
+    saldoFinal: 0,
+    movimientos: [],
+    ...overrides,
+  };
+}
+
+describe('computeOpeningBalances', () => {
+  it('toma el saldo inicial del documento más antiguo de cada banco, no el de todos', () => {
+    const openings = computeOpeningBalances([
+      statement({ id: 'feb', fechaPeriodo: '2026-02', saldoInicial: 80000 }),
+      statement({ id: 'ene', fechaPeriodo: '2026-01', saldoInicial: 30000 }),
+      statement({
+        id: 'ibk',
+        bancoOrigen: 'interbank',
+        fechaPeriodo: '2026-02',
+        saldoInicial: 500,
+      }),
+    ]);
+    expect(openings).toEqual(
+      expect.arrayContaining([
+        { bankId: 'bcp', monthKey: '2026-01', cents: 30000 },
+        { bankId: 'interbank', monthKey: '2026-02', cents: 500 },
+      ]),
+    );
+    expect(openings).toHaveLength(2);
+  });
+
+  it('suma dos cuentas del mismo banco en su mes más antiguo', () => {
+    expect(
+      computeOpeningBalances([
+        statement({ id: 'a', saldoInicial: 100 }),
+        statement({ id: 'b', saldoInicial: 250 }),
+      ]),
+    ).toEqual([{ bankId: 'bcp', monthKey: '2026-01', cents: 350 }]);
+  });
+});
+
+describe('computeBalanceBeforeMonth con saldo inicial', () => {
+  it('cuenta el saldo inicial desde su mes, no antes', () => {
+    const openings = [{ bankId: 'bcp' as const, monthKey: '2026-02', cents: 1000 }];
+    expect(computeBalanceBeforeMonth([], '2026-01', openings)).toBe(0);
+    expect(computeBalanceBeforeMonth([], '2026-02', openings)).toBe(1000);
+  });
+});
+
+describe('computeMonthRange', () => {
+  it('abarca periodos y fechas de movimientos; sin documentos no hay rango', () => {
+    expect(computeMonthRange([])).toBeNull();
+    expect(
+      computeMonthRange([
+        statement({
+          fechaPeriodo: '2026-02',
+          movimientos: [tx({ date: '2026-01-31' }), tx({ date: '2026-03-01' })],
+        }),
+      ]),
+    ).toEqual({ min: '2026-01', max: '2026-03' });
   });
 });

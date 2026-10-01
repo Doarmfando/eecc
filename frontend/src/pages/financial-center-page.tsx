@@ -1,59 +1,23 @@
-import { useMemo, useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import type { ReactNode } from 'react';
 
 import { Alert } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { ConsolidatingLoader } from '@/features/financial-center/consolidating-loader';
 import { FinancialCenter } from '@/features/financial-center/financial-center';
-import { useFinancialStatements } from '@/features/financial-center/queries';
-import { StatementSelector } from '@/features/financial-center/statement-selector';
-import { useJobHistory } from '@/features/statements/queries';
+import {
+  ChooseInHistoryLink,
+  NoStatementsState,
+} from '@/features/financial-center/no-statements-state';
+import { useSelectedStatements } from '@/features/financial-center/queries';
 import { describeError } from '@/lib/api-error';
 import { formatCount } from '@/lib/format';
-import type { JobListItem } from '@/types/job';
 
 /**
- * Un documento entra al Centro Financiero solo si dejó archivos publicados: de
- * ahí salen sus movimientos. Un trabajo fallido, o uno todavía en proceso, no
- * tiene nada que consolidar.
+ * Consolida directamente los documentos marcados en el Historial: la selección
+ * se hace allí, una sola vez, y la comparte el Calendario.
  */
-function isConsolidable(job: JobListItem): boolean {
-  return (job.status === 'SUCCEEDED' || job.status === 'NEEDS_REVIEW') && job.artifactCount > 0;
-}
-
-function EmptyState(): ReactNode {
-  return (
-    <Card className="mx-auto w-full max-w-2xl items-center gap-3 rounded-2xl py-12 text-center">
-      <p className="text-base font-semibold text-foreground">
-        Todavía no tienes documentos que consolidar
-      </p>
-      <p className="max-w-md text-sm text-muted-foreground">
-        El Centro Financiero cruza los estados de cuenta que ya procesaste. Sube uno y aparecerá
-        aquí en cuanto termine.
-      </p>
-      <Button asChild>
-        <Link to="/">Subir un estado de cuenta</Link>
-      </Button>
-    </Card>
-  );
-}
-
 export function FinancialCenterPage(): ReactNode {
-  const history = useJobHistory();
-  // `null` mientras nadie ha confirmado la preselección.
-  const [selectedIds, setSelectedIds] = useState<ReadonlySet<string> | null>(null);
-
-  const consolidables = useMemo(
-    () => (history.data?.items ?? []).filter(isConsolidable),
-    [history.data],
-  );
-  const chosen = useMemo(
-    () => (selectedIds ? consolidables.filter((job) => selectedIds.has(job.jobId)) : []),
-    [consolidables, selectedIds],
-  );
-
-  const { statements, isPending, failedJobIds } = useFinancialStatements(chosen);
+  const { history, consolidables, chosen, statements, isPending, failedJobIds } =
+    useSelectedStatements();
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
@@ -66,17 +30,7 @@ export function FinancialCenterPage(): ReactNode {
             Flujo neto consolidado de tus estados de cuenta, por banco y por movimiento.
           </p>
         </div>
-        {selectedIds === null ? null : (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              setSelectedIds(null);
-            }}
-          >
-            Elegir otros documentos
-          </Button>
-        )}
+        {consolidables.length > 0 ? <ChooseInHistoryLink /> : null}
       </div>
 
       {history.isError ? (
@@ -84,14 +38,9 @@ export function FinancialCenterPage(): ReactNode {
       ) : history.isPending ? (
         <p className="text-sm text-muted-foreground">Cargando el historial…</p>
       ) : consolidables.length === 0 ? (
-        <EmptyState />
-      ) : selectedIds === null ? (
-        <StatementSelector
-          jobs={consolidables}
-          onConfirm={(ids) => {
-            setSelectedIds(ids);
-          }}
-        />
+        <NoStatementsState reason="sin-documentos" />
+      ) : chosen.length === 0 ? (
+        <NoStatementsState reason="ninguno-marcado" />
       ) : isPending ? (
         <ConsolidatingLoader />
       ) : (

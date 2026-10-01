@@ -1,7 +1,8 @@
 import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { renderWithProviders } from '@/test/render';
+import { renderWithProviders, TEST_USER } from '@/test/render';
 
 import { formatProcessedAt } from './format-processed-at';
 import { JobHistory } from './job-history';
@@ -77,6 +78,28 @@ describe('JobHistory', () => {
     renderWithProviders(<JobHistory />);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('sesión');
+  });
+
+  it('marca qué documentos entran al análisis, todos por defecto, y lo recuerda', async () => {
+    const user = userEvent.setup();
+    const fallido = { ...ITEM, jobId: '44444444-4444-4444-8444-444444444444', status: 'FAILED' };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse(200, { items: [ITEM, fallido], nextCursor: null })),
+    );
+    renderWithProviders(<JobHistory />);
+
+    // Solo se ofrece en el que tiene archivos publicados; el fallido no tiene nada que analizar.
+    const check = await screen.findByRole('checkbox');
+    expect(screen.getAllByRole('checkbox')).toHaveLength(1);
+    expect(check).toBeChecked();
+
+    await user.click(check);
+    expect(check).not.toBeChecked();
+    expect(window.localStorage.getItem(`eecc:statements-excluded:${TEST_USER.userId}`)).toContain(
+      ITEM.jobId,
+    );
+    window.localStorage.clear();
   });
 
   it('no consulta el historial sin sesión', async () => {

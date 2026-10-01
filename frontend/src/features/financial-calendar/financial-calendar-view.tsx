@@ -1,17 +1,41 @@
-import type { ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 
 import { Card } from '@/components/ui/card';
-import { MOCK_MONTH_RANGE, MOCK_TRANSACTIONS } from '@/features/financial-center/mock-transactions';
+import type { FinancialStatement } from '@/features/financial-center/types';
 
 import { BankFilterMenu } from './bank-filter-menu';
 import { CalendarMonthHeader } from './calendar-month-header';
 import { DayDetailPanel } from './day-detail-panel';
 import { FinancialCalendarGrid } from './financial-calendar-grid';
 import { MonthSummaryFooter } from './month-summary-footer';
-import { useFinancialCalendar } from './use-financial-calendar';
+import {
+  computeMonthRange,
+  computeOpeningBalances,
+  useFinancialCalendar,
+} from './use-financial-calendar';
 import { ViewModeToggle } from './view-mode-toggle';
 
-export function FinancialCalendarView(): ReactNode {
+/**
+ * Calendario de los estados de cuenta marcados en el Historial.
+ *
+ * El saldo diario arranca en el saldo inicial que declara el documento más
+ * antiguo de cada banco y se arrastra sumando sus movimientos; abre en el mes
+ * más reciente con datos.
+ */
+export function FinancialCalendarView({
+  statements,
+}: {
+  statements: readonly FinancialStatement[];
+}): ReactNode {
+  const transactions = useMemo(
+    () => statements.flatMap((statement) => statement.movimientos),
+    [statements],
+  );
+  const openings = useMemo(() => computeOpeningBalances(statements), [statements]);
+  const range = useMemo(() => computeMonthRange(statements), [statements]);
+  const minMonth = range?.min ?? '';
+  const maxMonth = range?.max ?? '';
+
   const {
     banks,
     selectedBanks,
@@ -28,7 +52,7 @@ export function FinancialCalendarView(): ReactNode {
     monthlyBalances,
     monthSummary,
     dayTransactions,
-  } = useFinancialCalendar(MOCK_TRANSACTIONS, MOCK_MONTH_RANGE.max);
+  } = useFinancialCalendar(transactions, maxMonth, openings);
 
   return (
     <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
@@ -36,8 +60,8 @@ export function FinancialCalendarView(): ReactNode {
         <CalendarMonthHeader
           calendarMonth={calendarMonth}
           onMonthChange={goToMonth}
-          minMonth={MOCK_MONTH_RANGE.min}
-          maxMonth={MOCK_MONTH_RANGE.max}
+          minMonth={minMonth}
+          maxMonth={maxMonth}
         />
 
         <Card className="gap-5 rounded-3xl p-3 pb-4 sm:p-6">

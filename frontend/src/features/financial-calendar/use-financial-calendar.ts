@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 
 import { filterByBanks } from '@/features/financial-center/use-financial-center';
-import type { FinancialTransaction } from '@/features/financial-center/types';
+import type { FinancialStatement, FinancialTransaction } from '@/features/financial-center/types';
 import { orderBanks, type SourceBankId } from '@/features/financial-center/bank-accent';
 import { daysInMonth } from '@/lib/month';
 
@@ -60,12 +60,69 @@ export function computeDailyFlows(
   return byDate;
 }
 
+/** Saldo con el que arranca un banco en el calendario, al inicio de `monthKey`. */
+export interface OpeningBalance {
+  bankId: SourceBankId;
+  monthKey: string;
+  cents: number;
+}
+
+/**
+ * El saldo inicial que declara el estado de cuenta más antiguo de cada banco.
+ *
+ * Es el punto de partida del arrastre: los meses siguientes se obtienen sumando
+ * movimientos. Tomar el de cada documento duplicaría el saldo, porque el inicial
+ * de setiembre ya es el final de agosto. Si un banco tiene varios documentos en
+ * su mes más antiguo (otra cuenta), se suman.
+ */
+export function computeOpeningBalances(
+  statements: readonly FinancialStatement[],
+): OpeningBalance[] {
+  const byBank = new Map<SourceBankId, OpeningBalance>();
+  for (const statement of statements) {
+    const current = byBank.get(statement.bancoOrigen);
+    if (!current || statement.fechaPeriodo < current.monthKey) {
+      byBank.set(statement.bancoOrigen, {
+        bankId: statement.bancoOrigen,
+        monthKey: statement.fechaPeriodo,
+        cents: statement.saldoInicial,
+      });
+    } else if (statement.fechaPeriodo === current.monthKey) {
+      current.cents += statement.saldoInicial;
+    }
+  }
+  return [...byBank.values()];
+}
+
+/** Primer y último mes con datos: el periodo de cada documento y las fechas de sus movimientos. */
+export function computeMonthRange(
+  statements: readonly FinancialStatement[],
+): { min: string; max: string } | null {
+  const months = new Set<string>();
+  for (const statement of statements) {
+    months.add(statement.fechaPeriodo);
+    for (const movimiento of statement.movimientos) {
+      months.add(movimiento.date.slice(0, 7));
+    }
+  }
+  const sorted = [...months].filter(Boolean).sort();
+  const min = sorted.at(0);
+  const max = sorted.at(-1);
+  return min && max ? { min, max } : null;
+}
+
 /** Saldo acumulado justo antes del mes: lo que arrastra el calendario al abrir ese mes. */
 export function computeBalanceBeforeMonth(
   transactions: readonly FinancialTransaction[],
   monthKey: string,
+  openings: readonly OpeningBalance[] = [],
 ): number {
   let balance = 0;
+  for (const opening of openings) {
+    if (opening.monthKey <= monthKey) {
+      balance += opening.cents;
+    }
+  }
   for (const transaction of transactions) {
     if (transaction.date.slice(0, 7) >= monthKey) {
       continue;
@@ -138,6 +195,7 @@ export interface FinancialCalendarState {
 export function useFinancialCalendar(
   transactions: readonly FinancialTransaction[],
   initialMonth: string,
+  openings: readonly OpeningBalance[] = [],
 ): FinancialCalendarState {
   const [selectedBanks, setSelectedBanks] = useState<ReadonlySet<SourceBankId>>(new Set());
   const [viewMode, setViewMode] = useState<ViewMode>('flujo');
@@ -185,9 +243,17 @@ export function useFinancialCalendar(
 
   const dailyFlows = useMemo(() => computeDailyFlows(monthTransactions), [monthTransactions]);
 
+  const bankOpenings = useMemo(
+    () =>
+      selectedBanks.size === 0
+        ? openings
+        : openings.filter((opening) => selectedBanks.has(opening.bankId)),
+    [openings, selectedBanks],
+  );
+
   const balanceBeforeMonth = useMemo(
-    () => computeBalanceBeforeMonth(bankFiltered, calendarMonth),
-    [bankFiltered, calendarMonth],
+    () => computeBalanceBeforeMonth(bankFiltered, calendarMonth, bankOpenings),
+    [bankFiltered, calendarMonth, bankOpenings],
   );
 
   const monthlyBalances = useMemo(

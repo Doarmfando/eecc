@@ -1,6 +1,9 @@
 import { useQueries } from '@tanstack/react-query';
+import { useMemo } from 'react';
 
 import { useSession } from '@/app/use-session';
+import { useJobHistory } from '@/features/statements/queries';
+import { isConsolidable, useStatementSelection } from '@/features/statements/statement-selection';
 import { fetchArtifactText, fetchJob, type ApiClientOptions } from '@/lib/api-client';
 import { ApiError, isRetriable } from '@/lib/api-error';
 import { toMonthKey } from '@/lib/month';
@@ -96,4 +99,33 @@ export function useFinancialStatements(jobs: readonly JobListItem[]): FinancialS
       ),
     }),
   });
+}
+
+export interface SelectedStatementsState extends FinancialStatementsState {
+  history: ReturnType<typeof useJobHistory>;
+  /** Documentos del historial que se pueden consolidar, marcados o no. */
+  consolidables: JobListItem[];
+  /** Los que están marcados en el Historial: lo que se consolida. */
+  chosen: JobListItem[];
+}
+
+/**
+ * Lo que comparten el Centro Financiero y el Calendario: el historial, la
+ * selección hecha en él y los estados de cuenta leídos de esos documentos.
+ */
+export function useSelectedStatements(): SelectedStatementsState {
+  const history = useJobHistory();
+  const { isIncluded } = useStatementSelection();
+
+  const consolidables = useMemo(
+    () => (history.data?.items ?? []).filter(isConsolidable),
+    [history.data],
+  );
+  const chosen = useMemo(
+    () => consolidables.filter((job) => isIncluded(job.jobId)),
+    [consolidables, isIncluded],
+  );
+
+  const loaded = useFinancialStatements(chosen);
+  return { ...loaded, history, consolidables, chosen };
 }
