@@ -1,30 +1,12 @@
 import type { ReactNode } from 'react';
 
-import { formatCount, formatSoles } from '@/lib/format';
+import { formatSoles } from '@/lib/format';
 import { toDateKey } from '@/lib/month';
 import { cn } from '@/lib/utils';
 
 import { buildCalendarCells, type CalendarCell, WEEKDAYS } from './calendar-grid';
+import { type CellAmount, formatCellAmount } from './cell-amount';
 import type { DailyFlow, ViewMode } from './use-financial-calendar';
-
-/** Soles enteros sin símbolo de moneda: en la celda, "+520" se lee mejor que "+S/ 520.00". */
-function formatWholeSoles(cents: number): string {
-  return formatCount(Math.round(cents / 100));
-}
-
-/**
- * En móvil la columna mide unos 40px: "66,387" no cabe y "66.4K" sí. Se usa en-US
- * porque el compacto de es-PE es "66.4 mil", demasiado largo para la celda; el
- * separador decimal es el mismo en ambos.
- */
-const COMPACT_FORMATTER = new Intl.NumberFormat('en-US', {
-  notation: 'compact',
-  maximumFractionDigits: 1,
-});
-
-function formatCompactSoles(cents: number): string {
-  return COMPACT_FORMATTER.format(Math.round(cents / 100));
-}
 
 /** El flujo positivo lleva "+"; el saldo solo lleva signo si es negativo. */
 function signOf(viewMode: ViewMode, cents: number): string {
@@ -59,6 +41,19 @@ function describeDay(
     parts.push(`${viewMode === 'flujo' ? 'neto' : 'saldo'} ${formatSoles(amountCents)}`);
   }
   return `Día ${String(cell.dayNumber)}${today ? ' (hoy)' : ''}: ${parts.join(', ')}`;
+}
+
+/** El importe completo si cabe en la celda; si no, su versión redondeada. */
+function CellAmountText({ amount }: { amount: CellAmount }): ReactNode {
+  if (amount.compact === null) {
+    return amount.full;
+  }
+  return (
+    <>
+      <span className={amount.fit?.compact}>{amount.compact}</span>
+      {amount.fit ? <span className={cn('hidden', amount.fit.full)}>{amount.full}</span> : null}
+    </>
+  );
 }
 
 /**
@@ -100,7 +95,9 @@ function DayCell({
       aria-label={describeDay(cell, viewMode, count, amountCents, today)}
       className={cn(
         // 8px fijos: `rounded-lg` del tema son 14px y a este tamaño la celda parece una píldora.
-        'flex w-full cursor-pointer flex-col overflow-hidden rounded-[0.5rem] text-center transition-[box-shadow,background-color]',
+        // `@container`: el formato del importe depende del ancho de la celda, no de la pantalla,
+        // porque el menú lateral y la columna del detalle la estrechan a cualquier ancho.
+        '@container flex w-full cursor-pointer flex-col overflow-hidden rounded-[0.5rem] text-center transition-[box-shadow,background-color]',
         tabbed
           ? 'bg-card shadow-[0_1px_2px_rgba(15,23,42,0.06),0_4px_10px_-6px_rgba(15,23,42,0.18)] ring-1 ring-border/60'
           : 'hover:bg-accent/60',
@@ -127,21 +124,16 @@ function DayCell({
 
       <span
         className={cn(
-          'flex h-6 items-center justify-center text-[10px] leading-none font-semibold whitespace-nowrap tabular-nums sm:text-[11px]',
+          // 9px y letra apretada solo en la celda más estrecha (móvil de 360px): ahí "−999.99"
+          // a 10px no cabe.
+          'flex h-6 items-center justify-center text-[9px] leading-none font-semibold tracking-tight whitespace-nowrap tabular-nums @min-[2.5rem]:text-[10px] @min-[2.5rem]:tracking-normal @min-[4rem]:text-[11px]',
           amountCents !== undefined && amountToneClass(viewMode, amountCents, hasMovements),
         )}
       >
         {amountCents === undefined ? null : (
-          <>
-            <span className="sm:hidden">
-              {signOf(viewMode, amountCents)}
-              {formatCompactSoles(Math.abs(amountCents))}
-            </span>
-            <span className="hidden sm:inline">
-              {signOf(viewMode, amountCents)}
-              {formatWholeSoles(Math.abs(amountCents))}
-            </span>
-          </>
+          <CellAmountText
+            amount={formatCellAmount(signOf(viewMode, amountCents), Math.abs(amountCents))}
+          />
         )}
       </span>
     </button>
