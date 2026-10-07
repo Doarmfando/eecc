@@ -21,6 +21,7 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Hallazgo: el Banco de la Nación **no declara la moneda** en ninguna parte de su primera página (ni `MONEDA`, ni `SOLES`, ni `S/`), así que su `Resumen` sale sin moneda y la interfaz lo trata como soles. Correcto para la muestra (cuenta en soles); una cuenta en dólares del banco se vería en soles.
 - Hallazgo: `frontend/.env.local` dirige el proxy de Vite a la **API de producción**. Un `ejecutar.ps1` levanta el frontend local contra producción, no contra la API local; para probar en local hay que arrancar Vite con `VITE_API_PROXY_TARGET=http://127.0.0.1:3000`.
 - Verificación: frontend `npm run check` en verde (214 pruebas).
+- Despliegue: `eecc-api` redesplegada con `railway up` desde `2f8776a`; el worker no cambió. Sirve el mismo bundle que el build local (`index-BT9cEykq.js`, antes `index-BVxuayhE.js`); `/health` 200 y `/v1/jobs` sin sesión 401.
 - Pendiente: revisar en la base de producción qué probaron las personas; esta sesión no tuvo permiso para leerla.
 
 ## 2026-10-06 — PDF protegidos, BBVA y Banco de la Nación en la carga, y dólares con su signo
