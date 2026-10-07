@@ -117,6 +117,54 @@ class InternalApiTests(TestCase):
         self.assertEqual(response.status_code, 422)
         self.assertEqual(response.json(), {"code": "INVALID_PDF"})
 
+    def test_a_protected_statement_asks_for_its_password(self) -> None:
+        protected = self.directory / "protegido.pdf"
+        create_synthetic_bcp_pdf(protected, password="12345678")
+
+        response = self._upload(protected.read_bytes())
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json(), {"code": "PDF_PASSWORD_REQUIRED"})
+
+    def test_a_wrong_password_has_its_own_code(self) -> None:
+        protected = self.directory / "protegido.pdf"
+        create_synthetic_bcp_pdf(protected, password="12345678")
+
+        response = self._upload(protected.read_bytes(), pdf_password="87654321")
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json(), {"code": "PDF_PASSWORD_INCORRECT"})
+
+    def test_a_protected_statement_is_processed_with_its_password(self) -> None:
+        protected = self.directory / "protegido.pdf"
+        create_synthetic_bcp_pdf(protected, password="12345678")
+
+        first = self._upload(protected.read_bytes(), pdf_password="12345678")
+        second = self._upload(protected.read_bytes(), pdf_password="12345678")
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(first.json()["status"], "SUCCEEDED")
+        self.assertEqual(first.json()["extractor_id"], DEFAULT_STRATEGY_ID)
+        self.assertNotIn("12345678", first.text)
+        # La copia descifrada cambia en cada descifrado; el trabajo se reconoce
+        # igual porque su identidad sale del documento tal como llegó.
+        self.assertEqual(second.json()["job_id"], first.json()["job_id"])
+        self.assertTrue(second.json()["reused"])
+        self.assertEqual(list((self.directory / "tmp").glob("eecc_upload_*")), [])
+
+    def test_a_password_for_an_unprotected_statement_is_ignored(self) -> None:
+        with_password = self._upload(pdf_password="12345678").json()
+        without_password = self._upload().json()
+
+        self.assertEqual(with_password["status"], "SUCCEEDED")
+        self.assertEqual(without_password["job_id"], with_password["job_id"])
+
+    def test_rejects_an_implausibly_long_password(self) -> None:
+        response = self._upload(pdf_password="x" * 129)
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json(), {"code": "INVALID_JOB_OPTIONS"})
+
     def test_rejects_an_empty_upload(self) -> None:
         response = self._upload(b"")
 

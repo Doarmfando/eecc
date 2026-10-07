@@ -10,7 +10,7 @@ from statement_worker.domain.models import Detection
 from statement_worker.services.pdf_sanitizer import sanitized_pdf_path
 
 from .detector import BcpTemplateDetector
-from .metadata import extract_bcp_statement_year
+from .metadata import extract_bcp_currency, extract_bcp_statement_year
 from .models import BcpPageReadMetrics, BcpParsedRow
 from .pdfplumber_adapter import probe_bcp_pdf_with_pdfplumber, read_bcp_pdf_with_pdfplumber
 from .pipeline import process_bcp_visual_rows
@@ -23,6 +23,7 @@ class BcpPdfProcessingResult:
     rows: tuple[BcpParsedRow, ...]
     validation: BcpValidationReport
     page_metrics: tuple[BcpPageReadMetrics, ...]
+    currency: str | None = None
 
 
 def process_bcp_pdf(
@@ -53,4 +54,5 @@ def process_bcp_pdf(
         rows=core_result.rows,
         validation=core_result.validation,
         page_metrics=read_result.page_metrics,
+        currency=extract_bcp_currency(probe.first_page_text),
     )

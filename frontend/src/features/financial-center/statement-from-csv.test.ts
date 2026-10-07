@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildFinancialStatement,
   inferCategory,
+  ITF_DESCRIPTION,
   pickPeriod,
   readSummary,
   type StatementCsvSource,
@@ -69,6 +70,24 @@ describe('buildFinancialStatement con BCP', () => {
     });
   });
 
+  it('trata como soles un BCP procesado antes de que publicara su moneda', () => {
+    expect(statement.moneda).toBe('PEN');
+  });
+
+  it('usa la moneda que el BCP publica al final de su resumen', () => {
+    const dollars = buildFinancialStatement(
+      source({
+        movementsCsv: BCP_MOVEMENTS,
+        summaryCsv: csv(
+          'Estado,Extractor,Versión,Confianza,Páginas,Filas,Movimientos,Total cargos,Total abonos,Saldo final,Advertencias,Moneda',
+          'SUCCEEDED,bcp-coordinate-v1,0.1.0,0.95,1,5,2,200.00,500.00,1300.00,0,USD',
+        ),
+      }),
+    );
+    expect(dollars.moneda).toBe('USD');
+    expect(dollars.movimientos.map((movimiento) => movimiento.currency)).toEqual(['USD', 'USD']);
+  });
+
   it('clasifica cada movimiento por el signo neto de sus columnas', () => {
     expect(statement.movimientos[0]).toMatchObject({ type: 'ABONO', amountCents: 50000 });
     expect(statement.movimientos[1]).toMatchObject({ type: 'CARGO', amountCents: 20000 });
@@ -121,13 +140,88 @@ describe('buildFinancialStatement con Interbank', () => {
   });
 });
 
+const BBVA_MOVEMENTS = csv(
+  'Página,Fecha oper.,Fecha valor,Descripción,Cargo/Abono,ITF,Saldo contable',
+  '1,2026-07-02,2026-07-02,Abono por transferencia,500.00,0.02,1499.98',
+  '1,2026-07-05,2026-07-05,Pago a proveedor,-200.00,0.01,1299.97',
+  '1,2026-07-09,2026-07-09,Comision de mantenimiento,-10.00,,1289.97',
+);
+
+const BBVA_SUMMARY = csv(
+  'Estado,Extractor,Versión,Confianza,Moneda,Páginas,Movimientos,Saldo anterior,Total abonos,Total cargos,Total ITF,Saldo contable final,Advertencias',
+  'SUCCEEDED,bbva-account-v1,0.1.0,0.90,USD,1,3,1000.00,500.00,210.00,0.03,1289.97,0',
+);
+
+describe('buildFinancialStatement con BBVA', () => {
+  const statement = buildFinancialStatement(
+    source({
+      extractorId: 'bbva-account-v1',
+      movementsCsv: BBVA_MOVEMENTS,
+      summaryCsv: BBVA_SUMMARY,
+    }),
+  );
+
+  it('reconoce el banco y la moneda que declara su resumen', () => {
+    expect(statement).toMatchObject({
+      bancoOrigen: 'bbva',
+      moneda: 'USD',
+      fechaPeriodo: '2026-07',
+    });
+    expect(statement.movimientos.every((movimiento) => movimiento.currency === 'USD')).toBe(true);
+  });
+
+  it('lee cargo y abono de su única columna con signo', () => {
+    const own = statement.movimientos.filter((m) => m.description !== ITF_DESCRIPTION);
+    expect(own.map((m) => [m.type, m.amountCents])).toEqual([
+      ['ABONO', 50000],
+      ['CARGO', 20000],
+      ['CARGO', 1000],
+    ]);
+  });
+
+  it('muestra el ITF como cargo aparte, junto al movimiento que lo generó', () => {
+    expect(statement.movimientos.map((m) => [m.description, m.amountCents])).toEqual([
+      ['Abono por transferencia', 50000],
+      [ITF_DESCRIPTION, 2],
+      ['Pago a proveedor', 20000],
+      [ITF_DESCRIPTION, 1],
+      ['Comision de mantenimiento', 1000],
+    ]);
+    expect(statement.movimientos[1]).toMatchObject({ type: 'CARGO', category: 'Impuestos' });
+  });
+
+  it('suma el ITF a las salidas para que el periodo cuadre con el saldo final', () => {
+    expect(statement).toMatchObject({
+      saldoInicial: 100000,
+      abonos: 50000,
+      cargos: 21003,
+      saldoFinal: 128997,
+    });
+    expect(statement.saldoInicial + statement.abonos - statement.cargos).toBe(statement.saldoFinal);
+  });
+
+  it('concilia cada fila descontando su ITF, como hace el banco', () => {
+    expect(statement.movimientos.every((movimiento) => movimiento.reconciled)).toBe(true);
+
+    const broken = buildFinancialStatement(
+      source({
+        extractorId: 'bbva-account-v1',
+        movementsCsv: BBVA_MOVEMENTS.replace('1299.97', '1300.00'),
+        summaryCsv: BBVA_SUMMARY,
+      }),
+    );
+    // La fila descuadrada y su ITF comparten marca; la siguiente sigue desde 1300.00.
+    expect(broken.movimientos.map((m) => m.reconciled)).toEqual([true, true, false, false, false]);
+  });
+});
+
 const NACION_MOVEMENTS = csv(
   'Página,Fecha,Fecha valor,Descripción,Cargos,Abonos,Saldo',
   '1,2026-07-04,2026-07-04,Deposito en efectivo,,150.00,650.00',
 );
 
 describe('buildFinancialStatement con Banco de la Nación', () => {
-  it('reconoce el banco aunque el selector de carga todavía no lo ofrezca', () => {
+  it('reconoce el banco por su extractor', () => {
     const statement = buildFinancialStatement(
       source({ extractorId: 'banco-nacion-v1', movementsCsv: NACION_MOVEMENTS }),
     );
@@ -193,11 +287,21 @@ describe('pickPeriod', () => {
 describe('readSummary', () => {
   it('devuelve nulos cuando el trabajo no publicó resumen', () => {
     expect(readSummary(null)).toEqual({
+      moneda: null,
       saldoInicial: null,
       abonos: null,
       cargos: null,
+      itf: null,
       saldoFinal: null,
     });
+  });
+
+  it('lee la moneda solo cuando es una que se sabe mostrar', () => {
+    expect(readSummary(INTERBANK_SUMMARY).moneda).toBe('PEN');
+    expect(readSummary(BBVA_SUMMARY).moneda).toBe('USD');
+    // BCP no la publicaba antes de esta versión del extractor.
+    expect(readSummary(BCP_SUMMARY).moneda).toBeNull();
+    expect(readSummary(csv('Moneda', 'EUR')).moneda).toBeNull();
   });
 
   it('lee los totales con cualquiera de sus dos rótulos', () => {

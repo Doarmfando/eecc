@@ -132,3 +132,30 @@ describe('extractor genérico', () => {
     expect(screen.getByText('GENERIC_HEADER_NOT_RECOGNISED')).toBeInTheDocument();
   });
 });
+
+describe('BBVA', () => {
+  it('explica sus invariantes, incluida la del ITF', () => {
+    render(
+      <CheckList
+        checks={[
+          { code: 'BBVA_BALANCE_CONTINUITY', status: 'PASSED' },
+          { code: 'BBVA_ITF_TOTALS', status: 'FAILED' },
+        ]}
+      />,
+    );
+
+    expect(
+      screen.getByText('El saldo cuadra después de cada movimiento y su ITF'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('El total de ITF cuadra con el de cada movimiento'),
+    ).toBeInTheDocument();
+  });
+
+  it('dice qué hacer cuando una fecha no trae año', () => {
+    render(<WarningList codes={['BBVA_DATE_WITHOUT_YEAR']} />);
+
+    expect(screen.getByText(/escribe el año del periodo/)).toBeInTheDocument();
+    expect(screen.getByText('BBVA_DATE_WITHOUT_YEAR')).toBeInTheDocument();
+  });
+});

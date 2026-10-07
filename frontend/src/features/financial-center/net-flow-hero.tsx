@@ -2,7 +2,7 @@ import { ArrowDownRight, ArrowUpRight } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { Card } from '@/components/ui/card';
-import { formatSoles } from '@/lib/format';
+import { formatMoney, type Currency } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 import { MonthPaginator } from './month-paginator';
@@ -11,6 +11,7 @@ import type { PeriodSummary } from './use-financial-center';
 
 export function NetFlowHero({
   summary,
+  currency,
   calendarMonth,
   availableMonths,
   onGoToMonth,
@@ -20,6 +21,7 @@ export function NetFlowHero({
   canGoNextMonth,
 }: {
   summary: PeriodSummary;
+  currency: Currency;
   calendarMonth: string;
   availableMonths: readonly string[];
   onGoToMonth: (monthKey: string) => void;
@@ -44,7 +46,7 @@ export function NetFlowHero({
             isPositive ? 'text-success' : 'text-destructive',
           )}
         >
-          {isPositive ? '+' : '−'} {formatSoles(Math.abs(netCents))}
+          {isPositive ? '+' : '−'} {formatMoney(Math.abs(netCents), currency)}
         </p>
       </div>
 
@@ -54,7 +56,9 @@ export function NetFlowHero({
             <ArrowUpRight aria-hidden className="size-4" />
             Entradas / Abonos
           </p>
-          <p className="mt-1 text-2xl font-bold text-foreground">{formatSoles(summary.abonos)}</p>
+          <p className="mt-1 text-2xl font-bold text-foreground">
+            {formatMoney(summary.abonos, currency)}
+          </p>
           <div className="mt-2 h-4 w-full overflow-hidden rounded-full bg-muted">
             <div
               className="h-full rounded-full bg-success transition-[width]"
@@ -68,7 +72,9 @@ export function NetFlowHero({
             <ArrowDownRight aria-hidden className="size-4" />
             Salidas / Cargos
           </p>
-          <p className="mt-1 text-2xl font-bold text-foreground">{formatSoles(summary.cargos)}</p>
+          <p className="mt-1 text-2xl font-bold text-foreground">
+            {formatMoney(summary.cargos, currency)}
+          </p>
           <div className="mt-2 h-4 w-full overflow-hidden rounded-full bg-muted">
             <div
               className="h-full rounded-full bg-destructive transition-[width]"
@@ -88,7 +94,7 @@ export function NetFlowHero({
         canGoNext={canGoNextMonth}
       />
 
-      <PeriodSummaryBanner summary={summary} />
+      <PeriodSummaryBanner summary={summary} currency={currency} />
     </Card>
   );
 }

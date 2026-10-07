@@ -52,6 +52,9 @@ _SUMMARY_COLUMNS = (
     _column("credits", "Total abonos", SpreadsheetCellType.DECIMAL, 16, _FINANCIAL_FORMAT),
     _column("balance", "Saldo final", SpreadsheetCellType.DECIMAL, 16, _FINANCIAL_FORMAT),
     _column("warnings", "Advertencias", SpreadsheetCellType.INTEGER, 14, "#,##0"),
+    # Al final y no junto a la confianza, como en los otros bancos: las columnas
+    # anteriores conservan su posición para quien ya lea esta hoja.
+    _column("currency", "Moneda", SpreadsheetCellType.TEXT, 10),
 )
 
 _MOVEMENT_COLUMNS = (
@@ -122,6 +125,7 @@ def build_bcp_workbook_plan(result: BcpPdfProcessingResult) -> WorkbookPlan:
         sum((_amount_or_zero(row.credit) for row in movements), start=Decimal("0")),
         final_balances[-1] if final_balances else None,
         len(result.validation.warning_codes),
+        result.currency,
     )
 
     validation_rows = tuple(

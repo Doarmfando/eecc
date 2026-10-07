@@ -13,6 +13,18 @@ class InvalidPdfError(DomainError):
     code = "INVALID_PDF"
 
 
+class PdfPasswordRequiredError(DomainError):
+    """El PDF pide contraseña de apertura y no se envió ninguna."""
+
+    code = "PDF_PASSWORD_REQUIRED"
+
+
+class PdfPasswordIncorrectError(DomainError):
+    """La contraseña enviada no abre el PDF."""
+
+    code = "PDF_PASSWORD_INCORRECT"
+
+
 class PdfSizeLimitError(DomainError):
     """El documento supera el límite configurado."""
 

@@ -1,4 +1,4 @@
-import { Check } from 'lucide-react';
+import { Check, Landmark } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { cn } from '@/lib/utils';
@@ -8,19 +8,22 @@ import bcpLogo from '@/assets/banks/bcp.png';
 import interbankLogo from '@/assets/banks/interbank.webp';
 import scotiabankLogo from '@/assets/banks/scotiabank.webp';
 
-export type BankId = 'bcp' | 'bbva' | 'interbank' | 'scotiabank';
+export type BankId = 'bcp' | 'bbva' | 'interbank' | 'nacion' | 'scotiabank';
 
 interface BankOption {
   id: BankId;
   name: string;
-  logo: string;
+  /** `null` cuando el proyecto no tiene su logotipo: se dibuja el nombre con un ícono. */
+  logo: string | null;
   available: boolean;
 }
 
+/** Disponible = el worker tiene un extractor validado con un estado de cuenta real del banco. */
 const BANK_OPTIONS: ReadonlyArray<BankOption> = [
   { id: 'bcp', name: 'BCP', logo: bcpLogo, available: true },
-  { id: 'bbva', name: 'BBVA', logo: bbvaLogo, available: false },
+  { id: 'bbva', name: 'BBVA', logo: bbvaLogo, available: true },
   { id: 'interbank', name: 'Interbank', logo: interbankLogo, available: true },
+  { id: 'nacion', name: 'Banco de la Nación', logo: null, available: true },
   { id: 'scotiabank', name: 'Scotiabank', logo: scotiabankLogo, available: false },
 ];
 
@@ -31,6 +34,13 @@ export const BANK_NAMES: Record<BankId, string> = Object.fromEntries(
 /** Bancos con extractor propio. El worker detecta la plantilla por sí mismo. */
 export const AVAILABLE_BANKS: ReadonlySet<BankId> = new Set(
   BANK_OPTIONS.filter((bank) => bank.available).map((bank) => bank.id),
+);
+
+const LIST_FORMAT = new Intl.ListFormat('es', { style: 'long', type: 'conjunction' });
+
+/** «BCP, BBVA, Interbank y Banco de la Nación»: sale de la lista, no se repite a mano. */
+export const AVAILABLE_BANKS_LABEL = LIST_FORMAT.format(
+  BANK_OPTIONS.filter((bank) => bank.available).map((bank) => bank.name),
 );
 
 export function BankSelector({
@@ -72,18 +82,26 @@ export function BankSelector({
                     : 'cursor-not-allowed border-slate-200 bg-slate-50/60',
                 )}
               >
-                <span className="flex h-9 w-20 shrink-0 items-center justify-start">
-                  <img
-                    src={bank.logo}
-                    alt={bank.name}
-                    className={cn(
-                      'max-h-full max-w-full object-contain object-left',
-                      bank.available
-                        ? ''
-                        : 'grayscale opacity-50 transition-all duration-200 group-hover:opacity-80 group-hover:grayscale-0',
-                    )}
-                  />
-                </span>
+                {bank.logo ? (
+                  <span className="flex h-9 w-20 shrink-0 items-center justify-start">
+                    <img
+                      src={bank.logo}
+                      alt={bank.name}
+                      className={cn(
+                        'max-h-full max-w-full object-contain object-left',
+                        bank.available
+                          ? ''
+                          : 'grayscale opacity-50 transition-all duration-200 group-hover:opacity-80 group-hover:grayscale-0',
+                      )}
+                    />
+                  </span>
+                ) : (
+                  // Sin logotipo propio no se imita una marca ajena: ícono neutro y nombre.
+                  <span className="flex h-9 min-w-0 items-center gap-2 text-sm font-semibold text-slate-700">
+                    <Landmark aria-hidden className="size-5 shrink-0 text-slate-500" />
+                    <span className="truncate">{bank.name}</span>
+                  </span>
+                )}
 
                 <span className="flex-1" />
 

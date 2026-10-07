@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 
 import { Card } from '@/components/ui/card';
-import { formatCount, formatSoles } from '@/lib/format';
+import { formatCount, formatMoney, type Currency } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 import { BANK_ACCENTS, type SourceBankId } from './bank-accent';
@@ -11,9 +11,11 @@ import type { BankBalance } from './use-financial-center';
 export function AccountsConsolidated({
   balances,
   selectedBanks,
+  currency,
 }: {
   balances: readonly BankBalance[];
   selectedBanks: ReadonlySet<SourceBankId>;
+  currency: Currency;
 }): ReactNode {
   return (
     <Card className="gap-4 rounded-2xl">
@@ -37,7 +39,7 @@ export function AccountsConsolidated({
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-muted-foreground">{accent.name}</p>
                 <p className="text-2xl leading-tight font-bold text-foreground">
-                  {formatSoles(balance.balanceCents)}
+                  {formatMoney(balance.balanceCents, currency)}
                 </p>
               </div>
               <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">

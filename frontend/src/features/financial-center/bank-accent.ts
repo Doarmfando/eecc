@@ -8,11 +8,11 @@ import { BANK_NAMES, type BankId } from '@/features/statements/bank-selector';
  * Banco de origen de un estado de cuenta ya procesado.
  *
  * Es más ancho que {@link BankId}, el del selector de carga: el worker detecta la
- * plantilla por su cuenta, así que llegan documentos de bancos que el selector
- * todavía no ofrece (`nacion`) y documentos que resolvió el respaldo genérico
- * (`otro`). Sin estos dos, un estado de cuenta real no se podría ni mostrar.
+ * plantilla por su cuenta, así que también llegan documentos que resolvió el
+ * respaldo genérico (`otro`). Sin él, un estado de cuenta real no se podría ni
+ * mostrar.
  */
-export type SourceBankId = BankId | 'nacion' | 'otro';
+export type SourceBankId = BankId | 'otro';
 
 interface BankAccent {
   name: string;
@@ -54,7 +54,7 @@ export const BANK_ACCENTS: Record<SourceBankId, BankAccent> = {
     dotClassName: 'bg-rose-500',
   },
   nacion: {
-    name: 'Banco de la Nación',
+    name: BANK_NAMES.nacion,
     logo: null,
     badgeClassName: 'bg-violet-100 text-violet-700',
     barClassName: 'bg-violet-500',
@@ -76,6 +76,7 @@ export const BANK_ACCENTS: Record<SourceBankId, BankAccent> = {
  */
 const BANK_BY_EXTRACTOR: Record<string, SourceBankId> = {
   'bcp-coordinate-v1': 'bcp',
+  'bbva-account-v1': 'bbva',
   'interbank-savings-v1': 'interbank',
   'banco-nacion-v1': 'nacion',
   'generic-table-v1': 'otro',

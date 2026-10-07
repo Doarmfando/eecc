@@ -19,6 +19,9 @@ const MESSAGES: Record<string, string> = {
   UNSUPPORTED_MEDIA_TYPE: 'El archivo no es un PDF válido.',
   UPLOAD_TOO_LARGE: 'El archivo supera el tamaño permitido.',
   INVALID_PDF: 'El documento no pudo leerse como PDF.',
+  PDF_PASSWORD_REQUIRED:
+    'El PDF está protegido con contraseña. Escríbela en «Contraseña del PDF» y vuelve a procesarlo.',
+  PDF_PASSWORD_INCORRECT: 'La contraseña no abre el PDF. Revísala y vuelve a procesarlo.',
   PDF_SIZE_LIMIT_EXCEEDED: 'El documento supera el límite de tamaño del procesador.',
   UNSUPPORTED_DOCUMENT: 'El documento no corresponde a un estado de cuenta compatible.',
   STATEMENT_NOT_EXPORTABLE: 'La extracción no produjo un resultado publicable.',

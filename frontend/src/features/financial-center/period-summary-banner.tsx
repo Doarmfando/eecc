@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-import { formatSoles } from '@/lib/format';
+import { formatMoney, type Currency } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 import type { PeriodSummary } from './use-financial-center';
@@ -47,16 +47,22 @@ function Operator({ symbol }: { symbol: string }): ReactNode {
  * La ecuación del EECC, visible: quien no maneja jerga contable igual entiende
  * de dónde sale el saldo final con solo mirar los cuatro números en fila.
  */
-export function PeriodSummaryBanner({ summary }: { summary: PeriodSummary }): ReactNode {
+export function PeriodSummaryBanner({
+  summary,
+  currency,
+}: {
+  summary: PeriodSummary;
+  currency: Currency;
+}): ReactNode {
   return (
     <div className="flex flex-wrap items-center justify-center gap-3 rounded-2xl bg-muted/50 px-4 py-4 sm:gap-4">
-      <Term label="Saldo inicial" value={formatSoles(summary.saldoInicial)} />
+      <Term label="Saldo inicial" value={formatMoney(summary.saldoInicial, currency)} />
       <Operator symbol="+" />
-      <Term label="Entradas" value={formatSoles(summary.abonos)} tone="success" />
+      <Term label="Entradas" value={formatMoney(summary.abonos, currency)} tone="success" />
       <Operator symbol="−" />
-      <Term label="Salidas" value={formatSoles(summary.cargos)} tone="destructive" />
+      <Term label="Salidas" value={formatMoney(summary.cargos, currency)} tone="destructive" />
       <Operator symbol="=" />
-      <Term label="Saldo final" value={formatSoles(summary.saldoFinal)} />
+      <Term label="Saldo final" value={formatMoney(summary.saldoFinal, currency)} />
     </div>
   );
 }

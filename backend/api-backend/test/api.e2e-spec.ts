@@ -141,6 +141,7 @@ function buildPrismaDouble(): PrismaService {
 
 describe('API pública (e2e)', () => {
   let app: INestApplication;
+  const processStatement = jest.fn().mockResolvedValue(WORKER_PAYLOAD);
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
@@ -148,7 +149,7 @@ describe('API pública (e2e)', () => {
       .useValue(buildPrismaDouble())
       .overrideProvider(WorkerClientService)
       .useValue({
-        processStatement: jest.fn().mockResolvedValue(WORKER_PAYLOAD),
+        processStatement,
         fetchArtifact: jest.fn().mockResolvedValue(Buffer.from([80, 75, 3, 4])),
       })
       .overrideProvider(ObjectStorageService)
@@ -230,6 +231,31 @@ describe('API pública (e2e)', () => {
       .expect(400);
     expect(unknownField.body.code).toEqual('VALIDATION_FAILED');
     expect(unknownField.body.details?.[0]).toContain('campoDesconocido');
+  });
+
+  it('reenvía la contraseña del PDF al worker sin devolverla nunca', async () => {
+    processStatement.mockClear();
+    const accepted = await request(app.getHttpServer())
+      .post('/v1/statements')
+      .set('x-api-key', API_KEY)
+      .field('pdfPassword', 'clave-del-pdf-123')
+      .attach('document', PDF, 'estado.pdf')
+      .expect(201);
+
+    expect(processStatement).toHaveBeenCalledWith(
+      expect.objectContaining({ pdfPassword: 'clave-del-pdf-123' }),
+    );
+    expect(JSON.stringify(accepted.body)).not.toContain('clave-del-pdf-123');
+
+    const tooLong = 'c'.repeat(129);
+    const rejected = await request(app.getHttpServer())
+      .post('/v1/statements')
+      .set('x-api-key', API_KEY)
+      .field('pdfPassword', tooLong)
+      .attach('document', PDF, 'estado.pdf')
+      .expect(400);
+    expect(rejected.body.code).toEqual('VALIDATION_FAILED');
+    expect(JSON.stringify(rejected.body)).not.toContain(tooLong);
   });
 
   it('valida la clave de idempotencia y el año declarado', async () => {

@@ -20,6 +20,8 @@ export const uploadSchema = z.object({
     .string()
     .trim()
     .refine((value) => value === '' || /^\d{4}$/.test(value), 'El año debe tener cuatro dígitos.'),
+  // Sin `trim`: un espacio puede ser parte de la contraseña.
+  pdfPassword: z.string().max(128, 'La contraseña no puede pasar de 128 caracteres.'),
 });
 
 export type UploadFormSchema = z.infer<typeof uploadSchema>;

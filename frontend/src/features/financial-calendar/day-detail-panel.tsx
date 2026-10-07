@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card';
 import { BANK_ACCENTS } from '@/features/financial-center/bank-accent';
 import { BankMark } from '@/features/financial-center/bank-mark';
 import type { FinancialTransaction } from '@/features/financial-center/types';
-import { formatSoles } from '@/lib/format';
+import { formatMoney } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 const DAY_LABEL_FORMATTER = new Intl.DateTimeFormat('es-PE', {
@@ -51,7 +51,7 @@ function TransactionRow({ transaction }: { transaction: FinancialTransaction }):
           isIncome ? 'text-success' : 'text-foreground/80',
         )}
       >
-        {isIncome ? '+' : '−'} {formatSoles(transaction.amountCents)}
+        {isIncome ? '+' : '−'} {formatMoney(transaction.amountCents, transaction.currency)}
       </span>
     </li>
   );

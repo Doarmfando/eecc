@@ -297,12 +297,17 @@ def run_statement_job(
     artifact_root: Path,
     options: StatementJobOptions | None = None,
     temporary_root: Path | None = None,
+    identity_source: Path | None = None,
 ) -> StatementJobResult:
     """Ejecuta la estrategia y publica sus artefactos en un directorio por trabajo.
 
     El mismo documento con la misma estrategia y opciones devuelve el resultado ya
     publicado en lugar de repetir el trabajo. Un directorio a medio escribir se
     completa sobrescribiendo, porque su entrada es idéntica por construcción.
+
+    `identity_source` es el documento tal como llegó cuando `source` es una copia
+    derivada de él: la copia descifrada de un PDF protegido cambia en cada
+    descifrado, y sin el original el mismo documento nunca se reconocería.
     """
 
     resolved_options = options or StatementJobOptions()
@@ -311,7 +316,7 @@ def run_statement_job(
     if source.stat().st_size > resolved_options.max_bytes:
         raise PdfSizeLimitError("The document exceeds the configured size limit")
 
-    job_id = compute_job_id(source, strategy=strategy, options=resolved_options)
+    job_id = compute_job_id(identity_source or source, strategy=strategy, options=resolved_options)
     job_directory = artifact_root / job_id
     already_published = read_job_manifest(job_directory)
     if already_published is not None:

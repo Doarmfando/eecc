@@ -12,7 +12,7 @@ from .document_processor import process_bcp_pdf
 from .models import BcpRowType
 
 BCP_STRATEGY_ID = "bcp-coordinate-v1"
-BCP_STRATEGY_VERSION = "0.2.0"
+BCP_STRATEGY_VERSION = "0.3.0"
 
 
 class BcpStatementStrategy:

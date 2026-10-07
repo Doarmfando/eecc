@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-import { formatSoles } from '@/lib/format';
+import { formatMoney, type Currency } from '@/lib/format';
 import { toDateKey } from '@/lib/month';
 import { cn } from '@/lib/utils';
 
@@ -33,12 +33,13 @@ function describeDay(
   count: number,
   amountCents: number | undefined,
   today: boolean,
+  currency: Currency,
 ): string {
   const parts = [
     count === 0 ? 'sin movimientos' : `${String(count)} movimiento${count === 1 ? '' : 's'}`,
   ];
   if (amountCents !== undefined) {
-    parts.push(`${viewMode === 'flujo' ? 'neto' : 'saldo'} ${formatSoles(amountCents)}`);
+    parts.push(`${viewMode === 'flujo' ? 'neto' : 'saldo'} ${formatMoney(amountCents, currency)}`);
   }
   return `Día ${String(cell.dayNumber)}${today ? ' (hoy)' : ''}: ${parts.join(', ')}`;
 }
@@ -64,6 +65,7 @@ function CellAmountText({ amount }: { amount: CellAmount }): ReactNode {
 function DayCell({
   cell,
   viewMode,
+  currency,
   flow,
   balanceCents,
   today,
@@ -72,6 +74,7 @@ function DayCell({
 }: {
   cell: CalendarCell;
   viewMode: ViewMode;
+  currency: Currency;
   flow: DailyFlow | undefined;
   balanceCents: number | undefined;
   today: boolean;
@@ -92,7 +95,7 @@ function DayCell({
         onSelect(cell.date);
       }}
       aria-pressed={selected}
-      aria-label={describeDay(cell, viewMode, count, amountCents, today)}
+      aria-label={describeDay(cell, viewMode, count, amountCents, today, currency)}
       className={cn(
         // 8px fijos: `rounded-lg` del tema son 14px y a este tamaño la celda parece una píldora.
         // `@container`: el formato del importe depende del ancho de la celda, no de la pantalla,
@@ -142,6 +145,7 @@ function DayCell({
 
 export function FinancialCalendarGrid({
   viewMode,
+  currency,
   calendarMonth,
   dailyFlows,
   monthlyBalances,
@@ -149,6 +153,7 @@ export function FinancialCalendarGrid({
   onSelectDate,
 }: {
   viewMode: ViewMode;
+  currency: Currency;
   calendarMonth: string;
   dailyFlows: ReadonlyMap<string, DailyFlow>;
   monthlyBalances: ReadonlyMap<string, number>;
@@ -175,6 +180,7 @@ export function FinancialCalendarGrid({
             key={cell.date}
             cell={cell}
             viewMode={viewMode}
+            currency={currency}
             flow={dailyFlows.get(cell.date)}
             balanceCents={monthlyBalances.get(cell.date)}
             today={cell.date === todayKey}

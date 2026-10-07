@@ -63,6 +63,39 @@ describe('WorkerClientService', () => {
     expect(init.body).toBeInstanceOf(FormData);
   });
 
+  it('reenvía la contraseña del PDF solo cuando la hay', async () => {
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(200, PAYLOAD))
+      .mockResolvedValueOnce(jsonResponse(200, PAYLOAD));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await buildService().processStatement({
+      content: Buffer.from('%PDF-1.7'),
+      fileName: 'estado.pdf',
+      pdfPassword: '12345678',
+    });
+    await buildService().processStatement({ content: Buffer.from('%PDF-1.7'), fileName: 'e.pdf' });
+
+    const [, withPassword] = fetchMock.mock.calls[0] as [URL, RequestInit];
+    const [, withoutPassword] = fetchMock.mock.calls[1] as [URL, RequestInit];
+    expect((withPassword.body as FormData).get('pdf_password')).toEqual('12345678');
+    expect((withoutPassword.body as FormData).has('pdf_password')).toBe(false);
+  });
+
+  it.each(['PDF_PASSWORD_REQUIRED', 'PDF_PASSWORD_INCORRECT'])(
+    'conserva el código %s para que la interfaz pida la contraseña',
+    async (code) => {
+      globalThis.fetch = jest
+        .fn()
+        .mockResolvedValue(jsonResponse(422, { code })) as unknown as typeof fetch;
+
+      await expect(
+        buildService().processStatement({ content: Buffer.from('x'), fileName: 'e.pdf' }),
+      ).rejects.toMatchObject({ response: { code } });
+    },
+  );
+
   it('traduce los códigos de dominio del worker a 422', async () => {
     globalThis.fetch = jest
       .fn()

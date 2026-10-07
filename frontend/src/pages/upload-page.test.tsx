@@ -86,6 +86,15 @@ function uploadCalls(mock: ReturnType<typeof vi.fn>): unknown[] {
   return mock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === 'POST');
 }
 
+/** El formulario que viajó en el envío número `index` (desde 0). */
+function uploadedForm(mock: ReturnType<typeof vi.fn>, index: number): FormData {
+  const call = uploadCalls(mock)[index] as [string, RequestInit] | undefined;
+  if (!(call?.[1].body instanceof FormData)) {
+    throw new Error(`No hubo un envío número ${String(index + 1)}.`);
+  }
+  return call[1].body;
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
@@ -116,7 +125,7 @@ describe('UploadPage', () => {
     expect(screen.getByRole('button', { name: 'Cuenta de Persona de prueba' })).toBeInTheDocument();
   });
 
-  it('permite subir un estado de cuenta de Interbank y no uno de un banco pendiente', async () => {
+  it('ofrece los bancos con extractor y deja fuera el que aún no tiene', async () => {
     vi.stubGlobal(
       'fetch',
       routedFetch(() => jsonResponse(201, JOB)),
@@ -125,14 +134,72 @@ describe('UploadPage', () => {
     renderApp();
     await esperarSesion();
 
-    await user.click(screen.getByRole('radio', { name: 'Interbank' }));
-    expect(screen.getByRole('radio', { name: 'Interbank' })).toHaveAttribute(
-      'aria-checked',
-      'true',
-    );
-    expect(screen.getByLabelText('Estado de cuenta en PDF')).toBeInTheDocument();
+    for (const bank of ['BBVA', 'Interbank', 'Banco de la Nación']) {
+      await user.click(screen.getByRole('radio', { name: bank }));
+      expect(screen.getByRole('radio', { name: bank })).toHaveAttribute('aria-checked', 'true');
+      expect(screen.getByText(`Cargando archivo para: ${bank}`)).toBeInTheDocument();
+      expect(screen.getByLabelText('Estado de cuenta en PDF')).toBeInTheDocument();
+    }
 
-    expect(screen.getByRole('radio', { name: /BBVA/ })).toBeDisabled();
+    expect(screen.getByRole('radio', { name: /Scotiabank/ })).toBeDisabled();
+    expect(
+      screen.getByText(
+        'Por ahora se procesan estados de cuenta de BCP, BBVA, Interbank y Banco de la Nación en PDF.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('pide la contraseña de un PDF protegido y la envía al reintentar', async () => {
+    let attempt = 0;
+    const fetchMock = routedFetch(() => {
+      attempt += 1;
+      return attempt === 1
+        ? jsonResponse(422, { code: 'PDF_PASSWORD_REQUIRED', requestId: 'req-123456789' })
+        : jsonResponse(201, JOB);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    renderApp();
+    await esperarSesion();
+
+    const user = userEvent.setup();
+    await user.upload(screen.getByLabelText('Estado de cuenta en PDF'), pdfFile());
+    await user.click(screen.getByRole('button', { name: /Procesar estado de cuenta/ }));
+
+    expect(
+      await screen.findByText('Este PDF pide contraseña para abrirse. Escríbela aquí.'),
+    ).toBeInTheDocument();
+    const password = screen.getByLabelText(/Contraseña del PDF/);
+    expect(password).toHaveAttribute('type', 'password');
+    expect(password).toHaveAttribute('aria-invalid', 'true');
+    await waitFor(() => {
+      expect(password).toHaveFocus();
+    });
+    expect(uploadedForm(fetchMock, 0).has('pdfPassword')).toBe(false);
+
+    await user.type(password, '12345678');
+    await user.click(screen.getByRole('button', { name: /Procesar estado de cuenta/ }));
+
+    await screen.findByRole('link', { name: /Volver a cargar otro documento/ });
+    expect(uploadedForm(fetchMock, 1).get('pdfPassword')).toBe('12345678');
+  });
+
+  it('distingue una contraseña equivocada de una que falta', async () => {
+    vi.stubGlobal(
+      'fetch',
+      routedFetch(() => jsonResponse(422, { code: 'PDF_PASSWORD_INCORRECT' })),
+    );
+    renderApp();
+    await esperarSesion();
+
+    const user = userEvent.setup();
+    await user.upload(screen.getByLabelText('Estado de cuenta en PDF'), pdfFile());
+    await user.type(screen.getByLabelText(/Contraseña del PDF/), 'equivocada');
+    await user.click(screen.getByRole('button', { name: /Procesar estado de cuenta/ }));
+
+    expect(await screen.findByText('Esa contraseña no abre el PDF.')).toBeInTheDocument();
+    expect(
+      screen.getByText('La contraseña no abre el PDF. Revísala y vuelve a procesarlo.'),
+    ).toBeInTheDocument();
   });
 
   it('avisa del cupo antes de subir, que es cuando el aviso sirve de algo', async () => {

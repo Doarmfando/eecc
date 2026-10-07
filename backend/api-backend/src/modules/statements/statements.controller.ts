@@ -65,6 +65,7 @@ export class StatementsController {
       ...(idempotencyKey !== undefined ? { idempotencyKey } : {}),
       ...(body.defaultYear !== undefined ? { defaultYear: body.defaultYear } : {}),
       ...(body.extractorId !== undefined ? { extractorId: body.extractorId } : {}),
+      ...(body.pdfPassword ? { pdfPassword: body.pdfPassword } : {}),
       ...(requestId !== undefined ? { requestId } : {}),
     });
   }

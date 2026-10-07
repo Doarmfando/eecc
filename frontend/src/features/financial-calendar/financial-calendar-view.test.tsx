@@ -17,6 +17,7 @@ function tx(
   return {
     id,
     bankId,
+    currency: 'PEN',
     date,
     description: `Movimiento ${id}`,
     category: 'Otros movimientos',
@@ -30,6 +31,7 @@ const STATEMENTS: FinancialStatement[] = [
   {
     id: 'job-bcp',
     bancoOrigen: 'bcp',
+    moneda: 'PEN',
     fechaPeriodo: '2026-08',
     periodoLabel: 'Agosto de 2026',
     saldoInicial: 100000,
@@ -44,6 +46,7 @@ const STATEMENTS: FinancialStatement[] = [
   {
     id: 'job-ibk',
     bancoOrigen: 'interbank',
+    moneda: 'PEN',
     fechaPeriodo: '2026-08',
     periodoLabel: 'Agosto de 2026',
     saldoInicial: 4661,
@@ -180,5 +183,58 @@ describe('FinancialCalendarView', () => {
     );
     // Cierre: 1300.00 + 4.21, lo mismo que suman los saldos finales declarados.
     expect(screen.getByRole('button', { name: /^Día 31:/ })).toHaveAccessibleName(/1,304\.21/);
+  });
+});
+
+/** Una cuenta en dólares de otro mes: no debe sumarse a los soles de agosto. */
+const DOLLAR_STATEMENT: FinancialStatement = {
+  id: 'job-bbva',
+  bancoOrigen: 'bbva',
+  moneda: 'USD',
+  fechaPeriodo: '2026-07',
+  periodoLabel: 'Julio de 2026',
+  saldoInicial: 200000,
+  abonos: 30000,
+  cargos: 0,
+  saldoFinal: 230000,
+  movimientos: [{ ...tx('bbva-1', 'bbva', '2026-07-15', 'ABONO', 30000), currency: 'USD' }],
+};
+
+/** Un importe en soles: «S/ 1,304.21», no el «S/ Soles» del selector. */
+const SOLES_AMOUNT = /^-?S\/ \d/;
+
+describe('FinancialCalendarView por moneda', () => {
+  it('con una sola moneda no ofrece elegir y usa su signo', () => {
+    render(<FinancialCalendarView statements={STATEMENTS} />);
+
+    expect(screen.queryByRole('radiogroup', { name: 'Moneda' })).not.toBeInTheDocument();
+    expect(screen.getByText('S/ 1,304.21')).toBeInTheDocument();
+  });
+
+  it('una cuenta solo en dólares se muestra en dólares', () => {
+    render(<FinancialCalendarView statements={[DOLLAR_STATEMENT]} />);
+
+    expect(screen.queryByRole('radiogroup', { name: 'Moneda' })).not.toBeInTheDocument();
+    expect(screen.getByText('US$ 2,300.00')).toBeInTheDocument();
+    expect(screen.queryByText(SOLES_AMOUNT)).not.toBeInTheDocument();
+  });
+
+  it('con soles y dólares muestra una moneda a la vez, sin sumarlas', async () => {
+    const user = userEvent.setup();
+    render(<FinancialCalendarView statements={[...STATEMENTS, DOLLAR_STATEMENT]} />);
+
+    expect(screen.getByRole('radio', { name: /Soles/ })).toHaveAttribute('aria-checked', 'true');
+    // El saldo de agosto es el de las cuentas en soles: los 2,300 dólares no entran.
+    expect(screen.getByText('S/ 1,304.21')).toBeInTheDocument();
+    expect(screen.queryByText(/US\$ \d/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('radio', { name: /Dólares/ }));
+
+    expect(screen.getByRole('radio', { name: /Dólares/ })).toHaveAttribute('aria-checked', 'true');
+    // Abre en el mes de los documentos en dólares, con sus bancos y su signo.
+    expect(screen.getByRole('heading', { name: getMonthLabel('2026-07') })).toBeInTheDocument();
+    expect(screen.getByText('US$ 2,300.00')).toBeInTheDocument();
+    expect(screen.queryByText(SOLES_AMOUNT)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Día 15:/ })).toHaveAccessibleName(/US\$ 300\.00/);
   });
 });

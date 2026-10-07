@@ -18,6 +18,8 @@ from statement_worker.domain.errors import (
     ArtifactNotFoundError,
     DomainError,
     InvalidPdfError,
+    PdfPasswordIncorrectError,
+    PdfPasswordRequiredError,
     PdfSizeLimitError,
     UnsupportedDocumentError,
 )
@@ -27,6 +29,7 @@ from statement_worker.extractors.registry import (
     resolve_strategy,
     specialised_strategy_ids,
 )
+from statement_worker.services.pdf_unlock import unlock_pdf
 from statement_worker.services.statement_job import (
     StatementJobOptions,
     StatementJobResult,
@@ -47,6 +50,8 @@ HTTP_UNPROCESSABLE_CONTENT = 422
 API_TITLE = "EECC statement worker (internal)"
 API_VERSION = "0.1.0"
 _UPLOAD_CHUNK_BYTES = 1024 * 1024
+# Holgado para cualquier contraseña de apertura real; corta lo que no lo es.
+_MAX_PDF_PASSWORD_LENGTH = 128
 _MEDIA_TYPES = {
     ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     ".csv": "text/csv; charset=utf-8",
@@ -55,6 +60,8 @@ _MEDIA_TYPES = {
 
 _STATUS_BY_ERROR: dict[type[DomainError], int] = {
     InvalidPdfError: HTTP_UNPROCESSABLE_CONTENT,
+    PdfPasswordRequiredError: HTTP_UNPROCESSABLE_CONTENT,
+    PdfPasswordIncorrectError: HTTP_UNPROCESSABLE_CONTENT,
     PdfSizeLimitError: HTTP_CONTENT_TOO_LARGE,
     UnsupportedDocumentError: HTTP_UNPROCESSABLE_CONTENT,
     ArtifactAlreadyExistsError: HTTP_CONFLICT,
@@ -90,22 +97,27 @@ def _process_document(
     requested: str | None,
     settings: WorkerSettings,
     options: StatementJobOptions,
+    password: str | None,
 ) -> StatementJobResult:
     """Todo el trabajo bloqueante de un documento, aislado del bucle de eventos."""
+
+    # La copia descifrada queda junto a la subida, así que se borra con ella.
+    readable = unlock_pdf(stored, stored.with_name("unlocked.pdf"), password=password)
 
     # Sin estrategia pedida, el documento decide: primero las plantillas
     # conocidas y solo después el respaldo genérico.
     strategy = (
         resolve_strategy(requested)
         if requested
-        else resolve_best_strategy(stored, temporary_parent=settings.temporary_root)
+        else resolve_best_strategy(readable, temporary_parent=settings.temporary_root)
     )
     return run_statement_job(
-        stored,
+        readable,
         strategy=strategy,
         artifact_root=settings.artifact_root,
         options=options,
         temporary_root=settings.temporary_root,
+        identity_source=stored,
     )
 
 
@@ -150,8 +162,16 @@ def _build_router() -> APIRouter:
         default_year: Annotated[int | None, Form()] = None,
         export_xlsx: Annotated[bool, Form()] = True,
         export_csv: Annotated[bool, Form()] = True,
+        # Solo abre el documento en memoria de este proceso: no se guarda, no se
+        # registra y no entra en la identidad del trabajo.
+        pdf_password: Annotated[str | None, Form()] = None,
     ) -> JSONResponse:
         settings: WorkerSettings = request.app.state.settings
+        if pdf_password is not None and len(pdf_password) > _MAX_PDF_PASSWORD_LENGTH:
+            return JSONResponse(
+                status_code=HTTP_UNPROCESSABLE_CONTENT,
+                content={"code": "INVALID_JOB_OPTIONS"},
+            )
         try:
             options = StatementJobOptions(
                 default_year=default_year,
@@ -180,6 +200,7 @@ def _build_router() -> APIRouter:
                     requested=requested,
                     settings=settings,
                     options=options,
+                    password=pdf_password or None,
                 )
         finally:
             rmtree(upload_directory, ignore_errors=True)

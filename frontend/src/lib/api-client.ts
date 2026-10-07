@@ -10,6 +10,8 @@ export interface UploadStatementInput {
   file: File;
   defaultYear?: number;
   extractorId?: string;
+  /** Contraseña de apertura de un PDF protegido. Solo viaja en esta petición. */
+  pdfPassword?: string;
   idempotencyKey?: string;
   signal?: AbortSignal;
 }
@@ -99,6 +101,9 @@ export async function uploadStatement(
   }
   if (input.extractorId) {
     form.append('extractorId', input.extractorId);
+  }
+  if (input.pdfPassword) {
+    form.append('pdfPassword', input.pdfPassword);
   }
 
   const headers: Record<string, string> = {};

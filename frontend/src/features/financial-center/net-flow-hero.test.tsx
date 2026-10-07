@@ -25,6 +25,7 @@ describe('NetFlowHero', () => {
     render(
       <NetFlowHero
         summary={summary({ abonos: 50000, cargos: 20000 })}
+        currency="PEN"
         calendarMonth="2026-02"
         availableMonths={['2026-01', '2026-02']}
         onGoToMonth={NOOP}
@@ -41,6 +42,7 @@ describe('NetFlowHero', () => {
     render(
       <NetFlowHero
         summary={summary({ abonos: 20000, cargos: 50000 })}
+        currency="PEN"
         calendarMonth="2026-02"
         availableMonths={['2026-01', '2026-02']}
         onGoToMonth={NOOP}
@@ -53,6 +55,30 @@ describe('NetFlowHero', () => {
     expect(screen.getByText(/^−\s*S\//)).toBeInTheDocument();
   });
 
+  it('muestra los importes de una cuenta en dólares con su signo', () => {
+    render(
+      <NetFlowHero
+        summary={summary({
+          saldoInicial: 100000,
+          abonos: 50000,
+          cargos: 20000,
+          saldoFinal: 130000,
+        })}
+        currency="USD"
+        calendarMonth="2026-02"
+        availableMonths={['2026-01', '2026-02']}
+        onGoToMonth={NOOP}
+        onPreviousMonth={NOOP}
+        onNextMonth={NOOP}
+        canGoPreviousMonth
+        canGoNextMonth={false}
+      />,
+    );
+    expect(screen.getByText('+ US$ 300.00')).toBeInTheDocument();
+    expect(screen.getByText('US$ 1,300.00')).toBeInTheDocument();
+    expect(screen.queryByText(/S\/\s/)).not.toBeInTheDocument();
+  });
+
   it('muestra la ecuación de saldo inicial, entradas, salidas y saldo final', () => {
     render(
       <NetFlowHero
@@ -62,6 +88,7 @@ describe('NetFlowHero', () => {
           cargos: 20000,
           saldoFinal: 130000,
         })}
+        currency="PEN"
         calendarMonth="2026-02"
         availableMonths={['2026-01', '2026-02']}
         onGoToMonth={NOOP}

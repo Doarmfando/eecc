@@ -18,12 +18,31 @@ export function formatCount(value: number): string {
   return new Intl.NumberFormat('es-PE').format(value);
 }
 
-const SOLES_FORMATTER = new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' });
+/** Monedas que declaran los estados de cuenta. Soles y dólares nunca se suman entre sí. */
+export type Currency = 'PEN' | 'USD';
 
-/** `cents` es un entero (soles × 100): evita que sumar muchas filas arrastre error de coma flotante. */
-export function formatSoles(cents: number): string {
+const CURRENCY_SYMBOLS: Record<Currency, string> = { PEN: 'S/', USD: 'US$' };
+
+export const CURRENCY_NAMES: Record<Currency, string> = { PEN: 'Soles', USD: 'Dólares' };
+
+/**
+ * El símbolo se pone a mano: `Intl` escribe el dólar como «USD», «US$» o «$»
+ * según el motor, y la misma cuenta no puede verse distinta en cada navegador.
+ */
+const AMOUNT_FORMATTER = new Intl.NumberFormat('es-PE', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+export function currencySymbol(currency: Currency): string {
+  return CURRENCY_SYMBOLS[currency];
+}
+
+/** `cents` es un entero (unidades × 100): evita que sumar muchas filas arrastre error de coma flotante. */
+export function formatMoney(cents: number, currency: Currency): string {
   if (!Number.isFinite(cents)) {
     return '—';
   }
-  return SOLES_FORMATTER.format(cents / 100);
+  const sign = cents < 0 ? '-' : '';
+  return `${sign}${CURRENCY_SYMBOLS[currency]} ${AMOUNT_FORMATTER.format(Math.abs(cents) / 100)}`;
 }

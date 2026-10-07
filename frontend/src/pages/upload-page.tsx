@@ -6,15 +6,20 @@ import { Alert } from '@/components/ui/alert';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   AVAILABLE_BANKS,
+  AVAILABLE_BANKS_LABEL,
   BankSelector,
   BANK_NAMES,
   type BankId,
 } from '@/features/statements/bank-selector';
 import { JobSummary } from '@/features/statements/job-summary';
 import { RetentionNotice } from '@/features/statements/retention-notice';
-import { UploadForm, type UploadFormValues } from '@/features/statements/upload-form';
+import {
+  UploadForm,
+  type PasswordProblem,
+  type UploadFormValues,
+} from '@/features/statements/upload-form';
 import { useUploadStatement } from '@/features/statements/queries';
-import { describeError } from '@/lib/api-error';
+import { describeError, type ApiError } from '@/lib/api-error';
 import { cn } from '@/lib/utils';
 
 const FLOW_STEPS: ReadonlyArray<{ label: string; Icon: ComponentType<{ className?: string }> }> = [
@@ -74,6 +79,17 @@ function FlowSteps({ current }: { current: number }): ReactNode {
   );
 }
 
+/** El worker distingue un PDF sin contraseña de uno con la contraseña equivocada. */
+function passwordProblemOf(error: ApiError | null): PasswordProblem | null {
+  if (error?.code === 'PDF_PASSWORD_REQUIRED') {
+    return 'required';
+  }
+  if (error?.code === 'PDF_PASSWORD_INCORRECT') {
+    return 'incorrect';
+  }
+  return null;
+}
+
 export function UploadPage(): ReactNode {
   const navigate = useNavigate();
   const upload = useUploadStatement();
@@ -108,7 +124,7 @@ export function UploadPage(): ReactNode {
         <CardHeader>
           <CardTitle>Selecciona tu banco y sube el documento</CardTitle>
           <CardDescription>
-            Por ahora se procesan estados de cuenta de BCP e Interbank en PDF.
+            Por ahora se procesan estados de cuenta de {AVAILABLE_BANKS_LABEL} en PDF.
           </CardDescription>
         </CardHeader>
 
@@ -128,12 +144,16 @@ export function UploadPage(): ReactNode {
                   Cargando archivo para: {BANK_NAMES[selectedBank]}
                 </span>
                 <div className="mt-3">
-                  <UploadForm pending={upload.isPending} onSubmit={handleSubmit} />
+                  <UploadForm
+                    pending={upload.isPending}
+                    passwordProblem={passwordProblemOf(upload.error)}
+                    onSubmit={handleSubmit}
+                  />
                 </div>
               </>
             ) : (
               <p className="mt-3 rounded-lg border border-border/60 bg-muted/20 p-4 text-sm text-muted-foreground">
-                Este banco todavía no está disponible. Selecciona BCP o Interbank para continuar.
+                Este banco todavía no está disponible. Elige {AVAILABLE_BANKS_LABEL} para continuar.
               </p>
             )}
           </div>

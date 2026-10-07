@@ -17,6 +17,7 @@ function tx(overrides: Partial<FinancialTransaction>): FinancialTransaction {
   return {
     id: 'tx-1',
     bankId: 'bcp',
+    currency: 'PEN',
     date: '2026-01-15',
     description: 'Transferencia recibida — Cliente corporativo',
     category: 'Transferencias',
@@ -41,6 +42,7 @@ const SAMPLE: FinancialTransaction[] = [
   tx({
     id: 'c',
     bankId: 'bbva',
+    currency: 'PEN',
     date: '2026-02-10',
     type: 'CARGO',
     amountCents: 15000,
@@ -123,6 +125,7 @@ function statement(overrides: Partial<FinancialStatement>): FinancialStatement {
   return {
     id: 'job-1',
     bancoOrigen: 'bcp',
+    moneda: 'PEN',
     fechaPeriodo: '2026-01',
     periodoLabel: 'Enero de 2026',
     saldoInicial: 0,
@@ -142,6 +145,7 @@ describe('computeOpeningBalances', () => {
       statement({
         id: 'ibk',
         bancoOrigen: 'interbank',
+        moneda: 'PEN',
         fechaPeriodo: '2026-02',
         saldoInicial: 500,
       }),

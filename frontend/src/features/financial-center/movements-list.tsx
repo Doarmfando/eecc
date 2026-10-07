@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { formatCount, formatSoles } from '@/lib/format';
+import { formatCount, formatMoney } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 import { BankMark } from './bank-mark';
@@ -52,7 +52,7 @@ function TransactionRow({ transaction }: { transaction: FinancialTransaction }):
           isIncome ? 'text-success' : 'text-foreground/80',
         )}
       >
-        {isIncome ? '+' : '−'} {formatSoles(transaction.amountCents)}
+        {isIncome ? '+' : '−'} {formatMoney(transaction.amountCents, transaction.currency)}
       </span>
     </li>
   );

@@ -18,6 +18,7 @@
 - No silenciar `Exception`. Capturar errores esperados, añadir contexto seguro y conservar la causa para diagnóstico interno.
 - La unión de continuaciones nunca debe adjuntar texto a un saldo, total o movimiento de otra página sin reglas explícitas.
 - Una fila con texto en columnas de fecha pero fecha inválida no es una continuación; debe quedar no clasificada y generar advertencia.
+- **Un PDF protegido con contraseña no es un PDF ilegible.** Los bancos los envían así por correo (casi siempre con el DNI), y pdfminer falla al abrirlos con la misma excepción que ante un archivo corrupto. Traducir ese fallo a `INVALID_PDF` dejó a la persona sin saber qué hacer. Se distingue con `pypdfium2` (`err_code == FPDF_ERR_PASSWORD`) y se pide la contraseña (`PDF_PASSWORD_REQUIRED`/`PDF_PASSWORD_INCORRECT`). La copia descifrada no es idéntica entre descifrados: la identidad del trabajo se calcula sobre el original.
 
 ## Plantilla BCP confirmada con documentos reales
 
@@ -151,6 +152,9 @@ El extractor se escribió **sin muestra**, adivinando la plantilla, y se corrigi
 
 ## Frontend
 
+- **Cada exportador rotula sus CSV a su manera, y un rótulo desconocido no falla: da cero.** El Centro Financiero y el Calendario buscaban `Cargo`/`Abono` y `Fecha proceso`/`Fecha`; el BBVA publica `Cargo/Abono` con signo y `Fecha oper.`, así que un estado de cuenta del BBVA se veía **sin un solo movimiento** y sin error. Al añadir un exportador, añadir sus cabeceras reales a `statement-from-csv.test.ts`.
+- **El ITF del BBVA descuenta del saldo pero no está en `Total cargos`.** Sin sumarlo a las salidas, `saldo inicial + entradas − salidas` no llega al saldo final declarado y el saldo diario del Calendario se desvía. Se muestra como un movimiento `ITF` aparte, junto al que lo generó.
+- **Soles y dólares no se suman.** Cada estado de cuenta lleva su moneda (columna `Moneda` del `Resumen`) y las vistas consolidan una sola a la vez. Un documento sin moneda declarada se trata como soles.
 - No guardar tokens sensibles ni resultados financieros completos en almacenamiento persistente del navegador sin una decisión de seguridad.
 - Cancelar polling al llegar a un estado terminal y usar backoff.
 - `SUCCEEDED` y `NEEDS_REVIEW` son experiencias distintas.

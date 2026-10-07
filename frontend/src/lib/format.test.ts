@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatBytes, formatCount, formatSoles } from './format';
+import { formatBytes, formatCount, formatMoney } from './format';
 
 describe('formatBytes', () => {
   it('escala hasta la unidad legible más cercana', () => {
@@ -23,19 +23,19 @@ describe('formatCount', () => {
   });
 });
 
-describe('formatSoles', () => {
-  it('convierte centavos enteros a soles con símbolo de moneda', () => {
-    expect(formatSoles(0)).toContain('0.00');
-    expect(formatSoles(150050)).toContain('1,500.50');
-    expect(formatSoles(150050)).toContain('S/');
+describe('formatMoney', () => {
+  it('convierte centavos enteros al importe con el símbolo de su moneda', () => {
+    expect(formatMoney(0, 'PEN')).toBe('S/ 0.00');
+    expect(formatMoney(150050, 'PEN')).toBe('S/ 1,500.50');
+    expect(formatMoney(150050, 'USD')).toBe('US$ 1,500.50');
   });
 
-  it('conserva el signo de un saldo negativo', () => {
-    expect(formatSoles(-2500)).toContain('25.00');
-    expect(formatSoles(-2500)).toMatch(/-/);
+  it('pone el signo delante del símbolo', () => {
+    expect(formatMoney(-1549, 'PEN')).toBe('-S/ 15.49');
+    expect(formatMoney(-123456789, 'USD')).toBe('-US$ 1,234,567.89');
   });
 
-  it('no inventa un valor cuando el dato es inválido', () => {
-    expect(formatSoles(Number.NaN)).toBe('—');
+  it('no inventa un importe cuando el dato es inválido', () => {
+    expect(formatMoney(Number.NaN, 'USD')).toBe('—');
   });
 });

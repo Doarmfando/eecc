@@ -24,3 +24,21 @@ def extract_bcp_statement_year(first_page_text: str) -> int | None:
         return parsed.year if parsed is not None else None
 
     return None
+
+
+# La cuenta y su moneda van juntas en la cabecera: `191-12345678-0-11 SOLES`.
+_ACCOUNT_CURRENCY = re.compile(r"\b\d{3}-\d{8}-\d-\d{2}\s*-?\s*(SOLES|DOLARES)\b")
+_DECLARED_CURRENCY = re.compile(r"\bMONEDA\s*:?\s*(SOLES|DOLARES)\b")
+_CURRENCY_CODES = {"SOLES": "PEN", "DOLARES": "USD"}
+
+
+def extract_bcp_currency(first_page_text: str) -> str | None:
+    """La moneda de la cuenta; `None` si el documento no la declara.
+
+    Solo se acepta junto al código de cuenta o tras `MONEDA`: «soles» suelto
+    puede aparecer en la publicidad de la misma página.
+    """
+
+    text = normalized_upper(first_page_text)
+    match = _ACCOUNT_CURRENCY.search(text) or _DECLARED_CURRENCY.search(text)
+    return _CURRENCY_CODES[match.group(1)] if match else None

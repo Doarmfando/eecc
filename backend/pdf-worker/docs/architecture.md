@@ -182,6 +182,8 @@ Verificado sobre dos estados de cuenta reales de 425 y 447 páginas:
 
 `build_bcp_workbook_plan` transforma únicamente resultados BCP utilizables en el esquema versionado `eecc.statement.bcp` versión 1. El plan contiene `Resumen`, `Movimientos`, `Control_Paginas` y `Validaciones`, con tipos, formatos numéricos, anchos, nombres de tabla y límites explícitos antes de invocar una librería XLSX.
 
+Desde la estrategia `0.3.0`, el `Resumen` termina en `Moneda` (`PEN`/`USD`), leída del código de cuenta de la cabecera (`191-12345678-0-11 SOLES`) o de `MONEDA:`. Va **al final** y no junto a la confianza, como en los otros bancos, para que las columnas anteriores conserven su posición. Sin declaración clara queda vacía; nunca se adivina por una palabra suelta de la página.
+
 Los resultados `SUCCEEDED` y `NEEDS_REVIEW` pueden producir un plan; `FAILED` se rechaza. Todo texto no confiable se normaliza para XML y se prefija cuando podría interpretarse como fórmula. Los importes siguen siendo `Decimal` dentro del plan. El escritor físico será otro adaptador y no podrá cambiar reglas bancarias.
 
 ## Escritor XLSX
@@ -210,11 +212,19 @@ El borde textual no reinterpreta valores: fechas en ISO-8601, importes como deci
 
 `services/statement_job.py` orquesta sin conocer bancos: valida tamaño, ejecuta la estrategia en un temporal aislado, publica los formatos pedidos en `artifact_root/<job_id>/` y escribe al final un `result.json` con el resumen seguro.
 
-El identificador del trabajo es un SHA-256 del contenido, la estrategia y las opciones. Repetir la misma entrada devuelve el manifiesto anterior sin volver a escribir; un directorio sin manifiesto se considera incompleto y se completa sobrescribiendo, porque su entrada es idéntica por construcción. Un resultado `FAILED` también se registra: no produce artefactos, pero deja constancia de sus códigos.
+El identificador del trabajo es un SHA-256 del contenido, la estrategia y las opciones. El contenido es el del documento **tal como llegó**: cuando lo que se procesa es una copia derivada —la descifrada de un PDF protegido, que cambia en cada descifrado— se pasa el original como `identity_source`. Repetir la misma entrada devuelve el manifiesto anterior sin volver a escribir; un directorio sin manifiesto se considera incompleto y se completa sobrescribiendo, porque su entrada es idéntica por construcción. Un resultado `FAILED` también se registra: no produce artefactos, pero deja constancia de sus códigos.
 
 ## API interna y cola
 
 `api/app.py` construye la aplicación con la configuración inyectada, limita el tamaño del archivo mientras lo recibe por bloques, guarda la carga en un temporal que siempre se elimina y traduce los errores de dominio a códigos HTTP. Las respuestas contienen identificadores, estados, conteos y códigos; nunca descripciones, importes ni rutas locales.
+
+### PDF protegidos con contraseña
+
+Los bancos envían el estado de cuenta por correo con contraseña de apertura (casi siempre el DNI). pdfminer no lo abre sin ella, y hasta el 2026-10-06 eso llegaba a la persona como `INVALID_PDF`, «el documento no pudo leerse como PDF», que no dice qué hacer.
+
+`services/pdf_unlock.py` lo resuelve **antes** de elegir estrategia, con `pypdfium2`: si el documento abre sin contraseña se usa tal cual (también con solo permisos de propietario, que pdfminer ya lee); si la pide y no llegó, `PDF_PASSWORD_REQUIRED`; si la que llegó no lo abre, `PDF_PASSWORD_INCORRECT`; si lo abre, se guarda una copia sin cifrado junto a la subida y se borra con ella. Las estrategias y sus lecturas en paralelo siguen recibiendo una ruta y no saben nada de contraseñas.
+
+La contraseña llega en el campo `pdf_password` (128 caracteres como máximo), solo vive en memoria durante la petición y no entra en la identidad del trabajo: el mismo PDF protegido, con su contraseña, reutiliza el resultado ya publicado.
 
 ### El documento no bloquea el servicio
 

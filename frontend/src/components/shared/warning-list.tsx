@@ -33,6 +33,14 @@ const WARNING_LABELS: Record<string, string> = {
   BANCO_NACION_AMOUNT_SIDE_UNKNOWN: 'Un importe no se pudo asignar a cargos, abonos ni saldo.',
   BANCO_NACION_DATE_WITHOUT_YEAR:
     'Una fecha no trae año y el documento no declara su periodo; la fila se omitió.',
+  BBVA_HEADER_NOT_FOUND:
+    'No se encontró la cabecera de la tabla de movimientos, así que no se sabe qué importe es cargo, ITF o saldo.',
+  BBVA_ROW_UNCLASSIFIED: 'Una fila con importes no se pudo clasificar como movimiento.',
+  BBVA_AMOUNT_COLUMN_UNKNOWN:
+    'Los importes de una fila no se pudieron repartir entre cargo/abono, ITF y saldo.',
+  BBVA_DATE_WITHOUT_YEAR:
+    'Una fecha no trae año y el documento no trae fecha de emisión de la que deducirlo; escribe el año del periodo y vuelve a procesarlo.',
+  BBVA_DUPLICATE_OPENING_BALANCE: 'El documento declara más de un saldo anterior.',
 };
 
 const CHECK_LABELS: Record<string, string> = {
@@ -56,6 +64,11 @@ const CHECK_LABELS: Record<string, string> = {
   BANCO_NACION_BALANCE_CONTINUITY: 'El saldo cuadra después de cada movimiento',
   BANCO_NACION_DECLARED_TOTALS: 'Los totales de cargos y abonos cuadran',
   BANCO_NACION_CLOSING_BALANCE: 'El saldo final cuadra',
+  BBVA_ROWS_PRESENT: 'Se extrajeron filas del documento',
+  BBVA_OPENING_BALANCE: 'Se encontró el saldo anterior',
+  BBVA_BALANCE_CONTINUITY: 'El saldo cuadra después de cada movimiento y su ITF',
+  BBVA_ITF_TOTALS: 'El total de ITF cuadra con el de cada movimiento',
+  BBVA_CLOSING_BALANCE: 'El saldo final cuadra',
 };
 
 const CHECK_STATUS: Record<

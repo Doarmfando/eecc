@@ -1,3 +1,5 @@
+import type { Currency } from '@/lib/format';
+
 import type { SourceBankId } from './bank-accent';
 
 export type { SourceBankId };
@@ -7,13 +9,14 @@ export type MovementType = 'ABONO' | 'CARGO';
 /**
  * Movimiento consolidado para el Centro Financiero.
  *
- * `amountCents` guarda soles en centavos: es un entero, así la suma de miles de
- * filas nunca arrastra el error de redondio de la coma flotante. Solo se pasa a
- * decimal al formatear para mostrarlo.
+ * `amountCents` guarda el importe en centavos de `currency`: es un entero, así la
+ * suma de miles de filas nunca arrastra el error de redondeo de la coma flotante.
+ * Solo se pasa a decimal al formatear para mostrarlo.
  */
 export interface FinancialTransaction {
   id: string;
   bankId: SourceBankId;
+  currency: Currency;
   date: string;
   description: string;
   category: string;
@@ -38,6 +41,8 @@ export interface FinancialStatement {
   /** El `jobId` del trabajo que lo produjo: es lo que lo identifica en el historial. */
   id: string;
   bancoOrigen: SourceBankId;
+  /** La moneda de la cuenta: todos los importes del documento están en ella. */
+  moneda: Currency;
   fechaPeriodo: string;
   periodoLabel: string;
   saldoInicial: number;

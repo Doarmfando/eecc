@@ -12,6 +12,8 @@ import type { WorkerJobPayload, WorkerProcessRequest } from './worker-client.typ
 
 const WORKER_ERROR_CODES = new Set([
   'INVALID_PDF',
+  'PDF_PASSWORD_REQUIRED',
+  'PDF_PASSWORD_INCORRECT',
   'PDF_SIZE_LIMIT_EXCEEDED',
   'UNSUPPORTED_DOCUMENT',
   'INVALID_JOB_OPTIONS',
@@ -43,6 +45,9 @@ export class WorkerClientService {
     }
     if (request.extractorId !== undefined) {
       form.append('extractor_id', request.extractorId);
+    }
+    if (request.pdfPassword !== undefined) {
+      form.append('pdf_password', request.pdfPassword);
     }
 
     const headers: Record<string, string> = {};

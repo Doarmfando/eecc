@@ -2,7 +2,7 @@ import { ChevronDown } from 'lucide-react';
 import { useId, useState, type ReactNode } from 'react';
 
 import { Card } from '@/components/ui/card';
-import { formatSoles } from '@/lib/format';
+import { formatMoney, type Currency } from '@/lib/format';
 import { daysInMonth } from '@/lib/month';
 import { cn } from '@/lib/utils';
 
@@ -49,9 +49,11 @@ function SummaryItem({
  */
 export function MonthSummaryFooter({
   summary,
+  currency,
   calendarMonth,
 }: {
   summary: MonthSummary;
+  currency: Currency;
   calendarMonth: string;
 }): ReactNode {
   const [expanded, setExpanded] = useState(false);
@@ -67,7 +69,7 @@ export function MonthSummaryFooter({
       />
       <SummaryItem
         label="Saldo"
-        value={formatSoles(summary.closingBalanceCents)}
+        value={formatMoney(summary.closingBalanceCents, currency)}
         valueClassName={summary.closingBalanceCents < 0 ? 'text-destructive' : 'text-primary'}
         className="border-l border-border"
       />
@@ -96,12 +98,12 @@ export function MonthSummaryFooter({
       >
         <SummaryItem
           label="Entradas"
-          value={formatSoles(summary.incomeCents)}
+          value={formatMoney(summary.incomeCents, currency)}
           valueClassName="text-success"
         />
         <SummaryItem
           label="Salidas"
-          value={formatSoles(summary.expenseCents)}
+          value={formatMoney(summary.expenseCents, currency)}
           valueClassName="text-destructive"
           className="border-l border-border"
         />

@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { CheckCircle2, FileUp, Loader2, UploadCloud } from 'lucide-react';
-import { useId, useState, type DragEvent, type ReactNode } from 'react';
+import { useEffect, useId, useState, type DragEvent, type ReactNode } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { Button } from '@/components/ui/button';
@@ -16,37 +16,61 @@ import { MAX_CLIENT_BYTES } from './validate-file';
 export interface UploadFormValues {
   file: File;
   defaultYear?: number;
+  pdfPassword?: string;
 }
+
+/** Por qué el último envío no abrió el PDF, cuando fue por su contraseña. */
+export type PasswordProblem = 'required' | 'incorrect';
+
+const PASSWORD_PROBLEM_MESSAGES: Record<PasswordProblem, string> = {
+  required: 'Este PDF pide contraseña para abrirse. Escríbela aquí.',
+  incorrect: 'Esa contraseña no abre el PDF.',
+};
 
 export function UploadForm({
   disabled = false,
   pending,
+  passwordProblem = null,
   onSubmit,
 }: {
   /** Reservado para estados en los que el envío no procede; por defecto, activo. */
   disabled?: boolean;
   pending: boolean;
+  passwordProblem?: PasswordProblem | null;
   onSubmit: (values: UploadFormValues) => void;
 }): ReactNode {
   const fileInputId = useId();
   const yearInputId = useId();
+  const passwordInputId = useId();
   const fileErrorId = useId();
   const yearErrorId = useId();
+  const passwordHintId = useId();
   const [isDragging, setDragging] = useState(false);
 
   const {
     register,
     handleSubmit,
     watch,
+    setFocus,
     formState: { errors },
   } = useForm<UploadFormSchema>({
     resolver: zodResolver(uploadSchema),
     mode: 'onChange',
-    defaultValues: { defaultYear: '' },
+    defaultValues: { defaultYear: '', pdfPassword: '' },
   });
+
+  // Quien sube un PDF protegido no sabe que lo está: se le lleva al campo.
+  useEffect(() => {
+    if (passwordProblem) {
+      setFocus('pdfPassword');
+    }
+  }, [passwordProblem, setFocus]);
 
   const selected = watch('document')?.item(0) ?? null;
   const hasError = Boolean(errors.document);
+  const passwordMessage =
+    errors.pdfPassword?.message ??
+    (passwordProblem ? PASSWORD_PROBLEM_MESSAGES[passwordProblem] : null);
 
   function preventDrag(event: DragEvent<HTMLDivElement>): void {
     event.preventDefault();
@@ -65,6 +89,7 @@ export function UploadForm({
           onSubmit({
             file,
             ...(values.defaultYear === '' ? {} : { defaultYear: Number(values.defaultYear) }),
+            ...(values.pdfPassword === '' ? {} : { pdfPassword: values.pdfPassword }),
           });
         })(event);
       }}
@@ -155,7 +180,7 @@ export function UploadForm({
         </p>
       </div>
 
-      <div className="flex flex-wrap items-end gap-4 rounded-lg border border-border/60 bg-muted/20 p-4">
+      <div className="grid gap-5 rounded-lg border border-border/60 bg-muted/20 p-4 sm:grid-cols-2">
         <div>
           <Label htmlFor={yearInputId}>
             Año del periodo <span className="font-normal text-muted-foreground">(opcional)</span>
@@ -169,16 +194,41 @@ export function UploadForm({
             aria-describedby={yearErrorId}
             {...register('defaultYear')}
           />
+          <p id={yearErrorId} className="mt-2 text-xs text-muted-foreground">
+            {errors.defaultYear ? (
+              <span role="alert" className="text-destructive">
+                {errors.defaultYear.message}
+              </span>
+            ) : (
+              'Úsalo solo si el documento no declara el año en su periodo.'
+            )}
+          </p>
         </div>
-        <p id={yearErrorId} className="max-w-xs text-xs text-muted-foreground">
-          {errors.defaultYear ? (
-            <span role="alert" className="text-destructive">
-              {errors.defaultYear.message}
-            </span>
-          ) : (
-            'Úsalo solo si el documento no declara el año en su periodo.'
-          )}
-        </p>
+
+        <div>
+          <Label htmlFor={passwordInputId}>
+            Contraseña del PDF <span className="font-normal text-muted-foreground">(opcional)</span>
+          </Label>
+          <Input
+            id={passwordInputId}
+            type="password"
+            // No es la contraseña de esta cuenta: que el navegador no la ofrezca ni la guarde.
+            autoComplete="off"
+            className="mt-2 w-full max-w-56 bg-card"
+            aria-invalid={passwordMessage ? true : undefined}
+            aria-describedby={passwordHintId}
+            {...register('pdfPassword')}
+          />
+          <p id={passwordHintId} className="mt-2 text-xs text-muted-foreground">
+            {passwordMessage ? (
+              <span role="alert" className="text-destructive">
+                {passwordMessage}
+              </span>
+            ) : (
+              'Solo si el PDF la pide al abrirlo; los bancos suelen usar tu DNI. No se guarda.'
+            )}
+          </p>
+        </div>
       </div>
 
       <div className="space-y-3">

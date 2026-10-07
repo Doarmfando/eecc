@@ -33,6 +33,7 @@ El diseño, propiedad de datos y reglas de PostgreSQL están definidos en [`../_
 - FastAPI + Pydantic Settings para la API interna/configuración; `python-multipart` para la carga de archivos.
 - Celery con Redis para ejecución asíncrona interna.
 - `pdfplumber` para PDFs con capa de texto.
+- `pypdfium2` (ya llega con `pdfplumber`) solo para abrir PDF protegidos con contraseña de apertura y entregar a los extractores una copia descifrada; no lee contenido.
 - `reportlab` solo como dependencia de desarrollo para generar fixtures PDF sintéticos reproducibles.
 - `openpyxl` para XLSX.
 - `pandas` y `tqdm` solo como dependencias de desarrollo, para ejecutar los scripts legacy dentro de las pruebas de caracterización; el núcleo no los importa.

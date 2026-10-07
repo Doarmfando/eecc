@@ -7,6 +7,7 @@ from uuid import uuid4
 from tests.support.synthetic_bcp_pdf import create_synthetic_bcp_pdf
 
 from statement_worker.domain.models import ExtractionStatus
+from statement_worker.exporters.bcp_workbook import build_bcp_workbook_plan
 from statement_worker.extractors.bcp.document_processor import process_bcp_pdf
 from statement_worker.extractors.bcp.models import BcpRowType
 from statement_worker.extractors.bcp.pdfplumber_adapter import read_bcp_pdf_with_pdfplumber
@@ -41,6 +42,19 @@ class PdfPlumberBcpIntegrationTests(TestCase):
             movements[0].description,
             "OPERACION SINTETICA | DETALLE SINTETICO",
         )
+
+    def test_the_account_currency_reaches_the_summary_sheet(self) -> None:
+        dollars_path = self.directory / "synthetic-bcp-usd.pdf"
+        create_synthetic_bcp_pdf(dollars_path, currency_label="DOLARES")
+
+        for path, expected in ((self.pdf_path, "PEN"), (dollars_path, "USD")):
+            with self.subTest(currency=expected):
+                result = process_bcp_pdf(path, temporary_parent=self.directory)
+                summary = build_bcp_workbook_plan(result).sheets[0]
+
+                self.assertEqual(result.currency, expected)
+                headers = [column.header for column in summary.columns]
+                self.assertEqual(summary.rows[0][headers.index("Moneda")], expected)
 
     def test_document_processor_sanitizes_wrapped_pdf(self) -> None:
         wrapped_path = self.directory / "wrapped.bin"

@@ -6,6 +6,7 @@ from pathlib import Path
 
 from reportlab.lib.colors import HexColor
 from reportlab.lib.pagesizes import letter
+from reportlab.lib.pdfencrypt import StandardEncryption
 from reportlab.pdfgen.canvas import Canvas
 
 _MAXIMUM_SYNTHETIC_PAGES = 28
@@ -19,6 +20,7 @@ def _draw_page(
     page_count: int,
     include_movements: bool,
     include_bank_marker: bool,
+    currency_label: str,
 ) -> None:
     canvas.setFillColor(HexColor("#17365D"))
     canvas.rect(25, 704, width - 50, 60, fill=1, stroke=0)
@@ -28,7 +30,7 @@ def _draw_page(
     canvas.drawString(42, 740, titulo)
     canvas.setFont("Helvetica", 9)
     canvas.drawString(42, 720, "DEL 01/04/26 AL 30/04/26")
-    canvas.drawRightString(width - 42, 720, "CUENTA 000-00000000-0-00 - SOLES")
+    canvas.drawRightString(width - 42, 720, f"CUENTA 000-00000000-0-00 - {currency_label}")
 
     table_left = 25
     table_right = 575
@@ -96,6 +98,8 @@ def create_synthetic_bcp_pdf(
     include_movements: bool = True,
     include_bank_marker: bool = True,
     page_count: int = 1,
+    currency_label: str = "SOLES",
+    password: str | None = None,
 ) -> None:
     """Crea un documento ficticio sin datos derivados de clientes reales.
 
@@ -108,6 +112,9 @@ def create_synthetic_bcp_pdf(
     Con `page_count > 1` repite la estructura numerando cada página y fechando su
     movimiento con el número de página, para poder comprobar que un lector que
     reparte páginas entre procesos las devuelve en su sitio.
+
+    Con `password` el documento pide contraseña de apertura, como los que los
+    bancos envían por correo.
     """
 
     if not 1 <= page_count <= _MAXIMUM_SYNTHETIC_PAGES:
@@ -115,7 +122,12 @@ def create_synthetic_bcp_pdf(
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     width, _ = letter
-    canvas = Canvas(str(output_path), pagesize=letter, invariant=1)
+    encryption = (
+        None
+        if password is None
+        else StandardEncryption(password, ownerPassword="propietario-sintetico", strength=128)
+    )
+    canvas = Canvas(str(output_path), pagesize=letter, invariant=1, encrypt=encryption)
     canvas.setTitle("Synthetic BCP statement for automated tests")
 
     for page_number in range(1, page_count + 1):
@@ -126,6 +138,7 @@ def create_synthetic_bcp_pdf(
             page_count=page_count,
             include_movements=include_movements,
             include_bank_marker=include_bank_marker,
+            currency_label=currency_label,
         )
         canvas.showPage()
 

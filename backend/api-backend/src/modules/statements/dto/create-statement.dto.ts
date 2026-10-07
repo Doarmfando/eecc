@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, Matches, Max, MaxLength, Min } from 'class-validator';
 
 export class CreateStatementDto {
   @ApiPropertyOptional({ description: 'Año a usar cuando el documento omite el del periodo' })
@@ -18,6 +18,21 @@ export class CreateStatementDto {
   @IsString()
   @Matches(/^[a-z0-9-]{3,64}$/)
   extractorId?: string;
+
+  /**
+   * Contraseña de apertura del PDF, cuando el banco lo envía protegido.
+   *
+   * Solo viaja al worker para abrir el documento: no se guarda, no se registra y
+   * no forma parte de la clave de idempotencia.
+   */
+  @ApiPropertyOptional({
+    description: 'Contraseña de apertura del PDF protegido; no se almacena',
+    format: 'password',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  pdfPassword?: string;
 }
 
 export class StatementCheckDto {

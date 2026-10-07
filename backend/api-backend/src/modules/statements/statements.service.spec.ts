@@ -167,6 +167,26 @@ describe('StatementsService', () => {
     ]);
   });
 
+  it('reenvía la contraseña del PDF al worker sin guardarla en ninguna parte', async () => {
+    const recorder: TransactionRecorder = { created: [] };
+    const { prisma } = buildPrisma(null, recorder);
+    const processStatement = jest.fn().mockResolvedValue(workerPayload());
+    const service = buildService(prisma, { processStatement });
+
+    await service.process({
+      organizationId: ORGANIZATION_ID,
+      content: pdfBuffer(),
+      fileName: 'estado.pdf',
+      mimeType: 'application/pdf',
+      pdfPassword: 'clave-del-pdf-123',
+    });
+
+    expect(processStatement).toHaveBeenCalledWith(
+      expect.objectContaining({ pdfPassword: 'clave-del-pdf-123' }),
+    );
+    expect(JSON.stringify(recorder.created)).not.toContain('clave-del-pdf-123');
+  });
+
   it('guarda el PDF de origen y los artefactos del worker con su checksum', async () => {
     const recorder: TransactionRecorder = { created: [] };
     const { prisma } = buildPrisma(null, recorder);

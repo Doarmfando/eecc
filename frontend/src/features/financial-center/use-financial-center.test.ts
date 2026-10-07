@@ -16,6 +16,7 @@ function tx(overrides: Partial<FinancialTransaction>): FinancialTransaction {
   return {
     id: 'tx-1',
     bankId: 'bcp',
+    currency: 'PEN',
     date: '2026-01-15',
     description: 'Transferencia recibida — Cliente corporativo',
     category: 'Transferencias',
@@ -31,6 +32,7 @@ const SAMPLE_MOVEMENTS: FinancialTransaction[] = [
   tx({
     id: 'b',
     bankId: 'bcp',
+    currency: 'PEN',
     date: '2026-02-10',
     type: 'CARGO',
     amountCents: 20000,
@@ -41,6 +43,7 @@ const SAMPLE_MOVEMENTS: FinancialTransaction[] = [
   tx({
     id: 'c',
     bankId: 'bbva',
+    currency: 'PEN',
     date: '2026-02-10',
     type: 'CARGO',
     amountCents: 15000,
@@ -53,6 +56,7 @@ function statement(overrides: Partial<FinancialStatement>): FinancialStatement {
   return {
     id: 'bcp-2026-02',
     bancoOrigen: 'bcp',
+    moneda: 'PEN',
     fechaPeriodo: '2026-02',
     periodoLabel: 'Febrero de 2026',
     saldoInicial: 0,
@@ -68,6 +72,7 @@ const SAMPLE_STATEMENTS: FinancialStatement[] = [
   statement({
     id: 'bcp-2026-01',
     bancoOrigen: 'bcp',
+    moneda: 'PEN',
     fechaPeriodo: '2026-01',
     periodoLabel: 'Enero de 2026',
     saldoInicial: 100000,
@@ -79,6 +84,7 @@ const SAMPLE_STATEMENTS: FinancialStatement[] = [
   statement({
     id: 'bcp-2026-02',
     bancoOrigen: 'bcp',
+    moneda: 'PEN',
     fechaPeriodo: '2026-02',
     saldoInicial: 130000,
     abonos: 50000,
@@ -89,6 +95,7 @@ const SAMPLE_STATEMENTS: FinancialStatement[] = [
   statement({
     id: 'bbva-2026-02',
     bancoOrigen: 'bbva',
+    moneda: 'PEN',
     fechaPeriodo: '2026-02',
     saldoInicial: 40000,
     abonos: 0,

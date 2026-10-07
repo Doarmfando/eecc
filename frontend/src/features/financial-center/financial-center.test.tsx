@@ -9,6 +9,7 @@ function tx(overrides: Partial<FinancialTransaction>): FinancialTransaction {
   return {
     id: 'tx-1',
     bankId: 'bcp',
+    currency: 'PEN',
     date: '2026-02-01',
     description: 'Transferencia recibida — Cliente corporativo',
     category: 'Transferencias',
@@ -23,6 +24,7 @@ function statement(overrides: Partial<FinancialStatement>): FinancialStatement {
   return {
     id: 'bcp-2026-02',
     bancoOrigen: 'bcp',
+    moneda: 'PEN',
     fechaPeriodo: '2026-02',
     periodoLabel: 'Febrero de 2026',
     saldoInicial: 0,
@@ -40,6 +42,7 @@ const FIXTURE_STATEMENTS: FinancialStatement[] = [
   statement({
     id: 'bcp-2026-02',
     bancoOrigen: 'bcp',
+    moneda: 'PEN',
     fechaPeriodo: '2026-02',
     saldoInicial: 100000,
     abonos: 85000,
@@ -50,6 +53,7 @@ const FIXTURE_STATEMENTS: FinancialStatement[] = [
       tx({
         id: 'm2',
         bankId: 'bcp',
+        currency: 'PEN',
         date: '2026-02-18',
         type: 'CARGO',
         amountCents: 10000,
@@ -65,6 +69,7 @@ const FIXTURE_STATEMENTS: FinancialStatement[] = [
   statement({
     id: 'bbva-2026-02',
     bancoOrigen: 'bbva',
+    moneda: 'PEN',
     fechaPeriodo: '2026-02',
     saldoInicial: 40000,
     abonos: 15000,
@@ -74,6 +79,7 @@ const FIXTURE_STATEMENTS: FinancialStatement[] = [
       tx({
         id: 'n1',
         bankId: 'bbva',
+        currency: 'PEN',
         date: '2026-02-19',
         type: 'CARGO',
         amountCents: 12000,
@@ -89,6 +95,7 @@ const FIXTURE_STATEMENTS: FinancialStatement[] = [
   statement({
     id: 'bcp-2026-01',
     bancoOrigen: 'bcp',
+    moneda: 'PEN',
     fechaPeriodo: '2026-01',
     periodoLabel: 'Enero de 2026',
     saldoInicial: 80000,
@@ -104,6 +111,7 @@ const FIXTURE_STATEMENTS: FinancialStatement[] = [
   statement({
     id: 'bbva-2026-01',
     bancoOrigen: 'bbva',
+    moneda: 'PEN',
     fechaPeriodo: '2026-01',
     periodoLabel: 'Enero de 2026',
     saldoInicial: 20000,
@@ -228,5 +236,58 @@ describe('FinancialCenter', () => {
     // BCP en febrero trae 6 movimientos: menos que una página, ya no cabe "Cargar más".
     expect(within(card).getAllByRole('listitem')).toHaveLength(6);
     expect(within(card).queryByRole('button', { name: 'Cargar más' })).not.toBeInTheDocument();
+  });
+});
+
+describe('FinancialCenter por moneda', () => {
+  const dollars = statement({
+    id: 'bbva-usd-2026-03',
+    bancoOrigen: 'bbva',
+    moneda: 'USD',
+    fechaPeriodo: '2026-03',
+    saldoInicial: 50000,
+    abonos: 25000,
+    cargos: 5000,
+    saldoFinal: 70000,
+    movimientos: [
+      tx({ id: 'u1', bankId: 'bbva', currency: 'USD', date: '2026-03-04', amountCents: 25000 }),
+      tx({
+        id: 'u2',
+        bankId: 'bbva',
+        currency: 'USD',
+        date: '2026-03-09',
+        type: 'CARGO',
+        amountCents: 5000,
+      }),
+    ],
+  });
+
+  it('sin cuentas en dólares no ofrece elegir moneda', () => {
+    render(<FinancialCenter statements={FIXTURE_STATEMENTS} />);
+
+    expect(screen.queryByRole('radiogroup', { name: 'Moneda' })).not.toBeInTheDocument();
+  });
+
+  it('consolida cada moneda por separado y con su signo', async () => {
+    const user = userEvent.setup();
+    render(<FinancialCenter statements={[...FIXTURE_STATEMENTS, dollars]} />);
+
+    // Empieza en soles: el mes de los dólares (marzo) ni siquiera es elegible.
+    expect(screen.getByRole('combobox', { name: 'Elegir mes y año' })).toHaveValue('2026-02');
+    expect(screen.queryByText(/US\$ \d/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('radio', { name: /Dólares/ }));
+
+    expect(screen.getByRole('combobox', { name: 'Elegir mes y año' })).toHaveValue('2026-03');
+    expect(screen.getByText('+ US$ 200.00')).toBeInTheDocument();
+    expect(within(movementsCard()).getByText('+ US$ 250.00')).toBeInTheDocument();
+    expect(within(movementsCard()).getByText('− US$ 50.00')).toBeInTheDocument();
+    const cuentas = screen.getByText('Cuentas consolidadas').closest('[data-slot="card"]');
+    if (!(cuentas instanceof HTMLElement)) {
+      throw new Error('No se encontró la tarjeta de cuentas consolidadas.');
+    }
+    // Solo la cuenta en dólares: el BCP en soles no se mezcla.
+    expect(within(cuentas).getAllByRole('listitem')).toHaveLength(1);
+    expect(within(cuentas).getByText('US$ 700.00')).toBeInTheDocument();
   });
 });

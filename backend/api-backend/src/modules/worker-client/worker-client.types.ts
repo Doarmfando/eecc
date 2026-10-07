@@ -29,5 +29,6 @@ export interface WorkerProcessRequest {
   fileName: string;
   defaultYear?: number;
   extractorId?: string;
+  pdfPassword?: string;
   requestId?: string;
 }
