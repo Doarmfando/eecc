@@ -104,8 +104,6 @@ interface DeclaredSummary {
   saldoInicial: number | null;
   abonos: number | null;
   cargos: number | null;
-  /** Total de ITF, que el BBVA declara aparte de los cargos. */
-  itf: number | null;
   saldoFinal: number | null;
 }
 
@@ -123,7 +121,6 @@ export function readSummary(csv: string | null): DeclaredSummary {
     saldoInicial: null,
     abonos: null,
     cargos: null,
-    itf: null,
     saldoFinal: null,
   };
   if (!csv) {
@@ -139,7 +136,6 @@ export function readSummary(csv: string | null): DeclaredSummary {
     saldoInicial: parseCents(readCell(table, row, 'Saldo inicial', 'Saldo anterior')),
     abonos: parseCents(readCell(table, row, 'Total abonos', 'Total ingresos')),
     cargos: parseCents(readCell(table, row, 'Total cargos', 'Total gastos')),
-    itf: parseCents(readCell(table, row, 'Total ITF')),
     saldoFinal: parseCents(readCell(table, row, 'Saldo final', 'Saldo contable final')),
   };
 }
@@ -198,12 +194,16 @@ export function buildFinancialStatement(source: StatementCsvSource): FinancialSt
   const bancoOrigen = bankFromExtractor(source.extractorId);
   const moneda = summary.moneda ?? UNDECLARED_CURRENCY;
 
-  // El ITF sale de la cuenta igual que un cargo: sin sumarlo, saldo inicial más
-  // entradas menos salidas no llegaría al saldo final que declara el banco.
+  // El ITF sale de la cuenta igual que un cargo, y aquí se muestra aparte.
   const sumaAbonos = movementRows.reduce((total, row) => total + row.creditCents, 0);
   const sumaCargos = movementRows.reduce((total, row) => total + row.debitCents + row.itfCents, 0);
-  const abonos = summary.abonos ?? sumaAbonos;
-  const cargos = summary.cargos === null ? sumaCargos : summary.cargos + (summary.itf ?? 0);
+  // El BBVA no imprime totales de cargos y abonos: los de su `Resumen` los calcula
+  // el worker con el ITF de cada fila ya restado. Como aquí el ITF es un cargo
+  // propio, entradas y salidas se suman desde las mismas filas que se listan; si
+  // no, el ITF contaría dos veces y no cuadrarían con el Calendario.
+  const itfPorFila = movementRows.some((row) => row.itfCents !== 0);
+  const abonos = itfPorFila ? sumaAbonos : (summary.abonos ?? sumaAbonos);
+  const cargos = itfPorFila ? sumaCargos : (summary.cargos ?? sumaCargos);
 
   // Orden de preferencia: lo que el documento declara, luego lo que se puede
   // derivar de sus saldos, y solo al final la ecuación del periodo.

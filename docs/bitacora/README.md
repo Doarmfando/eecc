@@ -13,6 +13,16 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-10-06 — Prueba de punta a punta como persona, y el ITF contado dos veces
+
+- Hecho: la aplicación entera levantada en local (worker, API, PostgreSQL y frontend) y recorrida como lo haría una persona, con los cinco PDF reales de `referencias/`, copias suyas protegidas con contraseña (AES-128, RC4-128 y AES-256, como llegan por correo), PDF sintéticos de los cinco extractores y archivos que no son estados de cuenta. 24 subidas por la API y 40 comprobaciones en el navegador: un administrador da de alta a una persona, ella entra, sube, ve el detalle, descarga Excel y CSV, marca en el Historial, consolida en el Centro Financiero y el Calendario en soles y en dólares, a 1366 y 360 px, y el cupo de 3 retira el más antiguo al subir el cuarto.
+- Verificado: un PDF real protegido pide la contraseña, rechaza la equivocada y con la correcta da el mismo resultado que el original (15,990 movimientos del BCP, 60 del BBVA); repetirlo reutiliza el trabajo. Los cinco reales terminan en `SUCCEEDED` sin advertencias. Vacío y no-PDF se rechazan en el navegador o con `UNSUPPORTED_MEDIA_TYPE`; un PDF roto, con `INVALID_PDF`. Sin desbordes de página ni de celdas. Registros de la API, el worker y el frontend sin errores.
+- Defecto corregido: **el Centro Financiero contaba dos veces el ITF del BBVA.** Los totales del `Resumen` del BBVA ya traen el ITF de cada fila restado (los calcula el worker; el banco no los imprime), y la interfaz le sumaba además el `Total ITF`: con el documento real, inicial + entradas − salidas quedaba 5.75 por debajo del saldo final. Ahora, si las filas traen ITF, entradas y salidas se suman desde las filas, igual que el Calendario y la lista de movimientos. La prueba del frontend tenía el mismo error en su CSV de ejemplo; se rehízo con lo que el worker publica de verdad.
+- Hallazgo: el Banco de la Nación **no declara la moneda** en ninguna parte de su primera página (ni `MONEDA`, ni `SOLES`, ni `S/`), así que su `Resumen` sale sin moneda y la interfaz lo trata como soles. Correcto para la muestra (cuenta en soles); una cuenta en dólares del banco se vería en soles.
+- Hallazgo: `frontend/.env.local` dirige el proxy de Vite a la **API de producción**. Un `ejecutar.ps1` levanta el frontend local contra producción, no contra la API local; para probar en local hay que arrancar Vite con `VITE_API_PROXY_TARGET=http://127.0.0.1:3000`.
+- Verificación: frontend `npm run check` en verde (214 pruebas).
+- Pendiente: revisar en la base de producción qué probaron las personas; esta sesión no tuvo permiso para leerla.
+
 ## 2026-10-06 — PDF protegidos, BBVA y Banco de la Nación en la carga, y dólares con su signo
 
 - Defecto corregido: un estado de cuenta del BCP enviado por correo (`EECC…PDF`) fallaba en las pruebas con «El documento no pudo leerse como PDF». No se pudo ver el documento —la API no guarda los rechazos del worker y este no registra el motivo, a propósito—, pero el fallo se reprodujo con un PDF sintético: **un PDF con contraseña de apertura** hace fallar a pdfminer con la misma excepción que uno corrupto, y el worker lo traducía a `INVALID_PDF`. Las cinco muestras de `referencias/` que sí funcionan no tienen cifrado.

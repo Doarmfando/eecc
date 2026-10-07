@@ -149,7 +149,7 @@ const BBVA_MOVEMENTS = csv(
 
 const BBVA_SUMMARY = csv(
   'Estado,Extractor,Versión,Confianza,Moneda,Páginas,Movimientos,Saldo anterior,Total abonos,Total cargos,Total ITF,Saldo contable final,Advertencias',
-  'SUCCEEDED,bbva-account-v1,0.1.0,0.90,USD,1,3,1000.00,500.00,210.00,0.03,1289.97,0',
+  'SUCCEEDED,bbva-account-v1,0.1.0,0.90,USD,1,3,1000.00,499.98,210.01,0.03,1289.97,0',
 );
 
 describe('buildFinancialStatement con BBVA', () => {
@@ -188,6 +188,21 @@ describe('buildFinancialStatement con BBVA', () => {
       ['Comision de mantenimiento', 1000],
     ]);
     expect(statement.movimientos[1]).toMatchObject({ type: 'CARGO', category: 'Impuestos' });
+  });
+
+  it('no cuenta dos veces el ITF que el resumen ya resta de cada fila', () => {
+    // El worker publica abonos netos de ITF (499.98) y cargos con su ITF (210.01).
+    // Sumarle además el «Total ITF» descuadraba el periodo en el documento real.
+    expect(statement.abonos).toBe(
+      statement.movimientos
+        .filter((m) => m.type === 'ABONO')
+        .reduce((t, m) => t + m.amountCents, 0),
+    );
+    expect(statement.cargos).toBe(
+      statement.movimientos
+        .filter((m) => m.type === 'CARGO')
+        .reduce((t, m) => t + m.amountCents, 0),
+    );
   });
 
   it('suma el ITF a las salidas para que el periodo cuadre con el saldo final', () => {
@@ -291,7 +306,6 @@ describe('readSummary', () => {
       saldoInicial: null,
       abonos: null,
       cargos: null,
-      itf: null,
       saldoFinal: null,
     });
   });
