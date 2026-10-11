@@ -2,6 +2,8 @@ import bbvaLogo from '@/assets/banks/bbva.png';
 import bcpLogo from '@/assets/banks/bcp.png';
 import interbankLogo from '@/assets/banks/interbank.webp';
 import scotiabankLogo from '@/assets/banks/scotiabank.webp';
+import nacionLogo from '@/assets/banks/nacion.png';
+
 import { BANK_NAMES, type BankId } from '@/features/statements/bank-selector';
 
 /**
@@ -55,7 +57,7 @@ export const BANK_ACCENTS: Record<SourceBankId, BankAccent> = {
   },
   nacion: {
     name: BANK_NAMES.nacion,
-    logo: null,
+    logo: nacionLogo,
     badgeClassName: 'bg-violet-100 text-violet-700',
     barClassName: 'bg-violet-500',
     dotClassName: 'bg-violet-500',

@@ -1,11 +1,18 @@
-import type { ReactNode } from 'react';
+import { Check, Search } from 'lucide-react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 
 import { StatusBadge } from '@/components/shared/status-badge';
+import { statusLabel } from '@/components/shared/status-labels';
 import { Alert } from '@/components/ui/alert';
 import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { BANK_ACCENTS, bankFromExtractor } from '@/features/financial-center/bank-accent';
+import { BankMark } from '@/features/financial-center/bank-mark';
+import { useFinancialStatements } from '@/features/financial-center/queries';
+import type { FinancialStatement } from '@/features/financial-center/types';
 import { describeError } from '@/lib/api-error';
-import { formatCount } from '@/lib/format';
+import { CURRENCY_NAMES, currencySymbol, formatCount } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { JobListItem } from '@/types/job';
 
@@ -18,23 +25,98 @@ import {
   type StatementSelection,
 } from './statement-selection';
 
+/** Lo que distingue a un documento de otro del mismo banco: su mes y su moneda. */
+interface StatementLabel {
+  period: string;
+  currency: string;
+}
+
+/**
+ * Periodo y moneda de cada documento, leídos de sus CSV publicados.
+ *
+ * Comparte caché con el Centro Financiero y el Calendario (misma clave de
+ * consulta), así que abrir esas vistas después no vuelve a descargar nada.
+ */
+function useStatementLabels(jobs: readonly JobListItem[]): Map<string, StatementLabel> {
+  const consolidables = useMemo(() => jobs.filter(isConsolidable), [jobs]);
+  const { statements } = useFinancialStatements(consolidables);
+  return useMemo(
+    () =>
+      new Map(
+        statements.map((statement: FinancialStatement) => [
+          statement.id,
+          {
+            period: statement.periodoLabel,
+            currency: `${currencySymbol(statement.moneda)} ${CURRENCY_NAMES[statement.moneda]}`,
+          },
+        ]),
+      ),
+    [statements],
+  );
+}
+
+/** Minúsculas y sin tildes: «nacion» encuentra «Nación». */
+function normalize(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase();
+}
+
+/** Todo lo que se ve en la fila, para que el buscador filtre por lo mismo que se lee. */
+function rowText(job: JobListItem, label: StatementLabel | undefined): string {
+  return normalize(
+    [
+      BANK_ACCENTS[bankFromExtractor(job.extractorId)].name,
+      statusLabel(job.status),
+      formatProcessedAt(job.createdAt),
+      label?.period ?? '',
+      label?.currency ?? '',
+      `${formatCount(job.movementCount)} movimientos`,
+      job.warningCount > 0 ? 'advertencias' : '',
+    ].join(' '),
+  );
+}
+
 function HistoryRow({
   job,
+  label,
   selection,
 }: {
   job: JobListItem;
+  label: StatementLabel | undefined;
   selection: StatementSelection;
 }): ReactNode {
   const consolidable = isConsolidable(job);
   const included = consolidable && selection.isIncluded(job.jobId);
+  const bankId = bankFromExtractor(job.extractorId);
+  const accent = BANK_ACCENTS[bankId];
   return (
     <li className="flex items-center gap-2">
       <Link
         to={`/jobs/${job.jobId}`}
         className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1 rounded-md px-2 py-3 hover:bg-accent"
       >
+        <span className="flex w-full shrink-0 items-center gap-2.5 sm:w-52">
+          <span
+            className={cn(
+              'flex size-9 shrink-0 items-center justify-center rounded-lg',
+              accent.badgeClassName,
+            )}
+          >
+            <BankMark bankId={bankId} className="h-4.5 w-7" />
+          </span>
+          <span className="flex min-w-0 flex-col">
+            <span className="truncate text-sm font-medium text-foreground">{accent.name}</span>
+            {label ? (
+              <span className="truncate text-xs text-muted-foreground">
+                {label.period} · {label.currency}
+              </span>
+            ) : null}
+          </span>
+        </span>
         <StatusBadge status={job.status} />
-        <span className="flex-1 text-sm">{formatProcessedAt(job.createdAt)}</span>
+        <span className="flex-1 text-sm whitespace-nowrap">{formatProcessedAt(job.createdAt)}</span>
         <span className="text-xs text-muted-foreground">
           {formatCount(job.movementCount)} movimientos · {formatCount(job.artifactCount)} archivos
           {job.warningCount > 0 ? ` · ${formatCount(job.warningCount)} advertencias` : ''}
@@ -44,29 +126,53 @@ function HistoryRow({
           publicados no tiene movimientos que analizar, así que no se ofrece. */}
       <span className="flex w-10 shrink-0 justify-center">
         {consolidable ? (
-          <input
-            type="checkbox"
-            checked={included}
-            aria-label={`Incluir el documento del ${formatProcessedAt(job.createdAt)} en el análisis`}
+          <label
             title="Incluir en el Centro Financiero y el Calendario"
-            onChange={(event) => {
-              selection.setIncluded(job.jobId, event.target.checked);
-            }}
-            className={cn(
-              'size-4 cursor-pointer rounded border-border text-primary',
-              'focus-visible:outline-ring focus-visible:outline-2 focus-visible:outline-offset-2',
-            )}
-          />
+            className="relative flex size-8 cursor-pointer items-center justify-center rounded-md hover:bg-accent"
+          >
+            <input
+              type="checkbox"
+              checked={included}
+              aria-label={`Incluir el documento del ${formatProcessedAt(job.createdAt)} en el análisis`}
+              onChange={(event) => {
+                selection.setIncluded(job.jobId, event.target.checked);
+              }}
+              className={cn(
+                'peer size-5 cursor-pointer appearance-none rounded-[0.3rem] border-2 border-muted-foreground/40 bg-background transition-colors',
+                'hover:border-primary/60 checked:border-primary checked:bg-primary',
+                'focus-visible:outline-ring focus-visible:outline-2 focus-visible:outline-offset-2',
+              )}
+            />
+            <Check
+              aria-hidden
+              strokeWidth={3}
+              className="pointer-events-none absolute size-3.5 text-primary-foreground opacity-0 transition-opacity peer-checked:opacity-100"
+            />
+          </label>
         ) : null}
       </span>
     </li>
   );
 }
 
+const NO_JOBS: readonly JobListItem[] = [];
+
 export function JobHistory(): ReactNode {
   const history = useJobHistory();
   const selection = useStatementSelection();
-  const hasConsolidable = history.data?.items.some(isConsolidable) ?? false;
+  const [query, setQuery] = useState('');
+  const items = history.data?.items ?? NO_JOBS;
+  const labels = useStatementLabels(items);
+  const hasConsolidable = items.some(isConsolidable);
+
+  const terms = normalize(query).split(/\s+/).filter(Boolean);
+  const visible =
+    terms.length === 0
+      ? items
+      : items.filter((job) => {
+          const text = rowText(job, labels.get(job.jobId));
+          return terms.every((term) => text.includes(term));
+        });
 
   if (history.isError) {
     return <Alert variant="destructive" title={describeError(history.error)} />;
@@ -85,11 +191,38 @@ export function JobHistory(): ReactNode {
               Marca los documentos que quieres ver en el Centro Financiero y el Calendario.
             </p>
           ) : null}
-          <ul className="divide-y divide-border">
-            {history.data.items.map((job) => (
-              <HistoryRow key={job.jobId} job={job} selection={selection} />
-            ))}
-          </ul>
+          <div className="relative w-full sm:max-w-sm">
+            <Search
+              aria-hidden
+              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+            />
+            <Input
+              type="search"
+              value={query}
+              placeholder="Buscar por banco, mes, moneda o estado…"
+              aria-label="Buscar en el historial"
+              onChange={(event) => {
+                setQuery(event.target.value);
+              }}
+              className="pl-9"
+            />
+          </div>
+          {visible.length > 0 ? (
+            <ul className="divide-y divide-border">
+              {visible.map((job) => (
+                <HistoryRow
+                  key={job.jobId}
+                  job={job}
+                  label={labels.get(job.jobId)}
+                  selection={selection}
+                />
+              ))}
+            </ul>
+          ) : (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              Ningún documento coincide con «{query.trim()}».
+            </p>
+          )}
           {history.data.nextCursor === null ? null : (
             <p className="text-xs text-muted-foreground">
               Se muestran los más recientes; hay documentos más antiguos.

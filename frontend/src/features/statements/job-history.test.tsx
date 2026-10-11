@@ -2,6 +2,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { JOB_LIST, stubApi } from '@/test/financial-api';
 import { renderWithProviders, TEST_USER } from '@/test/render';
 
 import { formatProcessedAt } from './format-processed-at';
@@ -45,6 +46,7 @@ describe('JobHistory', () => {
     renderWithProviders(<JobHistory />);
 
     expect(await screen.findByTestId('status-badge')).toHaveTextContent('Requiere revisión');
+    expect(screen.getByText('BCP')).toBeInTheDocument();
     expect(screen.getByText(/8 movimientos/)).toBeInTheDocument();
     expect(screen.getByText(/2 advertencias/)).toBeInTheDocument();
     expect(screen.getByRole('link')).toHaveAttribute('href', `/jobs/${ITEM.jobId}`);
@@ -111,6 +113,43 @@ describe('JobHistory', () => {
       expect(screen.getByText(/Cargando el historial/)).toBeInTheDocument();
     });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('JobHistory: periodo y buscador', () => {
+  const FALLIDO = {
+    ...JOB_LIST.items[0],
+    jobId: 'job-2',
+    status: 'FAILED',
+    extractorId: 'interbank-savings-v1',
+  };
+
+  it('dice a qué mes y moneda pertenece cada documento', async () => {
+    stubApi({ items: [...JOB_LIST.items, FALLIDO], nextCursor: null });
+    renderWithProviders(<JobHistory />);
+
+    expect(await screen.findByText('Setiembre de 2026 · S/ Soles')).toBeInTheDocument();
+  });
+
+  it('filtra lo que se ve en pantalla, sin distinguir tildes ni mayúsculas', async () => {
+    const user = userEvent.setup();
+    stubApi({ items: [...JOB_LIST.items, FALLIDO], nextCursor: null });
+    renderWithProviders(<JobHistory />);
+    await screen.findByText('Setiembre de 2026 · S/ Soles');
+    const search = screen.getByRole('searchbox', { name: 'Buscar en el historial' });
+
+    await user.type(search, 'INTERBANK');
+    expect(screen.getByText('Interbank')).toBeInTheDocument();
+    expect(screen.queryByText('BCP')).not.toBeInTheDocument();
+
+    await user.clear(search);
+    await user.type(search, 'setiembre soles');
+    expect(screen.getByText('BCP')).toBeInTheDocument();
+    expect(screen.queryByText('Interbank')).not.toBeInTheDocument();
+
+    await user.clear(search);
+    await user.type(search, 'revision');
+    expect(screen.getByText(/Ningún documento coincide/)).toBeInTheDocument();
   });
 });
 

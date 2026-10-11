@@ -13,6 +13,20 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-10-10 — El Historial dice el mes y la moneda de cada documento, y tiene buscador
+
+- Hecho: bajo el nombre del banco, cada fila muestra el periodo y la moneda del documento («Julio de 2026 · US$ Dólares»), para distinguir dos del mismo banco. Se leen de los CSV publicados con la misma consulta y la misma caché que el Centro Financiero y el Calendario (`useFinancialStatements`), así que abrir esas vistas después no vuelve a descargar nada. Un documento sin archivos (fallido) no tiene periodo que mostrar.
+- Hecho: buscador de texto sobre lo que se ve en la lista: banco, mes, moneda, estado, fecha y movimientos. No distingue tildes ni mayúsculas y exige todas las palabras («setiembre soles»). Filtra en el navegador: no consulta la API.
+- Hecho: las etiquetas de estado pasan a `components/shared/status-labels.ts` para que el buscador use el mismo texto que el badge.
+- Verificación: tipos, ESLint y Vitest del frontend en verde; capturas con Playwright y API simulada a 1366 y 375 px.
+
+## 2026-10-10 — El Historial muestra el banco de cada documento
+
+- Hecho: cada fila del Historial empieza con el logotipo y el nombre de su banco, sacados del `extractorId` que ya traía `/v1/jobs`. Los bancos sin logotipo (Banco de la Nación, «Otro banco») usan el ícono neutro de siempre.
+- Hecho: la casilla para incluir el documento en el análisis deja de ser la nativa del navegador: cuadrada, rellena con el color primario y un check blanco al marcarla, con área de clic de 32 px. Sigue siendo un `<input type="checkbox">`, así que el teclado y los lectores de pantalla no cambian.
+- Verificación: tipos, ESLint y Vitest del frontend en verde; capturas con Playwright y API simulada a 1366 y 375 px.
+- Pendiente: logotipo del Banco de la Nación. Va en `frontend/src/assets/banks/` y se enlaza en `BANK_ACCENTS` (`frontend/src/features/financial-center/bank-accent.ts`).
+
 ## 2026-10-10 — El Calendario pinta cada día con el símbolo de su moneda
 
 - Hecho: las celdas del Calendario muestran el importe con su moneda, igual que el resumen del mes: `+S/ 18.09`, `−US$ 300.00`. En celdas estrechas se quita el símbolo (el selector ya dice la moneda) y desde mil se redondea (`66.4K`), como antes.
