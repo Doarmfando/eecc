@@ -13,6 +13,12 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-10-11 — El resumen del Calendario dice con qué saldo abre el mes
+
+- Hecho: la franja bajo el Calendario se lee como la cuenta que es: Periodo (`1 – 31 ago.`) · Saldo inicial · Entradas · Salidas · Saldo final. El saldo inicial es el mismo que arrastra la vista Balance (`computeBalanceBeforeMonth`: el cierre del mes anterior o el inicial declarado del documento más antiguo de cada banco), ahora expuesto como `openingBalanceCents` en `MonthSummary`. «Balance al 31 ago.» pasa a «Periodo» y «Saldo» a «Saldo final».
+- Hecho: en móvil siguen a la vista periodo y saldo final; el chevron despliega saldo inicial, entradas y salidas en filas (rótulo a la izquierda, importe a la derecha) en vez de tres columnas donde los importes se cortaban.
+- Verificación: tipos, ESLint y Vitest del frontend en verde; capturas con Playwright y API simulada a 1366, 1024 y 375 px.
+
 ## 2026-10-11 — Buscador en el Calendario y flujo negativo en rojo suave
 
 - Hecho: el Calendario tiene el mismo buscador que el Centro Financiero (descripción y categoría, `filterBySearch`). En Flujo cada día muestra solo el neto de lo encontrado; en Balance el saldo no cambia. En los dos, los días sin coincidencias se atenúan, el detalle del día lista solo lo que coincide y bajo el buscador se lee «N movimientos coinciden · neto ±S/ …». El resumen del mes y los saldos siguen siendo los de las cuentas: un saldo calculado solo con lo encontrado no sería el de ninguna.

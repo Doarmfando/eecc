@@ -18,6 +18,8 @@ export interface MonthSummary {
   incomeCents: number;
   expenseCents: number;
   netCents: number;
+  /** Saldo con el que abre el mes: el cierre del anterior, o el inicial declarado. */
+  openingBalanceCents: number;
   closingBalanceCents: number;
   movementCount: number;
 }
@@ -168,6 +170,7 @@ export function computeMonthSummary(
     incomeCents,
     expenseCents,
     netCents: incomeCents - expenseCents,
+    openingBalanceCents: balanceBeforeMonth,
     closingBalanceCents: balanceBeforeMonth + incomeCents - expenseCents,
     movementCount: monthTransactions.length,
   };

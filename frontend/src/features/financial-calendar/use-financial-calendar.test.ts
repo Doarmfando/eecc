@@ -105,6 +105,7 @@ describe('computeMonthSummary', () => {
     expect(summary.incomeCents).toBe(5000);
     expect(summary.expenseCents).toBe(35000);
     expect(summary.netCents).toBe(5000 - 35000);
+    expect(summary.openingBalanceCents).toBe(50000);
     expect(summary.closingBalanceCents).toBe(50000 + 5000 - 35000);
     expect(summary.movementCount).toBe(3);
   });
@@ -115,6 +116,7 @@ describe('computeMonthSummary', () => {
       incomeCents: 0,
       expenseCents: 0,
       netCents: 0,
+      openingBalanceCents: 12000,
       closingBalanceCents: 12000,
       movementCount: 0,
     });

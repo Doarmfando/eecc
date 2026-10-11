@@ -70,8 +70,11 @@ describe('FinancialCalendarView', () => {
       screen.getByRole('tablist', { name: 'Modo de vista del calendario' }),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Filtrar por banco (todos)' })).toBeInTheDocument();
-    expect(screen.getByText('Balance al')).toBeInTheDocument();
-    expect(screen.getByText('Saldo')).toBeInTheDocument();
+    expect(screen.getByText('Periodo')).toBeInTheDocument();
+    expect(screen.getByText('Saldo final')).toBeInTheDocument();
+    // Abre agosto con lo que declaran los dos documentos: 1,000.00 + 46.61.
+    expect(screen.getByText('Saldo inicial')).toBeInTheDocument();
+    expect(screen.getByText('S/ 1,046.61')).toBeInTheDocument();
     expect(screen.getByText('Entradas')).toBeInTheDocument();
     expect(screen.getByText('Salidas')).toBeInTheDocument();
     expect(screen.getByText(AVISO_SIN_DIA)).toBeInTheDocument();
@@ -147,14 +150,13 @@ describe('FinancialCalendarView', () => {
     const user = userEvent.setup();
     render(<FinancialCalendarView statements={STATEMENTS} />);
 
-    const chevron = screen.getByRole('button', { name: 'Ver entradas y salidas' });
+    const chevron = screen.getByRole('button', { name: 'Ver saldo inicial, entradas y salidas' });
     expect(chevron).toHaveAttribute('aria-expanded', 'false');
 
     await user.click(chevron);
-    expect(screen.getByRole('button', { name: 'Ocultar entradas y salidas' })).toHaveAttribute(
-      'aria-expanded',
-      'true',
-    );
+    expect(
+      screen.getByRole('button', { name: 'Ocultar saldo inicial, entradas y salidas' }),
+    ).toHaveAttribute('aria-expanded', 'true');
   });
 
   it('pinta en la celda el importe con su moneda y sus dos decimales', async () => {
