@@ -1,8 +1,8 @@
 import bbvaLogo from '@/assets/banks/bbva.png';
 import bcpLogo from '@/assets/banks/bcp.png';
 import interbankLogo from '@/assets/banks/interbank.webp';
+import nacionLogo from '@/assets/banks/nacion-simbolo.png';
 import scotiabankLogo from '@/assets/banks/scotiabank.webp';
-import nacionLogo from '@/assets/banks/nacion.png';
 
 import { BANK_NAMES, type BankId } from '@/features/statements/bank-selector';
 
@@ -18,54 +18,52 @@ export type SourceBankId = BankId | 'otro';
 
 interface BankAccent {
   name: string;
-  /** `null` cuando no hay logotipo propio: la marca se dibuja con un ícono. */
+  /**
+   * `null` cuando no hay logotipo propio: la marca se dibuja con un ícono. Se
+   * muestra en huecos de unos 36 × 24 px, así que un logotipo muy apaisado (el
+   * del Banco de la Nación, casi 5:1, con su nombre) se queda en unos píxeles de
+   * alto: para esos se usa solo el símbolo.
+   */
   logo: string | null;
-  badgeClassName: string;
   barClassName: string;
   dotClassName: string;
 }
 
-/** Un acento por banco para distinguirlos de un vistazo en badges, barras y leyendas. */
+/** Un acento por banco para distinguirlos de un vistazo en barras y leyendas. */
 export const BANK_ACCENTS: Record<SourceBankId, BankAccent> = {
   bcp: {
     name: BANK_NAMES.bcp,
     logo: bcpLogo,
-    badgeClassName: 'bg-orange-100 text-orange-700',
     barClassName: 'bg-orange-500',
     dotClassName: 'bg-orange-500',
   },
   bbva: {
     name: BANK_NAMES.bbva,
     logo: bbvaLogo,
-    badgeClassName: 'bg-sky-100 text-sky-700',
     barClassName: 'bg-sky-500',
     dotClassName: 'bg-sky-500',
   },
   interbank: {
     name: BANK_NAMES.interbank,
     logo: interbankLogo,
-    badgeClassName: 'bg-emerald-100 text-emerald-700',
     barClassName: 'bg-emerald-500',
     dotClassName: 'bg-emerald-500',
   },
   scotiabank: {
     name: BANK_NAMES.scotiabank,
     logo: scotiabankLogo,
-    badgeClassName: 'bg-rose-100 text-rose-700',
     barClassName: 'bg-rose-500',
     dotClassName: 'bg-rose-500',
   },
   nacion: {
     name: BANK_NAMES.nacion,
     logo: nacionLogo,
-    badgeClassName: 'bg-violet-100 text-violet-700',
     barClassName: 'bg-violet-500',
     dotClassName: 'bg-violet-500',
   },
   otro: {
     name: 'Otro banco',
     logo: null,
-    badgeClassName: 'bg-slate-100 text-slate-600',
     barClassName: 'bg-slate-400',
     dotClassName: 'bg-slate-400',
   },

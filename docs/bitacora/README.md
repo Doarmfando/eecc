@@ -13,6 +13,12 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-10-11 — Logos sin fondo de color, y el del Banco de la Nación visible
+
+- Hecho: los logos de los bancos van solos, sin recuadro de color por banco (Historial, detalle del día del Calendario) ni gris (Cuentas consolidadas). El hueco conserva su tamaño para que la columna siga alineada. `badgeClassName` sale de `BANK_ACCENTS`, que ya no tenía otro uso.
+- Defecto corregido: el logo del Banco de la Nación estaba bien importado, pero es el logotipo completo con el nombre (2339 × 501, casi 5:1) y en un hueco de 36 × 24 px quedaba de unos 6 px de alto. Se recortó el símbolo a `assets/banks/nacion-simbolo.png` (cuadrado, fondo transparente) y es el que se usa; `nacion.png` queda en el repositorio sin usar.
+- Verificación: tipos, ESLint y Vitest del frontend en verde; capturas con Playwright y API simulada.
+
 ## 2026-10-11 — El resumen del Calendario dice con qué saldo abre el mes
 
 - Hecho: la franja bajo el Calendario se lee como la cuenta que es: Periodo (`1 – 31 ago.`) · Saldo inicial · Entradas · Salidas · Saldo final. El saldo inicial es el mismo que arrastra la vista Balance (`computeBalanceBeforeMonth`: el cierre del mes anterior o el inicial declarado del documento más antiguo de cada banco), ahora expuesto como `openingBalanceCents` en `MonthSummary`. «Balance al 31 ago.» pasa a «Periodo» y «Saldo» a «Saldo final».

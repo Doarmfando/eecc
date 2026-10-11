@@ -157,13 +157,8 @@ function HistoryRow({
         className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1 rounded-md px-2 py-3 hover:bg-accent"
       >
         <span className="flex w-full shrink-0 items-center gap-2.5 sm:w-52">
-          <span
-            className={cn(
-              'flex size-9 shrink-0 items-center justify-center rounded-lg',
-              accent.badgeClassName,
-            )}
-          >
-            <BankMark bankId={bankId} className="h-4.5 w-7" />
+          <span className="flex size-10 shrink-0 items-center justify-center text-muted-foreground">
+            <BankMark bankId={bankId} className="max-h-6 w-9" />
           </span>
           <span className="flex min-w-0 flex-col">
             <span className="truncate text-sm font-medium text-foreground">{accent.name}</span>

@@ -33,8 +33,8 @@ export function AccountsConsolidated({
                 dimmed ? 'opacity-40' : '',
               )}
             >
-              <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-muted">
-                <BankMark bankId={balance.bankId} className="h-6 w-auto max-w-8" />
+              <span className="flex size-11 shrink-0 items-center justify-center text-muted-foreground">
+                <BankMark bankId={balance.bankId} className="max-h-7 w-10" />
               </span>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-muted-foreground">{accent.name}</p>

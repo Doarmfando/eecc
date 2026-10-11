@@ -2,7 +2,6 @@ import { CalendarDays, CheckCircle2, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { Card } from '@/components/ui/card';
-import { BANK_ACCENTS } from '@/features/financial-center/bank-accent';
 import { BankMark } from '@/features/financial-center/bank-mark';
 import type { FinancialTransaction } from '@/features/financial-center/types';
 import { formatMoney } from '@/lib/format';
@@ -25,18 +24,12 @@ function formatDayLabel(isoDate: string): string {
 }
 
 function TransactionRow({ transaction }: { transaction: FinancialTransaction }): ReactNode {
-  const accent = BANK_ACCENTS[transaction.bankId];
   const isIncome = transaction.type === 'ABONO';
 
   return (
     <li className="flex items-center gap-3 py-3">
-      <span
-        className={cn(
-          'flex size-10 shrink-0 items-center justify-center rounded-xl',
-          accent.badgeClassName,
-        )}
-      >
-        <BankMark bankId={transaction.bankId} labelled className="h-5 w-8" />
+      <span className="flex size-10 shrink-0 items-center justify-center text-muted-foreground">
+        <BankMark bankId={transaction.bankId} labelled className="max-h-6 w-9" />
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-foreground">{transaction.description}</p>
