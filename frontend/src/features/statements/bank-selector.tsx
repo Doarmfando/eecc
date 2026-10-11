@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import bbvaLogo from '@/assets/banks/bbva.png';
 import bcpLogo from '@/assets/banks/bcp.png';
 import interbankLogo from '@/assets/banks/interbank.webp';
+import nacionLogo from '@/assets/banks/nacion.png';
 import scotiabankLogo from '@/assets/banks/scotiabank.webp';
 
 export type BankId = 'bcp' | 'bbva' | 'interbank' | 'nacion' | 'scotiabank';
@@ -15,6 +16,11 @@ interface BankOption {
   name: string;
   /** `null` cuando el proyecto no tiene su logotipo: se dibuja el nombre con un ícono. */
   logo: string | null;
+  /**
+   * Logotipo muy apaisado (con el nombre del banco al lado del símbolo): en el
+   * hueco normal de 80 px quedaría de unos 17 px de alto, ilegible.
+   */
+  wideLogo?: boolean;
   available: boolean;
 }
 
@@ -23,7 +29,13 @@ const BANK_OPTIONS: ReadonlyArray<BankOption> = [
   { id: 'bcp', name: 'BCP', logo: bcpLogo, available: true },
   { id: 'bbva', name: 'BBVA', logo: bbvaLogo, available: true },
   { id: 'interbank', name: 'Interbank', logo: interbankLogo, available: true },
-  { id: 'nacion', name: 'Banco de la Nación', logo: null, available: true },
+  {
+    id: 'nacion',
+    name: 'Banco de la Nación',
+    logo: nacionLogo,
+    wideLogo: true,
+    available: true,
+  },
   { id: 'scotiabank', name: 'Scotiabank', logo: scotiabankLogo, available: false },
 ];
 
@@ -83,7 +95,12 @@ export function BankSelector({
                 )}
               >
                 {bank.logo ? (
-                  <span className="flex h-9 w-20 shrink-0 items-center justify-start">
+                  <span
+                    className={cn(
+                      'flex h-9 shrink-0 items-center justify-start',
+                      bank.wideLogo ? 'w-40' : 'w-20',
+                    )}
+                  >
                     <img
                       src={bank.logo}
                       alt={bank.name}

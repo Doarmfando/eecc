@@ -9,7 +9,7 @@ import { BANK_ACCENTS, type SourceBankId } from './bank-accent';
  * El logotipo del banco, o un ícono neutro cuando no tenemos uno.
  *
  * No se inventa una marca ajena: los bancos sin logotipo propio en el proyecto
- * (Banco de la Nación, o lo que resolvió el respaldo genérico) se dibujan con el
+ * (hoy solo «Otro banco», lo que resolvió el respaldo genérico) se dibujan con el
  * mismo ícono y su nombre, que es lo que hace falta para distinguirlos.
  */
 export function BankMark({
