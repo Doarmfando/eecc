@@ -3,8 +3,9 @@ import { useMemo, type ReactNode } from 'react';
 import { Card } from '@/components/ui/card';
 import { useCurrencyFilter } from '@/features/financial-center/currency-filter';
 import { CurrencySwitch } from '@/features/financial-center/currency-switch';
+import { MovementsSearch } from '@/features/financial-center/movements-search';
 import type { FinancialStatement } from '@/features/financial-center/types';
-import type { Currency } from '@/lib/format';
+import { formatCount, formatMoney, type Currency } from '@/lib/format';
 
 import { BankFilterMenu } from './bank-filter-menu';
 import { CalendarMonthHeader } from './calendar-month-header';
@@ -14,6 +15,7 @@ import { MonthSummaryFooter } from './month-summary-footer';
 import {
   computeMonthRange,
   computeOpeningBalances,
+  type SearchSummary,
   useFinancialCalendar,
 } from './use-financial-calendar';
 import { ViewModeToggle } from './view-mode-toggle';
@@ -52,6 +54,16 @@ export function FinancialCalendarView({
   );
 }
 
+/** «3 movimientos coinciden · neto −S/ 120.00». */
+function describeSearch(summary: SearchSummary, currency: Currency): string {
+  if (summary.count === 0) {
+    return 'Ningún movimiento del mes coincide.';
+  }
+  const verb = summary.count === 1 ? 'movimiento coincide' : 'movimientos coinciden';
+  const sign = summary.netCents < 0 ? '−' : '+';
+  return `${formatCount(summary.count)} ${verb} · neto ${sign}${formatMoney(Math.abs(summary.netCents), currency)}`;
+}
+
 function CurrencyCalendar({
   statements,
   currency,
@@ -81,6 +93,10 @@ function CurrencyCalendar({
     selectDate,
     clearSelectedDate,
     dailyFlows,
+    search,
+    setSearch,
+    matchFlows,
+    searchSummary,
     monthlyBalances,
     monthSummary,
     dayTransactions,
@@ -106,11 +122,20 @@ function CurrencyCalendar({
               onSelectAllBanks={selectAllBanks}
             />
           </div>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <MovementsSearch value={search} onChange={setSearch} />
+            {searchSummary ? (
+              <p className="text-xs text-muted-foreground" aria-live="polite">
+                {describeSearch(searchSummary, currency)}
+              </p>
+            ) : null}
+          </div>
           <FinancialCalendarGrid
             viewMode={viewMode}
             currency={currency}
             calendarMonth={calendarMonth}
             dailyFlows={dailyFlows}
+            matchFlows={matchFlows}
             monthlyBalances={monthlyBalances}
             selectedDate={selectedDate}
             onSelectDate={selectDate}

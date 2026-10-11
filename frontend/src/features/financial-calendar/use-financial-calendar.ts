@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 
-import { filterByBanks } from '@/features/financial-center/use-financial-center';
+import { filterByBanks, filterBySearch } from '@/features/financial-center/use-financial-center';
 import type { FinancialStatement, FinancialTransaction } from '@/features/financial-center/types';
 import { orderBanks, type SourceBankId } from '@/features/financial-center/bank-accent';
 import { daysInMonth } from '@/lib/month';
@@ -173,6 +173,12 @@ export function computeMonthSummary(
   };
 }
 
+/** Lo que encontró el buscador en el mes: cuántos movimientos y su neto. */
+export interface SearchSummary {
+  count: number;
+  netCents: number;
+}
+
 export interface FinancialCalendarState {
   /** Bancos presentes en los movimientos cargados, en orden de presentación. */
   banks: SourceBankId[];
@@ -187,6 +193,11 @@ export interface FinancialCalendarState {
   selectDate: (date: string) => void;
   clearSelectedDate: () => void;
   dailyFlows: Map<string, DailyFlow>;
+  search: string;
+  setSearch: (search: string) => void;
+  /** Flujo diario solo de los movimientos que coinciden; `null` sin búsqueda. */
+  matchFlows: Map<string, DailyFlow> | null;
+  searchSummary: SearchSummary | null;
   monthlyBalances: Map<string, number>;
   monthSummary: MonthSummary;
   dayTransactions: FinancialTransaction[];
@@ -201,6 +212,8 @@ export function useFinancialCalendar(
   const [viewMode, setViewMode] = useState<ViewMode>('flujo');
   const [calendarMonth, setCalendarMonth] = useState(initialMonth);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const searching = search.trim() !== '';
 
   const toggleBank = (bankId: SourceBankId): void => {
     setSelectedBanks((current) => {
@@ -266,10 +279,34 @@ export function useFinancialCalendar(
     [monthTransactions, balanceBeforeMonth],
   );
 
-  const dayTransactions = useMemo(
-    () => (selectedDate ? filterByDate(bankFiltered, selectedDate) : []),
-    [bankFiltered, selectedDate],
+  // La búsqueda no toca saldos ni el resumen del mes: un saldo calculado solo con
+  // los movimientos encontrados no sería el de ninguna cuenta. Marca los días y
+  // filtra el detalle.
+  const matches = useMemo(
+    () => (searching ? filterBySearch(monthTransactions, search) : null),
+    [searching, monthTransactions, search],
   );
+  const matchFlows = useMemo(() => (matches ? computeDailyFlows(matches) : null), [matches]);
+  const searchSummary = useMemo(
+    () =>
+      matches
+        ? {
+            count: matches.length,
+            netCents: matches.reduce(
+              (total, transaction) =>
+                total +
+                (transaction.type === 'ABONO' ? transaction.amountCents : -transaction.amountCents),
+              0,
+            ),
+          }
+        : null,
+    [matches],
+  );
+
+  const dayTransactions = useMemo(() => {
+    const day = selectedDate ? filterByDate(bankFiltered, selectedDate) : [];
+    return searching ? filterBySearch(day, search) : day;
+  }, [bankFiltered, selectedDate, searching, search]);
 
   return {
     banks: orderBanks(transactions.map((transaction) => transaction.bankId)),
@@ -284,6 +321,10 @@ export function useFinancialCalendar(
     selectDate,
     clearSelectedDate,
     dailyFlows,
+    search,
+    setSearch,
+    matchFlows,
+    searchSummary,
     monthlyBalances,
     monthSummary,
     dayTransactions,

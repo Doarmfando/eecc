@@ -13,6 +13,12 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-10-11 — Buscador en el Calendario y flujo negativo en rojo suave
+
+- Hecho: el Calendario tiene el mismo buscador que el Centro Financiero (descripción y categoría, `filterBySearch`). En Flujo cada día muestra solo el neto de lo encontrado; en Balance el saldo no cambia. En los dos, los días sin coincidencias se atenúan, el detalle del día lista solo lo que coincide y bajo el buscador se lee «N movimientos coinciden · neto ±S/ …». El resumen del mes y los saldos siguen siendo los de las cuentas: un saldo calculado solo con lo encontrado no sería el de ninguna.
+- Hecho: en Flujo, el neto negativo de un día va en rojo suave (`text-destructive/75`) en vez de gris; el rojo pleno sigue reservado al saldo en contra en Balance.
+- Verificación: tipos, ESLint y Vitest del frontend en verde, con pruebas nuevas del buscador; capturas con Playwright y API simulada a 1366 y 375 px.
+
 ## 2026-10-10 — El periodo del Centro Financiero, arriba y a la vista; filtro de moneda en el Historial
 
 - Hecho: el selector de mes del Centro Financiero estaba al pie de la tarjeta del flujo neto, pequeño y sin rótulo. Ahora va arriba, encima de los filtros de banco, con el mismo encabezado que el Calendario: rótulo «Periodo», el mes en grande y las flechas de anterior y siguiente al lado. El mes abre un panel propio (Radix Popover, ya no el `<select>` nativo) con los doce meses de cada año que tiene documentos: los que tienen se eligen, el actual va resaltado y recibe el foco, y los demás se ven atenuados. `MonthPaginator` pasa a `PeriodPicker` (`period-picker.tsx`) y `NetFlowHero` deja de recibir el mes. Se probó antes un bloque con chips de meses; se descartó por pesado.

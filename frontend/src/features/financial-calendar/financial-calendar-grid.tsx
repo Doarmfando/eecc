@@ -16,10 +16,10 @@ function signOf(viewMode: ViewMode, cents: number): string {
   return viewMode === 'flujo' && cents > 0 ? '+' : '';
 }
 
-/** Como en la referencia, un flujo negativo va en tono neutro: el rojo se reserva al saldo en contra. */
+/** Un flujo negativo va en rojo suave; el rojo pleno se reserva al saldo en contra. */
 function amountToneClass(viewMode: ViewMode, cents: number, hasMovements: boolean): string {
   if (viewMode === 'flujo') {
-    return cents > 0 ? 'text-success' : 'text-foreground/70';
+    return cents > 0 ? 'text-success' : 'text-destructive/75';
   }
   if (cents < 0) {
     return 'text-destructive';
@@ -65,6 +65,7 @@ function DayCell({
   currency,
   flow,
   balanceCents,
+  dimmed,
   today,
   selected,
   onSelect,
@@ -74,6 +75,8 @@ function DayCell({
   currency: Currency;
   flow: DailyFlow | undefined;
   balanceCents: number | undefined;
+  /** Hay una búsqueda y este día no tiene ningún movimiento que coincida. */
+  dimmed: boolean;
   today: boolean;
   selected: boolean;
   onSelect: (date: string) => void;
@@ -102,6 +105,7 @@ function DayCell({
           ? 'bg-card shadow-[0_1px_2px_rgba(15,23,42,0.06),0_4px_10px_-6px_rgba(15,23,42,0.18)] ring-1 ring-border/60'
           : 'hover:bg-accent/60',
         selected && 'ring-2 ring-primary',
+        dimmed && !selected && 'opacity-35',
       )}
     >
       <span
@@ -149,6 +153,7 @@ export function FinancialCalendarGrid({
   currency,
   calendarMonth,
   dailyFlows,
+  matchFlows,
   monthlyBalances,
   selectedDate,
   onSelectDate,
@@ -157,6 +162,8 @@ export function FinancialCalendarGrid({
   currency: Currency;
   calendarMonth: string;
   dailyFlows: ReadonlyMap<string, DailyFlow>;
+  /** Con búsqueda, el flujo de lo encontrado: en Flujo es lo que se pinta. */
+  matchFlows: ReadonlyMap<string, DailyFlow> | null;
   monthlyBalances: ReadonlyMap<string, number>;
   selectedDate: string | null;
   onSelectDate: (date: string) => void;
@@ -182,8 +189,9 @@ export function FinancialCalendarGrid({
             cell={cell}
             viewMode={viewMode}
             currency={currency}
-            flow={dailyFlows.get(cell.date)}
+            flow={(matchFlows ?? dailyFlows).get(cell.date)}
             balanceCents={monthlyBalances.get(cell.date)}
+            dimmed={matchFlows !== null && !matchFlows.has(cell.date)}
             today={cell.date === todayKey}
             selected={selectedDate === cell.date}
             onSelect={onSelectDate}
