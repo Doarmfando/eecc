@@ -44,11 +44,8 @@ function describeDay(
   return `Día ${String(cell.dayNumber)}${today ? ' (hoy)' : ''}: ${parts.join(', ')}`;
 }
 
-/** El importe completo si cabe en la celda; si no, su versión redondeada. */
+/** El importe completo si cabe en la celda; si no, su versión compacta. */
 function CellAmountText({ amount }: { amount: CellAmount }): ReactNode {
-  if (amount.compact === null) {
-    return amount.full;
-  }
   return (
     <>
       <span className={amount.fit?.compact}>{amount.compact}</span>
@@ -135,7 +132,11 @@ function DayCell({
       >
         {amountCents === undefined ? null : (
           <CellAmountText
-            amount={formatCellAmount(signOf(viewMode, amountCents), Math.abs(amountCents))}
+            amount={formatCellAmount(
+              signOf(viewMode, amountCents),
+              Math.abs(amountCents),
+              currency,
+            )}
           />
         )}
       </span>

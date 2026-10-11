@@ -157,18 +157,18 @@ describe('FinancialCalendarView', () => {
     );
   });
 
-  it('pinta en la celda el importe con sus dos decimales', async () => {
+  it('pinta en la celda el importe con su moneda y sus dos decimales', async () => {
     const user = userEvent.setup();
     render(<FinancialCalendarView statements={STATEMENTS} />);
 
     // Neto del 31: un cargo de 42.40, sin redondear a soles enteros.
     expect(
-      within(screen.getByRole('button', { name: /^Día 31:/ })).getByText('−42.40'),
-    ).toBeVisible();
+      within(screen.getByRole('button', { name: /^Día 31:/ })).getByText('−S/ 42.40'),
+    ).toBeInTheDocument();
 
     await user.click(screen.getByRole('tab', { name: 'Balance' }));
     expect(
-      within(screen.getByRole('button', { name: /^Día 31:/ })).getByText('1,304.21'),
+      within(screen.getByRole('button', { name: /^Día 31:/ })).getByText('S/ 1,304.21'),
     ).toBeInTheDocument();
   });
 
@@ -236,5 +236,8 @@ describe('FinancialCalendarView por moneda', () => {
     expect(screen.getByText('US$ 2,300.00')).toBeInTheDocument();
     expect(screen.queryByText(SOLES_AMOUNT)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Día 15:/ })).toHaveAccessibleName(/US\$ 300\.00/);
+    expect(
+      within(screen.getByRole('button', { name: /^Día 15:/ })).getByText('+US$ 300.00'),
+    ).toBeInTheDocument();
   });
 });

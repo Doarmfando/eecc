@@ -13,6 +13,12 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-10-10 — El Calendario pinta cada día con el símbolo de su moneda
+
+- Hecho: las celdas del Calendario muestran el importe con su moneda, igual que el resumen del mes: `+S/ 18.09`, `−US$ 300.00`. En celdas estrechas se quita el símbolo (el selector ya dice la moneda) y desde mil se redondea (`66.4K`), como antes.
+- Hecho: [`docs/arquitectura/monedas.md`](../arquitectura/monedas.md) reúne las monedas admitidas (`PEN` y `USD`), su formato, cómo la detecta cada banco y qué tocar para añadir otra.
+- Verificación: frontend con tipos, ESLint y Vitest en verde.
+
 ## 2026-10-06 — Prueba de punta a punta como persona, y el ITF contado dos veces
 
 - Hecho: la aplicación entera levantada en local (worker, API, PostgreSQL y frontend) y recorrida como lo haría una persona, con los cinco PDF reales de `referencias/`, copias suyas protegidas con contraseña (AES-128, RC4-128 y AES-256, como llegan por correo), PDF sintéticos de los cinco extractores y archivos que no son estados de cuenta. 24 subidas por la API y 40 comprobaciones en el navegador: un administrador da de alta a una persona, ella entra, sube, ve el detalle, descarga Excel y CSV, marca en el Historial, consolida en el Centro Financiero y el Calendario en soles y en dólares, a 1366 y 360 px, y el cupo de 3 retira el más antiguo al subir el cuarto.
