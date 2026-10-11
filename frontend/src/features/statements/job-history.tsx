@@ -12,7 +12,7 @@ import { BankMark } from '@/features/financial-center/bank-mark';
 import { useFinancialStatements } from '@/features/financial-center/queries';
 import type { FinancialStatement } from '@/features/financial-center/types';
 import { describeError } from '@/lib/api-error';
-import { CURRENCY_NAMES, currencySymbol, formatCount } from '@/lib/format';
+import { CURRENCY_NAMES, currencySymbol, formatCount, type Currency } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { JobListItem } from '@/types/job';
 
@@ -28,7 +28,65 @@ import {
 /** Lo que distingue a un documento de otro del mismo banco: su mes y su moneda. */
 interface StatementLabel {
   period: string;
+  currencyCode: Currency;
   currency: string;
+}
+
+const CURRENCY_ORDER: readonly Currency[] = ['PEN', 'USD'];
+
+/** Filtro de moneda: `null` muestra todas. */
+function CurrencyChips({
+  currencies,
+  value,
+  onChange,
+}: {
+  currencies: readonly Currency[];
+  value: Currency | null;
+  onChange: (currency: Currency | null) => void;
+}): ReactNode {
+  const options: ReadonlyArray<{ key: string; currency: Currency | null; label: ReactNode }> = [
+    { key: 'todas', currency: null, label: 'Todas' },
+    ...currencies.map((currency) => ({
+      key: currency,
+      currency,
+      label: (
+        <>
+          <span className="font-semibold">{currencySymbol(currency)}</span>{' '}
+          {CURRENCY_NAMES[currency]}
+        </>
+      ),
+    })),
+  ];
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Moneda"
+      className="inline-flex gap-1 rounded-xl bg-muted p-1"
+    >
+      {options.map((option) => {
+        const active = value === option.currency;
+        return (
+          <button
+            key={option.key}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            onClick={() => {
+              onChange(option.currency);
+            }}
+            className={cn(
+              'cursor-pointer rounded-lg border px-3 py-1 text-sm font-medium transition-colors',
+              active
+                ? 'border-primary/30 bg-primary/10 text-primary'
+                : 'border-transparent text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 /**
@@ -47,6 +105,7 @@ function useStatementLabels(jobs: readonly JobListItem[]): Map<string, Statement
           statement.id,
           {
             period: statement.periodoLabel,
+            currencyCode: statement.moneda,
             currency: `${currencySymbol(statement.moneda)} ${CURRENCY_NAMES[statement.moneda]}`,
           },
         ]),
@@ -161,18 +220,27 @@ export function JobHistory(): ReactNode {
   const history = useJobHistory();
   const selection = useStatementSelection();
   const [query, setQuery] = useState('');
+  const [chosenCurrency, setChosenCurrency] = useState<Currency | null>(null);
   const items = history.data?.items ?? NO_JOBS;
   const labels = useStatementLabels(items);
   const hasConsolidable = items.some(isConsolidable);
 
+  // Solo las monedas de los documentos listados; con una sola no hay nada que filtrar.
+  const present = new Set([...labels.values()].map((label) => label.currencyCode));
+  const currencies = CURRENCY_ORDER.filter((currency) => present.has(currency));
+  const currency =
+    chosenCurrency !== null && currencies.includes(chosenCurrency) ? chosenCurrency : null;
+
   const terms = normalize(query).split(/\s+/).filter(Boolean);
-  const visible =
-    terms.length === 0
-      ? items
-      : items.filter((job) => {
-          const text = rowText(job, labels.get(job.jobId));
-          return terms.every((term) => text.includes(term));
-        });
+  const visible = items.filter((job) => {
+    const label = labels.get(job.jobId);
+    // Un documento sin moneda conocida (fallido o aún cargando) no es de ninguna.
+    if (currency !== null && label?.currencyCode !== currency) {
+      return false;
+    }
+    const text = rowText(job, label);
+    return terms.every((term) => text.includes(term));
+  });
 
   if (history.isError) {
     return <Alert variant="destructive" title={describeError(history.error)} />;
@@ -191,21 +259,30 @@ export function JobHistory(): ReactNode {
               Marca los documentos que quieres ver en el Centro Financiero y el Calendario.
             </p>
           ) : null}
-          <div className="relative w-full sm:max-w-sm">
-            <Search
-              aria-hidden
-              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-            />
-            <Input
-              type="search"
-              value={query}
-              placeholder="Buscar por banco, mes, moneda o estado…"
-              aria-label="Buscar en el historial"
-              onChange={(event) => {
-                setQuery(event.target.value);
-              }}
-              className="pl-9"
-            />
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative w-full sm:max-w-sm">
+              <Search
+                aria-hidden
+                className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+              />
+              <Input
+                type="search"
+                value={query}
+                placeholder="Buscar por banco, mes, moneda o estado…"
+                aria-label="Buscar en el historial"
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                }}
+                className="pl-9"
+              />
+            </div>
+            {currencies.length > 1 ? (
+              <CurrencyChips
+                currencies={currencies}
+                value={currency}
+                onChange={setChosenCurrency}
+              />
+            ) : null}
           </div>
           {visible.length > 0 ? (
             <ul className="divide-y divide-border">
@@ -220,7 +297,7 @@ export function JobHistory(): ReactNode {
             </ul>
           ) : (
             <p className="py-6 text-center text-sm text-muted-foreground">
-              Ningún documento coincide con «{query.trim()}».
+              Ningún documento coincide con el filtro.
             </p>
           )}
           {history.data.nextCursor === null ? null : (

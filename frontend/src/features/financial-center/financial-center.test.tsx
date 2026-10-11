@@ -156,7 +156,23 @@ describe('FinancialCenter', () => {
 
     // Enero solo trae 5 movimientos entre los dos bancos: por debajo de una página.
     expect(within(movementsCard()).getAllByRole('listitem')).toHaveLength(5);
-    expect(screen.getByRole('combobox', { name: 'Elegir mes y año' })).toHaveValue('2026-01');
+    expect(screen.getByRole('button', { name: /^Elegir periodo/ })).toHaveTextContent(
+      'Enero de 2026',
+    );
+  });
+
+  it('elige el periodo desde el panel de meses, que solo ofrece los que tienen documentos', async () => {
+    const user = userEvent.setup();
+    render(<FinancialCenter statements={FIXTURE_STATEMENTS} />);
+
+    await user.click(screen.getByRole('button', { name: /^Elegir periodo/ }));
+    expect(screen.getByRole('button', { name: 'Diciembre de 2026' })).toBeDisabled();
+
+    await user.click(screen.getByRole('button', { name: 'Enero de 2026' }));
+    expect(screen.getByRole('button', { name: /^Elegir periodo/ })).toHaveTextContent(
+      'Enero de 2026',
+    );
+    expect(screen.queryByText('Elige un periodo')).not.toBeInTheDocument();
   });
 
   it('filtra por banco al activar un pill, atenuando las cuentas no elegidas', async () => {
@@ -273,12 +289,16 @@ describe('FinancialCenter por moneda', () => {
     render(<FinancialCenter statements={[...FIXTURE_STATEMENTS, dollars]} />);
 
     // Empieza en soles: el mes de los dólares (marzo) ni siquiera es elegible.
-    expect(screen.getByRole('combobox', { name: 'Elegir mes y año' })).toHaveValue('2026-02');
+    expect(screen.getByRole('button', { name: /^Elegir periodo/ })).toHaveTextContent(
+      'Febrero de 2026',
+    );
     expect(screen.queryByText(/US\$ \d/)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('radio', { name: /Dólares/ }));
 
-    expect(screen.getByRole('combobox', { name: 'Elegir mes y año' })).toHaveValue('2026-03');
+    expect(screen.getByRole('button', { name: /^Elegir periodo/ })).toHaveTextContent(
+      'Marzo de 2026',
+    );
     expect(screen.getByText('+ US$ 200.00')).toBeInTheDocument();
     expect(within(movementsCard()).getByText('+ US$ 250.00')).toBeInTheDocument();
     expect(within(movementsCard()).getByText('− US$ 50.00')).toBeInTheDocument();

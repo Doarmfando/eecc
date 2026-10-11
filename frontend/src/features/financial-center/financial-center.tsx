@@ -6,6 +6,7 @@ import { AccountsConsolidated } from './accounts-consolidated';
 import { BankFilterPills } from './bank-filter';
 import { useCurrencyFilter } from './currency-filter';
 import { CurrencySwitch } from './currency-switch';
+import { PeriodPicker } from './period-picker';
 import { MovementsList } from './movements-list';
 import { MovementsSearch } from './movements-search';
 import { NetFlowHero } from './net-flow-hero';
@@ -73,6 +74,16 @@ function CurrencyCenter({
 
   return (
     <div className="space-y-6">
+      <PeriodPicker
+        calendarMonth={calendarMonth}
+        availableMonths={availableMonths}
+        onGoToMonth={goToMonth}
+        onPrevious={goToPreviousMonth}
+        onNext={goToNextMonth}
+        canGoPrevious={canGoPreviousMonth}
+        canGoNext={canGoNextMonth}
+      />
+
       <div className="flex flex-wrap items-center justify-between gap-4">
         <BankFilterPills
           banks={banks}
@@ -83,17 +94,7 @@ function CurrencyCenter({
         <MovementsSearch value={search} onChange={setSearch} />
       </div>
 
-      <NetFlowHero
-        summary={periodSummary}
-        currency={currency}
-        calendarMonth={calendarMonth}
-        availableMonths={availableMonths}
-        onGoToMonth={goToMonth}
-        onPreviousMonth={goToPreviousMonth}
-        onNextMonth={goToNextMonth}
-        canGoPreviousMonth={canGoPreviousMonth}
-        canGoNextMonth={canGoNextMonth}
-      />
+      <NetFlowHero summary={periodSummary} currency={currency} />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
         <div className="xl:col-span-2">

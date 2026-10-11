@@ -5,30 +5,15 @@ import { Card } from '@/components/ui/card';
 import { formatMoney, type Currency } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
-import { MonthPaginator } from './month-paginator';
 import { PeriodSummaryBanner } from './period-summary-banner';
 import type { PeriodSummary } from './use-financial-center';
 
 export function NetFlowHero({
   summary,
   currency,
-  calendarMonth,
-  availableMonths,
-  onGoToMonth,
-  onPreviousMonth,
-  onNextMonth,
-  canGoPreviousMonth,
-  canGoNextMonth,
 }: {
   summary: PeriodSummary;
   currency: Currency;
-  calendarMonth: string;
-  availableMonths: readonly string[];
-  onGoToMonth: (monthKey: string) => void;
-  onPreviousMonth: () => void;
-  onNextMonth: () => void;
-  canGoPreviousMonth: boolean;
-  canGoNextMonth: boolean;
 }): ReactNode {
   const netCents = summary.abonos - summary.cargos;
   const maxCents = Math.max(1, summary.abonos, summary.cargos);
@@ -83,16 +68,6 @@ export function NetFlowHero({
           </div>
         </div>
       </div>
-
-      <MonthPaginator
-        calendarMonth={calendarMonth}
-        availableMonths={availableMonths}
-        onGoToMonth={onGoToMonth}
-        onPrevious={onPreviousMonth}
-        onNext={onNextMonth}
-        canGoPrevious={canGoPreviousMonth}
-        canGoNext={canGoNextMonth}
-      />
 
       <PeriodSummaryBanner summary={summary} currency={currency} />
     </Card>

@@ -16,42 +16,14 @@ function summary(overrides: Partial<PeriodSummary>): PeriodSummary {
   };
 }
 
-const NOOP = (): void => {
-  /* no-op */
-};
-
 describe('NetFlowHero', () => {
   it('destaca el flujo neto positivo con el signo +', () => {
-    render(
-      <NetFlowHero
-        summary={summary({ abonos: 50000, cargos: 20000 })}
-        currency="PEN"
-        calendarMonth="2026-02"
-        availableMonths={['2026-01', '2026-02']}
-        onGoToMonth={NOOP}
-        onPreviousMonth={NOOP}
-        onNextMonth={NOOP}
-        canGoPreviousMonth
-        canGoNextMonth={false}
-      />,
-    );
+    render(<NetFlowHero summary={summary({ abonos: 50000, cargos: 20000 })} currency="PEN" />);
     expect(screen.getByText(/^\+\s*S\//)).toBeInTheDocument();
   });
 
   it('destaca el flujo neto negativo cuando se gastó más de lo que entró', () => {
-    render(
-      <NetFlowHero
-        summary={summary({ abonos: 20000, cargos: 50000 })}
-        currency="PEN"
-        calendarMonth="2026-02"
-        availableMonths={['2026-01', '2026-02']}
-        onGoToMonth={NOOP}
-        onPreviousMonth={NOOP}
-        onNextMonth={NOOP}
-        canGoPreviousMonth
-        canGoNextMonth={false}
-      />,
-    );
+    render(<NetFlowHero summary={summary({ abonos: 20000, cargos: 50000 })} currency="PEN" />);
     expect(screen.getByText(/^−\s*S\//)).toBeInTheDocument();
   });
 
@@ -65,13 +37,6 @@ describe('NetFlowHero', () => {
           saldoFinal: 130000,
         })}
         currency="USD"
-        calendarMonth="2026-02"
-        availableMonths={['2026-01', '2026-02']}
-        onGoToMonth={NOOP}
-        onPreviousMonth={NOOP}
-        onNextMonth={NOOP}
-        canGoPreviousMonth
-        canGoNextMonth={false}
       />,
     );
     expect(screen.getByText('+ US$ 300.00')).toBeInTheDocument();
@@ -89,13 +54,6 @@ describe('NetFlowHero', () => {
           saldoFinal: 130000,
         })}
         currency="PEN"
-        calendarMonth="2026-02"
-        availableMonths={['2026-01', '2026-02']}
-        onGoToMonth={NOOP}
-        onPreviousMonth={NOOP}
-        onNextMonth={NOOP}
-        canGoPreviousMonth
-        canGoNextMonth={false}
       />,
     );
     expect(screen.getByText('Saldo inicial')).toBeInTheDocument();

@@ -13,6 +13,13 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-10-10 — El periodo del Centro Financiero, arriba y a la vista; filtro de moneda en el Historial
+
+- Hecho: el selector de mes del Centro Financiero estaba al pie de la tarjeta del flujo neto, pequeño y sin rótulo. Ahora va arriba, encima de los filtros de banco, con el mismo encabezado que el Calendario: rótulo «Periodo», el mes en grande y las flechas de anterior y siguiente al lado. El mes abre un panel propio (Radix Popover, ya no el `<select>` nativo) con los doce meses de cada año que tiene documentos: los que tienen se eligen, el actual va resaltado y recibe el foco, y los demás se ven atenuados. `MonthPaginator` pasa a `PeriodPicker` (`period-picker.tsx`) y `NetFlowHero` deja de recibir el mes. Se probó antes un bloque con chips de meses; se descartó por pesado.
+- Defecto evitado: sin ningún documento legible el mes llega vacío y `getMonthLabel('')` lanzaba; el encabezado ahora dice «Sin periodo».
+- Hecho: el Historial filtra por moneda («Todas · S/ Soles · US$ Dólares») junto al buscador. Solo aparece si los documentos listados tienen más de una moneda; un documento sin moneda conocida (fallido o aún cargando) sale al elegir una.
+- Verificación: tipos, ESLint y Vitest del frontend en verde, con pruebas nuevas del filtro de moneda; capturas con Playwright y API simulada a 1366 y 375 px.
+
 ## 2026-10-10 — El Historial dice el mes y la moneda de cada documento, y tiene buscador
 
 - Hecho: bajo el nombre del banco, cada fila muestra el periodo y la moneda del documento («Julio de 2026 · US$ Dólares»), para distinguir dos del mismo banco. Se leen de los CSV publicados con la misma consulta y la misma caché que el Centro Financiero y el Calendario (`useFinancialStatements`), así que abrir esas vistas después no vuelve a descargar nada. Un documento sin archivos (fallido) no tiene periodo que mostrar.
