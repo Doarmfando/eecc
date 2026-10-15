@@ -62,11 +62,13 @@ DATABASE_URL=${{Postgres.DATABASE_URL}}
 WORKER_BASE_URL=http://eecc-worker.railway.internal:8000
 FINGERPRINT_SECRET=<32+ caracteres, propios de esta instalación>
 SESSION_TTL_HOURS=12
-PROFILE_VERSION=bcp-2026.08
+PROFILE_VERSION=statements-2026.10.14
 STORAGE_ROOT=/data/storage
 ```
 
 El Dockerfile de cada servicio se elige con `RAILWAY_DOCKERFILE_PATH`, y no con un `railway.json`: los dos servicios comparten repositorio, así que un archivo en la raíz no puede decir cosas distintas a cada uno. Railway además está retirando esa forma de configuración.
+
+Al desplegar una corrección de extracción, actualizar también `PROFILE_VERSION` en la API si esa variable ya está definida: una variable antigua prevalece sobre el valor por defecto del código. Desplegar primero el worker. El perfil nuevo permite que una nueva subida use las reglas corregidas en lugar de reutilizar el trabajo anterior; no modifica automáticamente los resultados ya publicados y siguen aplicando las reglas de retención.
 
 `PORT` lo inyecta Railway en el servicio público; no la definas ahí. `CORS_ORIGINS` se deja **vacía**: sirviendo la página desde la propia API no hace falta CORS, y abrirlo sin necesidad solo añade superficie.
 

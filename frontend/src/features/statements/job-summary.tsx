@@ -10,6 +10,7 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useDownloadArtifact } from '@/features/statements/queries';
+import { describeError } from '@/lib/api-error';
 import { formatBytes, formatCount } from '@/lib/format';
 import { saveBlob } from '@/lib/save-file';
 import { requiresReview, type Artifact, type Job } from '@/types/job';
@@ -46,42 +47,50 @@ function PrimaryDownloadButton({
   const download = useDownloadArtifact();
   const label = describeArtifact(artifact.kind, artifact.name);
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-primary/20 bg-primary/10 p-4 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex items-center gap-3">
-        <img src={excelIcon} alt="" aria-hidden className="size-10 shrink-0" />
-        <div>
-          <p className="text-sm font-semibold text-foreground">{label}</p>
-          <p className="text-xs text-muted-foreground">{formatBytes(artifact.byteSize)}</p>
+    <>
+      <div className="flex flex-col gap-3 rounded-lg border border-primary/20 bg-primary/10 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <img src={excelIcon} alt="" aria-hidden className="size-10 shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-foreground">{label}</p>
+            <p className="text-xs text-muted-foreground">{formatBytes(artifact.byteSize)}</p>
+          </div>
         </div>
-      </div>
-      <Button
-        type="button"
-        size="lg"
-        className="w-full sm:w-auto"
-        disabled={download.isPending}
-        onClick={() => {
-          download.mutate(
-            { jobId, artifactId: artifact.id },
-            {
-              onSuccess: (result) => {
-                saveBlob(result.blob, result.fileName);
+        <Button
+          type="button"
+          size="lg"
+          className="w-full sm:w-auto"
+          disabled={download.isPending}
+          onClick={() => {
+            download.mutate(
+              { jobId, artifactId: artifact.id },
+              {
+                onSuccess: (result) => {
+                  saveBlob(result.blob, result.fileName);
+                },
               },
-            },
-          );
-        }}
-      >
-        {download.isPending ? (
-          <Loader2 aria-hidden className="animate-spin" />
-        ) : (
-          <Download aria-hidden />
-        )}
-        Descargar Excel (.xlsx)
-      </Button>
-    </div>
+            );
+          }}
+        >
+          {download.isPending ? (
+            <Loader2 aria-hidden className="animate-spin" />
+          ) : (
+            <Download aria-hidden />
+          )}
+          Descargar Excel (.xlsx)
+        </Button>
+      </div>
+      {download.isError ? (
+        <p role="alert" className="text-sm text-destructive">
+          {describeError(download.error)}
+        </p>
+      ) : null}
+    </>
   );
 }
 
 export function JobSummary({ job }: { job: Job }): ReactNode {
+  const hasFailedChecks = job.checks.some((check) => check.status === 'FAILED');
   const primaryArtifact = job.artifacts.find((artifact) => artifact.kind === 'RESULT_XLSX');
   const supportingArtifacts = job.artifacts.filter((artifact) => artifact.kind !== 'RESULT_XLSX');
 
@@ -102,11 +111,16 @@ export function JobSummary({ job }: { job: Job }): ReactNode {
         {job.status === 'NEEDS_REVIEW' ? (
           <Alert
             variant="warning"
-            title="Hay salida utilizable, pero con discrepancias"
+            title={
+              hasFailedChecks
+                ? 'Hay salida utilizable, pero con discrepancias'
+                : 'El resultado requiere revisión'
+            }
             className="mt-1"
           >
-            El archivo se generó y las cifras no reconcilian por completo. Revisa las invariantes
-            antes de usar el resultado como definitivo.
+            {hasFailedChecks
+              ? 'El archivo se generó, pero hay verificaciones que no se cumplen. Revisa las invariantes antes de usarlo como definitivo.'
+              : 'El archivo se generó, pero hay advertencias o verificaciones pendientes. Revisa el detalle antes de usarlo como definitivo.'}
           </Alert>
         ) : null}
 

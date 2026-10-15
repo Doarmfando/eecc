@@ -6,6 +6,8 @@
 - Extensión y `Content-Type` no prueban que un archivo sea PDF. Validar firma, estructura, límites y rechazo seguro.
 - Proteger contra archivos enormes, PDFs cifrados, page bombs, ZIP bombs en XLSX y tiempos de procesamiento ilimitados.
 - Los nombres originales no deben convertirse directamente en claves S3 ni rutas temporales.
+- Una traza no es un diagnóstico seguro: su primera línea incluye el mensaje de la excepción y Prisma puede incorporar valores de una consulta. Registrar códigos controlados, referencia, estado y rol, nunca el objeto `Error` ni su `stack`.
+- Un rechazo antes de crear el trabajo necesita su propia evidencia. Guardar un evento de auditoría con código, actor, referencia y tamaño, sin PDF, nombre ni contraseña; si falla esa escritura, conservar el rechazo original. Los logs HTTP no sustituyen una auditoría durable.
 
 ## PDF y extracción
 
@@ -57,6 +59,7 @@ El extractor se escribió **sin muestra**, adivinando la plantilla, y se corrigi
 - **Con columnas juntas, el orden es más fiable que la distancia.** `CARGO/ABONO`, `ITF` y `SALDO` están a pocos puntos: el rótulo más cercano se decide por un margen de 3, que cambia con el tamaño de la fuente y hace que un PDF sintético falle donde el real funciona. El orden de las columnas es un hecho de la plantilla; la geometría sirve mejor para **comprobar** el reparto que para decidirlo.
 - **La marca del banco puede sobrevivir solo dentro de una URL.** Aquí únicamente en `WWW.BBVABANCOCONTINENTAL.COM`, donde `BBVA` no casa porque no hay frontera de palabra tras `BBVA`.
 - **El pie de página puede arrastrar una cifra.** Sin descartarlo se señala como fila con importes sin clasificar y el documento nunca llega a `SUCCEEDED`, aunque todo lo demás cuadre.
+- **Una continuación puede contener un decimal dentro del concepto.** Antes de tratarlo como un importe financiero, comprobar su columna. La unión exige texto dentro de descripción, una línea contigua y un movimiento anterior en la misma página; nunca se descartan los decimales desconocidos de las columnas monetarias ni se cruzan páginas para silenciar una advertencia.
 
 ## Extractor genérico
 
@@ -70,6 +73,7 @@ El extractor se escribió **sin muestra**, adivinando la plantilla, y se corrigi
 ## Importes y fechas
 
 - Mantener `Decimal` durante parsing, clasificación, sumas y reconciliación. Definir moneda, escala y redondeo.
+- Un importe explícito de cero no es un importe ausente. BCP puede imprimir una operación de cero en una sola columna: no cambia el saldo ni los totales, pero sigue siendo una fila válida. Dos columnas cero no demuestran un lado y no deben aceptarse por la misma regla.
 - No inferir cargo/abono únicamente por palabras si el layout conserva columnas; las palabras son fallback con advertencia.
 - Distinguir separadores `1,234.56` y `1.234,56` por formato detectado. Los casos ambiguos requieren advertencia.
 - No convertir cuentas a números: se almacenan y exportan como texto para conservar ceros y guiones.
@@ -110,6 +114,8 @@ El extractor se escribió **sin muestra**, adivinando la plantilla, y se corrigi
 ## Navegador
 
 - Revocar la URL del blob en el mismo tick del `click()` cancela la descarga antes de que el navegador la inicie. Liberar en el siguiente tick.
+- Cada botón de descarga necesita mostrar su propio error. El mensaje de las descargas secundarias no cubre el botón principal de Excel: cada uno tiene una mutación independiente.
+- `NEEDS_REVIEW` puede deberse solo a una advertencia. No afirmar un descuadre financiero sin una comprobación fallida; conservar la revisión aunque las comprobaciones disponibles pasen.
 - Con CORS, el navegador solo lee las cabeceras expuestas explícitamente. Un nombre de archivo tomado de `Content-Disposition` necesita `Access-Control-Expose-Headers` o un valor de respaldo.
 - Un localizador por texto puede coincidir además con el nombre accesible de un botón que lo contiene. Preferir roles y nombres accesibles.
 - Si la página de origen pinta un instante el mismo texto que la de destino antes de navegar, `findByText` lo encuentra en la de origen y la aserción siguiente ve un nodo ya desmontado: falla con «`toBeInTheDocument`» aunque el texto sí aparezca después. No se arregla con más tiempo de espera; se ancla primero en algo que solo existe en la página de destino. Pasó en `upload-page.test.tsx`, ~1 de cada 3 corridas.

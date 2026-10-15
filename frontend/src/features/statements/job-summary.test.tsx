@@ -1,5 +1,6 @@
 import { screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { renderWithProviders } from '@/test/render';
 
@@ -27,6 +28,38 @@ function job(overrides: Partial<Job> = {}): Job {
 }
 
 describe('JobSummary', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('mantiene la revisión sin afirmar un descuadre cuando solo hay filas sin clasificar', () => {
+    renderWithProviders(
+      <JobSummary job={job({ status: 'NEEDS_REVIEW', warningCodes: ['BBVA_ROW_UNCLASSIFIED'] })} />,
+    );
+    expect(
+      screen.getByText(
+        'El archivo se generó, pero hay advertencias o verificaciones pendientes. Revisa el detalle antes de usarlo como definitivo.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/las cifras no reconcilian/)).not.toBeInTheDocument();
+  });
+
+  it('muestra el error al fallar la descarga del Excel y permite reintentar', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ code: 'ARTIFACT_NOT_FOUND' }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      ),
+    );
+    renderWithProviders(<JobSummary job={job()} />);
+    const button = screen.getByRole('button', { name: /Descargar Excel/ });
+    await userEvent.click(button);
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Ese archivo ya no está disponible para descargar.',
+    );
+    expect(button).toBeEnabled();
+  });
   it('no muestra advertencias ni avisos cuando el documento reconcilia', () => {
     renderWithProviders(<JobSummary job={job()} />);
 

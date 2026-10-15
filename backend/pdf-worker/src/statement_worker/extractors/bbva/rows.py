@@ -23,7 +23,7 @@ Tres rasgos la distinguen de las demás plantillas del proyecto:
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from decimal import Decimal
 from enum import StrEnum
@@ -149,6 +149,14 @@ class _Columns:
 
     def __init__(self) -> None:
         self.spans: dict[_Role, _Span] = {}
+        self.description_right: Decimal | None = None
+        self.office_left: Decimal | None = None
+
+    @property
+    def description_end(self) -> Decimal | None:
+        if self.description_right is None or self.office_left is None:
+            return None
+        return (self.description_right + self.office_left) / Decimal("2")
 
     @property
     def learned(self) -> bool:
@@ -157,6 +165,10 @@ class _Columns:
     def learn(self, words: tuple[BbvaWord, ...]) -> None:
         for word in words:
             token = _token(word.text)
+            if token == "DESCRIPCION":
+                self.description_right = word.x1
+            elif token == "OFICINA":
+                self.office_left = word.x0
             for pattern, role in _COLUMN_LABELS:
                 if pattern.match(token) and role not in self.spans:
                     self.spans[role] = _Span(word.x0, word.x1)
@@ -258,6 +270,10 @@ def read_bbva_rows(
     openings = 0
 
     for readout in pages:
+        # Ancla local: nunca unir una continuación al movimiento de otra página.
+        last_movement_index: int | None = None
+        description_start: Decimal | None = None
+        last_top: Decimal | None = None
         header_index = next(
             (index for index, words in enumerate(readout.rows) if words and _is_header(words)),
             None,
@@ -303,6 +319,27 @@ def read_bbva_rows(
                 continue
 
             if not _SHORT_DATE.match(words[0].text):
+                end = columns.description_end
+                top = min(word.top for word in words)
+                # Las filas observadas están a 7,5-8 puntos. Solo se une la línea
+                # contigua, dentro de descripción y con texto. Un decimal allí es
+                # parte del concepto, nunca un importe de las columnas monetarias.
+                if (
+                    last_movement_index == index - 1
+                    and description_start is not None
+                    and last_top is not None
+                    and end is not None
+                    and Decimal("0") < top - last_top <= Decimal("10")
+                    and all(description_start <= word.x0 and word.x1 <= end for word in words)
+                    and any(any(char.isalpha() for char in word.text) for word in words)
+                    and rows[-1].row_type is BbvaRowType.MOVEMENT
+                ):
+                    rows[-1] = replace(
+                        rows[-1],
+                        description=rows[-1].description + " " + " ".join(w.text for w in words),
+                    )
+                    last_movement_index, last_top = index, top
+                    continue
                 if any(_is_money(word) for word in words):
                     warnings.append(BbvaWarningCode.ROW_UNCLASSIFIED)
                 continue
@@ -330,6 +367,9 @@ def read_bbva_rows(
                 continue
 
             amount, itf, balance = split
+            last_movement_index = index
+            description_start = text_words[0].x0 if text_words else None
+            last_top = min(word.top for word in words)
             rows.append(
                 BbvaParsedRow(
                     row_type=BbvaRowType.MOVEMENT,

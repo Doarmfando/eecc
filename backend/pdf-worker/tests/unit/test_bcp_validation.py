@@ -56,6 +56,29 @@ def check_status(report_checks: tuple, code: BcpInvariantCode) -> BcpCheckStatus
 
 
 class BcpValidationTests(TestCase):
+    def test_an_explicit_zero_on_one_side_is_a_valid_movement(self) -> None:
+        for amounts in ({"debit": Decimal("0.00")}, {"credit": Decimal("0.00")}):
+            with self.subTest(amounts=amounts):
+                report = validate_bcp_rows(
+                    (
+                        row(BcpRowType.PREVIOUS_BALANCE, balance=Decimal("100.00")),
+                        movement(**amounts),
+                        row(
+                            BcpRowType.MOVEMENT_TOTAL, debit=Decimal("0.00"), credit=Decimal("0.00")
+                        ),
+                        row(BcpRowType.BALANCE, balance=Decimal("100.00")),
+                    )
+                )
+                self.assertEqual(report.status, ExtractionStatus.SUCCEEDED)
+                self.assertEqual(report.warning_codes, ())
+
+    def test_missing_amounts_and_two_zero_columns_remain_ambiguous(self) -> None:
+        for amounts in ({}, {"debit": Decimal("0.00"), "credit": Decimal("0.00")}):
+            with self.subTest(amounts=amounts):
+                report = validate_bcp_rows((movement(**amounts),))
+                self.assertEqual(report.status, ExtractionStatus.NEEDS_REVIEW)
+                self.assertIn(BcpWarningCode.INVALID_MOVEMENT_AMOUNT, report.warning_codes)
+
     def test_empty_result_fails_without_financial_details(self) -> None:
         report = validate_bcp_rows(())
 

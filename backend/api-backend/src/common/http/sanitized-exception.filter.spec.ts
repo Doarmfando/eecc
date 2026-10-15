@@ -1,9 +1,12 @@
-import { BadRequestException, HttpException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, HttpException, Logger, NotFoundException } from '@nestjs/common';
 import type { ArgumentsHost } from '@nestjs/common';
 
 import { SanitizedExceptionFilter } from './sanitized-exception.filter';
 
-function hostFor(requestId?: string): {
+function hostFor(
+  requestId?: string,
+  role?: 'ADMIN' | 'MEMBER',
+): {
   host: ArgumentsHost;
   status: jest.Mock;
   json: jest.Mock;
@@ -13,13 +16,60 @@ function hostFor(requestId?: string): {
   const host = {
     switchToHttp: (): { getResponse: () => unknown; getRequest: () => unknown } => ({
       getResponse: (): unknown => ({ status }),
-      getRequest: (): unknown => (requestId === undefined ? {} : { requestId }),
+      getRequest: (): unknown => ({ requestId, ...(role ? { organization: { role } } : {}) }),
     }),
   } as unknown as ArgumentsHost;
   return { host, status, json };
 }
 
 describe('SanitizedExceptionFilter', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it.each(['ADMIN', 'MEMBER'] as const)(
+    'identifica rechazos del rol %s sin datos personales',
+    (role) => {
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      const { host } = hostFor('req-role', role);
+      new SanitizedExceptionFilter().catch(new NotFoundException({ code: 'JOB_NOT_FOUND' }), host);
+      expect(warn).toHaveBeenCalledWith(
+        `request_id=req-role status=404 code=JOB_NOT_FOUND role=${role}`,
+      );
+    },
+  );
+
+  it('rechaza códigos arbitrarios para no enviarlos al cliente ni al registro', () => {
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    const { host, json } = hostFor('req-code');
+    new SanitizedExceptionFilter().catch(
+      new HttpException({ code: 'contenido privado\nnueva línea' }, 422),
+      host,
+    );
+    expect(json).toHaveBeenCalledWith({ code: 'REQUEST_FAILED', requestId: 'req-code' });
+    expect(warn).toHaveBeenCalledWith(
+      'request_id=req-code status=422 code=REQUEST_FAILED role=UNAUTHENTICATED',
+    );
+  });
+
+  it('registra rechazos con código y referencia, sin contenido de la excepción', () => {
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    const { host } = hostFor('req-safe');
+    new SanitizedExceptionFilter().catch(
+      new HttpException({ code: 'INVALID_PDF', message: 'contenido privado' }, 422),
+      host,
+    );
+    expect(warn).toHaveBeenCalledWith(
+      'request_id=req-safe status=422 code=INVALID_PDF role=UNAUTHENTICATED',
+    );
+  });
+
+  it('no registra trazas ni mensajes de errores internos', () => {
+    const error = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+    const { host } = hostFor('req-safe');
+    new SanitizedExceptionFilter().catch(new Error('dato privado en la traza'), host);
+    expect(error).toHaveBeenCalledWith(
+      'request_id=req-safe status=500 code=INTERNAL_ERROR role=UNAUTHENTICATED',
+    );
+  });
   it('usa el código de dominio y adjunta la referencia de la petición', () => {
     const { host, status, json } = hostFor('req-123');
 

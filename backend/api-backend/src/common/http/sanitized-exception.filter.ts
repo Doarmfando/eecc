@@ -31,7 +31,7 @@ export class SanitizedExceptionFilter implements ExceptionFilter {
     const request = http.getRequest<RequestWithContext>();
 
     const status = exception instanceof HttpException ? exception.getStatus() : HTTP_INTERNAL_ERROR;
-    const body: ErrorBody = { code: resolveCode(exception, status) };
+    const body: ErrorBody = { code: resolveErrorCode(exception) };
     if (request.requestId) {
       body.requestId = request.requestId;
     }
@@ -40,26 +40,30 @@ export class SanitizedExceptionFilter implements ExceptionFilter {
       body.details = details;
     }
 
-    if (status >= HTTP_INTERNAL_ERROR) {
-      this.logger.error(
-        `request_id=${request.requestId ?? 'desconocido'} code=${body.code}`,
-        exception instanceof Error ? exception.stack : undefined,
-      );
-    }
+    // Nunca pasar la excepción al logger: Prisma y los lectores pueden incluir
+    // valores privados en el mensaje y en la primera línea de la traza.
+    const diagnostic = `request_id=${request.requestId ?? 'desconocido'} status=${String(status)} code=${body.code} role=${request.organization?.role ?? (request.organization ? 'SERVICE' : 'UNAUTHENTICATED')}`;
+    if (status >= HTTP_INTERNAL_ERROR) this.logger.error(diagnostic);
+    else this.logger.warn(diagnostic);
 
     response.status(status).json(body);
   }
 }
 
-function resolveCode(exception: unknown, status: number): string {
+export function resolveErrorCode(exception: unknown): string {
   if (!(exception instanceof HttpException)) {
     return 'INTERNAL_ERROR';
   }
   const payload = exception.getResponse();
-  if (typeof payload === 'object' && 'code' in payload && typeof payload.code === 'string') {
+  if (
+    typeof payload === 'object' &&
+    'code' in payload &&
+    typeof payload.code === 'string' &&
+    /^[A-Z][A-Z0-9_]{0,63}$/.test(payload.code)
+  ) {
     return payload.code;
   }
-  return status === HTTP_BAD_REQUEST ? 'VALIDATION_FAILED' : 'REQUEST_FAILED';
+  return exception.getStatus() === HTTP_BAD_REQUEST ? 'VALIDATION_FAILED' : 'REQUEST_FAILED';
 }
 
 /** Los mensajes de validación describen campos del contrato, nunca su contenido. */

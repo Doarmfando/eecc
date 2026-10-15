@@ -17,7 +17,7 @@ from .rows import read_bbva_rows
 from .validation import validate_bbva_rows
 
 BBVA_STRATEGY_ID = BBVA_EXTRACTOR_ID
-BBVA_STRATEGY_VERSION = "0.1.0"
+BBVA_STRATEGY_VERSION = "0.2.0"
 
 
 class BbvaStatementStrategy:

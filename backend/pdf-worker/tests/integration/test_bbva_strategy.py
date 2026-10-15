@@ -9,6 +9,7 @@ saldo final. El documento real se comprueba aparte, en `tests/characterization`.
 from __future__ import annotations
 
 import tempfile
+from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
 from unittest import TestCase
@@ -23,7 +24,7 @@ from tests.support.synthetic_interbank_pdf import create_synthetic_interbank_pdf
 from statement_worker.domain.errors import UnsupportedDocumentError
 from statement_worker.domain.models import ExtractionStatus
 from statement_worker.extractors.bbva.detector import BbvaTemplateDetector
-from statement_worker.extractors.bbva.models import BbvaRowType
+from statement_worker.extractors.bbva.models import BbvaRowType, BbvaWord
 from statement_worker.extractors.bbva.pdfplumber_adapter import read_bbva_pdf
 from statement_worker.extractors.bbva.rows import read_bbva_rows
 from statement_worker.extractors.bbva.strategy import BbvaStatementStrategy
@@ -82,6 +83,55 @@ class BbvaStatementTests(TestCase):
         # El documento sintético trae seis cargos y dos abonos.
         self.assertEqual(sum(1 for row in movements if row.debit is not None), 6)
         self.assertEqual(sum(1 for row in movements if row.credit is not None), 2)
+
+    def test_a_decimal_inside_a_description_continuation_is_preserved_as_text(self) -> None:
+        path, _closing = self._build(include_description_continuation=True)
+        outcome = BbvaStatementStrategy().process(path)
+        read = read_bbva_pdf(path)
+        document = read_bbva_rows(read.pages, first_page_text=read.probe.first_page_text)
+        first = next(row for row in document.rows if row.row_type is BbvaRowType.MOVEMENT)
+
+        self.assertEqual(outcome.status, ExtractionStatus.SUCCEEDED)
+        self.assertEqual(outcome.warning_codes, ())
+        self.assertEqual(outcome.movement_count, 8)
+        self.assertIn("DETALLE 1.25 FICTICIO", first.description)
+        self.assertEqual(first.amount, Decimal("-1200.00"))
+        self.assertEqual(first.itf, Decimal("0.05"))
+
+    def test_an_orphan_distant_or_outside_decimal_remains_under_review(self) -> None:
+        path, _closing = self._build()
+        read = read_bbva_pdf(path)
+        page = read.pages[0]
+        index = next(i for i, words in enumerate(page.rows) if words[0].text == "01-07")
+        movement_top = page.rows[index][0].top
+        for x, offset, after in ((394, 8, True), (116, 20, True), (116, -8, False), (40, 8, True)):
+            with self.subTest(x=x, offset=offset, after=after):
+                words = (
+                    BbvaWord("DETALLE", Decimal(x), Decimal(x + 25), movement_top + offset),
+                    BbvaWord("1.25", Decimal(x + 30), Decimal(x + 45), movement_top + offset),
+                )
+                insertion = index + 1 if after else index
+                changed = replace(
+                    page, rows=(*page.rows[:insertion], words, *page.rows[insertion:])
+                )
+                document = read_bbva_rows(
+                    (changed, *read.pages[1:]), first_page_text=read.probe.first_page_text
+                )
+                self.assertIn("BBVA_ROW_UNCLASSIFIED", document.warning_codes)
+
+    def test_a_continuation_never_attaches_across_pages(self) -> None:
+        path, _closing = self._build()
+        read = read_bbva_pdf(path)
+        second = read.pages[1]
+        words = (
+            BbvaWord("DETALLE", Decimal("116"), Decimal("145"), Decimal("1")),
+            BbvaWord("1.25", Decimal("150"), Decimal("165"), Decimal("1")),
+        )
+        second = replace(second, rows=(words, *second.rows))
+        document = read_bbva_rows(
+            (read.pages[0], second), first_page_text=read.probe.first_page_text
+        )
+        self.assertIn("BBVA_ROW_UNCLASSIFIED", document.warning_codes)
 
     def test_resolves_the_year_from_the_issue_date_in_the_footer(self) -> None:
         path, _closing = self._build()

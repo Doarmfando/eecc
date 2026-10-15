@@ -1,4 +1,8 @@
-import { PayloadTooLargeException, UnsupportedMediaTypeException } from '@nestjs/common';
+import {
+  PayloadTooLargeException,
+  UnprocessableEntityException,
+  UnsupportedMediaTypeException,
+} from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
 import { JobStatus } from '@prisma/client';
 
@@ -88,6 +92,7 @@ function buildPrisma(
 
   const prisma = {
     job: { findUnique },
+    auditEvent: tx.auditEvent,
     $transaction: jest.fn(
       async (handler: (client: typeof tx) => Promise<unknown>): Promise<unknown> => handler(tx),
     ),
@@ -128,6 +133,56 @@ function buildService(
 }
 
 describe('StatementsService', () => {
+  it('audita un rechazo sin guardar documento, contraseña, nombre ni mensaje interno', async () => {
+    const recorder: TransactionRecorder = { created: [] };
+    const rejection = new UnprocessableEntityException({ code: 'INVALID_PDF', message: 'privado' });
+    const service = buildService(buildPrisma(null, recorder).prisma, {
+      processStatement: jest.fn().mockRejectedValue(rejection),
+    });
+    const content = pdfBuffer('contenido privado');
+    await expect(
+      service.process({
+        organizationId: ORGANIZATION_ID,
+        userId: 'actor-id',
+        content,
+        fileName: 'nombre privado.pdf',
+        mimeType: 'application/pdf',
+        pdfPassword: 'contraseña privada',
+        requestId: 'req-rejected',
+      }),
+    ).rejects.toBe(rejection);
+    expect(recorder.created).toEqual([
+      {
+        model: 'auditEvent',
+        data: {
+          organizationId: ORGANIZATION_ID,
+          actorUserId: 'actor-id',
+          action: 'statement.request_failed',
+          entityType: 'statement',
+          requestId: 'req-rejected',
+          metadata: { code: 'INVALID_PDF', byteSize: content.length },
+        },
+      },
+    ]);
+  });
+
+  it('conserva el error original si falla la auditoría del rechazo', async () => {
+    const recorder: TransactionRecorder = { created: [] };
+    const { prisma } = buildPrisma(null, recorder);
+    jest.spyOn(prisma.auditEvent, 'create').mockRejectedValue(new Error('base no disponible'));
+    const rejection = new UnprocessableEntityException({ code: 'PDF_PASSWORD_REQUIRED' });
+    const service = buildService(prisma, {
+      processStatement: jest.fn().mockRejectedValue(rejection),
+    });
+    await expect(
+      service.process({
+        organizationId: ORGANIZATION_ID,
+        content: pdfBuffer(),
+        fileName: 'test.pdf',
+        mimeType: 'application/pdf',
+      }),
+    ).rejects.toBe(rejection);
+  });
   it('deriva una huella distinta por organización para el mismo archivo', () => {
     const recorder: TransactionRecorder = { created: [] };
     const service = buildService(buildPrisma(null, recorder).prisma);

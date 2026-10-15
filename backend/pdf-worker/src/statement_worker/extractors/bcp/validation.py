@@ -255,7 +255,11 @@ def validate_bcp_rows(
         )
 
         amounts_valid = all(
-            _active(movement.debit) != _active(movement.credit)
+            (
+                _active(movement.debit) != _active(movement.credit)
+                or (movement.debit == 0 and movement.credit is None)
+                or (movement.credit == 0 and movement.debit is None)
+            )
             and (movement.debit is None or movement.debit >= 0)
             and (movement.credit is None or movement.credit >= 0)
             for movement in movements
