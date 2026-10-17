@@ -16,6 +16,11 @@ EXCEL_MAX_CELL_TEXT_LENGTH = 32_767
 
 # Columna que un exportador declara vacía para el nombre del PDF de su dueño.
 SOURCE_FILE_COLUMN_KEY = "source_file"
+SOURCE_FILE_HEADER = "Archivo"
+# Cargo y abono en una sola cifra con signo, como la imprime el BBVA. Todos los
+# bancos la publican junto a sus columnas separadas (ADR-0013).
+SIGNED_AMOUNT_COLUMN_KEY = "signed_amount"
+SIGNED_AMOUNT_HEADER = "Cargo/Abono"
 
 _FORMULA_PREFIXES = frozenset("=+-@")
 _INVALID_SHEET_CHARACTERS = frozenset("[]:*?/\\")
@@ -65,6 +70,32 @@ class WorkbookPlan:
     schema_id: str
     schema_version: int
     sheets: tuple[SpreadsheetSheet, ...]
+
+
+def source_file_column() -> SpreadsheetColumn:
+    """Primera columna del `Resumen`: la completa el trabajo al publicar."""
+
+    return SpreadsheetColumn(
+        SOURCE_FILE_COLUMN_KEY, SOURCE_FILE_HEADER, SpreadsheetCellType.TEXT, 40
+    )
+
+
+def signed_amount_column(number_format: str) -> SpreadsheetColumn:
+    return SpreadsheetColumn(
+        SIGNED_AMOUNT_COLUMN_KEY,
+        SIGNED_AMOUNT_HEADER,
+        SpreadsheetCellType.DECIMAL,
+        16,
+        number_format,
+    )
+
+
+def signed_amount(debit: Decimal | None, credit: Decimal | None) -> Decimal | None:
+    """Abono en positivo y cargo en negativo; vacío si la fila no trae ninguno."""
+
+    if debit is None and credit is None:
+        return None
+    return (credit or Decimal("0")) - (debit or Decimal("0"))
 
 
 def sanitize_spreadsheet_text(value: str) -> str:

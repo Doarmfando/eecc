@@ -191,7 +191,8 @@ describe('buildFinancialStatement con BBVA', () => {
   });
 
   it('no cuenta dos veces el ITF que el resumen ya resta de cada fila', () => {
-    // El worker publica abonos netos de ITF (499.98) y cargos con su ITF (210.01).
+    // Los Excel anteriores a ADR-0013 publicaban abonos netos de ITF (499.98) y
+    // cargos con su ITF (210.01); siguen en el historial y deben leerse bien.
     // Sumarle además el «Total ITF» descuadraba el periodo en el documento real.
     expect(statement.abonos).toBe(
       statement.movimientos
@@ -288,6 +289,27 @@ describe('buildFinancialStatement con Banco de la Nación', () => {
 
     expect(statement.bancoOrigen).toBe('nacion');
     expect(statement.fechaPeriodo).toBe('2026-07');
+  });
+
+  it('lee igual con la columna `Cargo/Abono` que hoy publican todos los bancos', () => {
+    const withSigned = csv(
+      'Página,Fecha,Fecha valor,Descripción,Cargo/Abono,Cargos,Abonos,Saldo',
+      '1,2026-07-04,2026-07-04,Deposito en efectivo,150.00,,150.00,650.00',
+      '1,2026-07-05,2026-07-05,Pago de servicio,-50.00,50.00,,600.00',
+    );
+    const withoutSigned = csv(
+      'Página,Fecha,Fecha valor,Descripción,Cargos,Abonos,Saldo',
+      '1,2026-07-04,2026-07-04,Deposito en efectivo,,150.00,650.00',
+      '1,2026-07-05,2026-07-05,Pago de servicio,50.00,,600.00',
+    );
+
+    expect(
+      buildFinancialStatement(source({ extractorId: 'banco-nacion-v1', movementsCsv: withSigned })),
+    ).toEqual(
+      buildFinancialStatement(
+        source({ extractorId: 'banco-nacion-v1', movementsCsv: withoutSigned }),
+      ),
+    );
   });
 });
 

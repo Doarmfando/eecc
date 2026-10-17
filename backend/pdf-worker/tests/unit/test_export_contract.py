@@ -12,6 +12,7 @@ from statement_worker.exporters import (
     build_bcp_workbook_plan,
     csv_file_name,
 )
+from statement_worker.exporters.workbook import SOURCE_FILE_COLUMN_KEY
 from statement_worker.extractors.bcp.document_processor import BcpPdfProcessingResult
 from statement_worker.extractors.bcp.models import (
     BcpPageReadMetrics,
@@ -130,7 +131,7 @@ class BcpExportContractTests(TestCase):
         self.assertEqual(self.plan.schema_id, BCP_WORKBOOK_SCHEMA_ID)
         self.assertEqual(BCP_WORKBOOK_SCHEMA_ID, "eecc.statement.bcp")
         self.assertEqual(self.plan.schema_version, BCP_WORKBOOK_SCHEMA_VERSION)
-        self.assertEqual(BCP_WORKBOOK_SCHEMA_VERSION, 1)
+        self.assertEqual(BCP_WORKBOOK_SCHEMA_VERSION, 2)
 
     def test_sheets_keep_the_legacy_shape_except_the_documented_difference(self) -> None:
         sheet_names = tuple(sheet.name for sheet in self.plan.sheets)
@@ -154,6 +155,7 @@ class BcpExportContractTests(TestCase):
                 "posting_date",
                 "value_date",
                 "description",
+                "signed_amount",
                 "debit",
                 "credit",
                 "balance",
@@ -178,6 +180,10 @@ class BcpExportContractTests(TestCase):
     def test_no_sheet_exports_identifying_or_environment_columns(self) -> None:
         for sheet in self.plan.sheets:
             for column in sheet.columns:
+                if column.key == SOURCE_FILE_COLUMN_KEY:
+                    # Excepción documentada: el nombre que la persona dio a su PDF
+                    # (ADR-0011, ADR-0013). No es un dato leído del documento.
+                    continue
                 haystack = f"{column.key} {column.header}".casefold()
                 for token in _SENSITIVE_TOKENS:
                     with self.subTest(sheet=sheet.name, column=column.key, token=token):

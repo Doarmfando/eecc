@@ -79,21 +79,23 @@ class BbvaParsedRow:
 
     @property
     def debit(self) -> Decimal | None:
-        """Cargo como magnitud no negativa, con su ITF incluido."""
+        """Cargo como magnitud no negativa, tal como lo imprime `CARGO/ABONO`.
 
-        if self.amount is None:
+        Sin el ITF, que va en su propia columna y su propio total: así cargos,
+        abonos e impuesto suman cada uno lo que el documento imprime en su columna.
+        """
+
+        if self.amount is None or self.amount >= 0:
             return None
-        total = self.amount - (self.itf or Decimal("0"))
-        return -total if total < 0 else None
+        return -self.amount
 
     @property
     def credit(self) -> Decimal | None:
-        """Abono como magnitud no negativa, neto del ITF que lo acompañe."""
+        """Abono como magnitud no negativa, bruto: el ITF que lo acompañe va aparte."""
 
-        if self.amount is None:
+        if self.amount is None or self.amount <= 0:
             return None
-        total = self.amount - (self.itf or Decimal("0"))
-        return total if total > 0 else None
+        return self.amount
 
 
 @dataclass(frozen=True, slots=True)

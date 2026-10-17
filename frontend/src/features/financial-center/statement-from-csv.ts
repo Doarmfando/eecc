@@ -213,10 +213,11 @@ export function buildFinancialStatement(source: StatementCsvSource): FinancialSt
   // El ITF sale de la cuenta igual que un cargo, y aquí se muestra aparte.
   const sumaAbonos = movementRows.reduce((total, row) => total + row.creditCents, 0);
   const sumaCargos = movementRows.reduce((total, row) => total + row.debitCents + row.itfCents, 0);
-  // El BBVA no imprime totales de cargos y abonos: los de su `Resumen` los calcula
-  // el worker con el ITF de cada fila ya restado. Como aquí el ITF es un cargo
-  // propio, entradas y salidas se suman desde las mismas filas que se listan; si
-  // no, el ITF contaría dos veces y no cuadrarían con el Calendario.
+  // El BBVA no imprime totales de cargos y abonos: los calcula el worker. Hoy los
+  // publica brutos con el ITF aparte (ADR-0013); los Excel anteriores mezclaban
+  // el ITF en ellos. Como aquí el ITF es un cargo propio, entradas y salidas se
+  // suman desde las mismas filas que se listan: así da igual qué versión del
+  // `Resumen` se lea y el ITF nunca cuenta dos veces.
   const itfPorFila = movementRows.some((row) => row.itfCents !== 0);
   const abonos = itfPorFila ? sumaAbonos : (summary.abonos ?? sumaAbonos);
   const cargos = itfPorFila ? sumaCargos : (summary.cargos ?? sumaCargos);

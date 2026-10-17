@@ -18,12 +18,16 @@ describe('validateStatementFile', () => {
   it('exige extensión .pdf sin importar mayúsculas', () => {
     expect(validateStatementFile(fileOfSize(10, 'estado.PDF'))).toBeNull();
     expect(validateStatementFile(fileOfSize(10, 'estado.xlsx'))).toBe(
-      'El archivo debe tener extensión .pdf.',
+      '«estado.xlsx» no es un PDF. Sube el estado de cuenta en PDF, tal como lo descargaste de tu banca.',
     );
   });
 
   it('rechaza archivos vacíos y los que superan el límite', () => {
-    expect(validateStatementFile(fileOfSize(0))).toBe('El archivo está vacío.');
-    expect(validateStatementFile(fileOfSize(MAX_CLIENT_BYTES + 1))).toContain('supera');
+    expect(validateStatementFile(fileOfSize(0))).toBe(
+      '«estado.pdf» está vacío. Descárgalo de nuevo desde tu banca y vuelve a subirlo.',
+    );
+    expect(validateStatementFile(fileOfSize(MAX_CLIENT_BYTES + 1))).toMatch(
+      /^«estado\.pdf» pesa .+ y el máximo es 50\.0 MB\.$/,
+    );
   });
 });

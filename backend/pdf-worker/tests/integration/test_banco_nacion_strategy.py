@@ -71,12 +71,19 @@ class BancoNacionStrategyTests(TestCase):
         self.assertEqual(summary["currency"], "PEN")
         movements = plan.sheets[1].rows
         self.assertEqual(len(movements), 13)
-        self.assertEqual(movements[-1][6], closing)
+        keys = [column.key for column in plan.sheets[1].columns]
+        self.assertEqual(movements[-1][keys.index("balance")], closing)
+        # `Cargo/Abono` con signo junto a las columnas separadas (ADR-0013).
+        for row in movements:
+            debit, credit = row[keys.index("debit")], row[keys.index("credit")]
+            self.assertEqual(
+                row[keys.index("signed_amount")], (credit or Decimal(0)) - (debit or Decimal(0))
+            )
         self.assertTrue(
             all(
                 isinstance(value, Decimal)
                 for row in movements
-                for value in row[4:7]
+                for value in row[4:8]
                 if value is not None
             )
         )

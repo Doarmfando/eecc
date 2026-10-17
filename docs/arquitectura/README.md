@@ -54,7 +54,13 @@ claves opacas. Persistencia y compatibilidad con documentos antiguos:
 [ADR-0011](../decisiones/ADR-0011-nombre-privado-del-documento.md). La API sigue
 sirviendo nombres derivados del trabajo; es el navegador el que guarda cada
 descarga con el nombre del PDF, y el worker lo recibe solo para la columna
-`Archivo` del Excel BBVA ([ADR-0012](../decisiones/ADR-0012-excel-bbva-con-encabezado-y-nombre-del-archivo.md)).
+`Archivo` del `Resumen` ([ADR-0012](../decisiones/ADR-0012-excel-bbva-con-encabezado-y-nombre-del-archivo.md),
+[ADR-0013](../decisiones/ADR-0013-formato-comun-del-excel.md)).
+
+La carga y el detalle incluyen `createdAt`, la fecha de la subida y su conversión.
+La carga acepta `replaceStatementId`: el documento propio que se borra en lugar
+del más antiguo si se supera el cupo; uno ajeno se ignora
+([ADR-0014](../decisiones/ADR-0014-elegir-que-documento-reemplazar.md)).
 
 Diferencias intencionales con el objetivo, todavía pendientes:
 

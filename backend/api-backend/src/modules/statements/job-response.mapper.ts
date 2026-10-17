@@ -18,6 +18,8 @@ export interface JobResponseInput {
   sourceFileName?: string | null;
   jobId: string;
   statementId: string;
+  /** Alta del trabajo: la fecha de la subida y de su conversión. */
+  createdAt: Date;
   status: JobStatus;
   attempt: AttemptWithRelations;
   reused: boolean;
@@ -30,6 +32,7 @@ export function toJobResponse(input: JobResponseInput): JobResponseDto {
     jobId: input.jobId,
     statementId: input.statementId,
     sourceFileName: input.sourceFileName ?? null,
+    createdAt: input.createdAt.toISOString(),
     status: input.status,
     attemptNumber: attempt.attemptNumber,
     extractorId: attempt.extractorId ?? '',

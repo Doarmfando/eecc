@@ -40,6 +40,7 @@ describe('toJobResponse', () => {
     const response = toJobResponse({
       jobId: 'job-id',
       statementId: 'statement-id',
+      createdAt: new Date('2026-10-17T05:30:00.000Z'),
       status: 'FAILED',
       reused: false,
       attempt: {

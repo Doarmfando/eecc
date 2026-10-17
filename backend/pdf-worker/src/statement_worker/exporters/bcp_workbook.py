@@ -16,11 +16,14 @@ from .workbook import (
     SpreadsheetSheet,
     WorkbookPlan,
     sanitize_spreadsheet_text,
+    signed_amount,
+    signed_amount_column,
+    source_file_column,
     validate_workbook_plan,
 )
 
 BCP_WORKBOOK_SCHEMA_ID = "eecc.statement.bcp"
-BCP_WORKBOOK_SCHEMA_VERSION = 1
+BCP_WORKBOOK_SCHEMA_VERSION = 2
 _FINANCIAL_FORMAT = "#,##0.00;[Red](#,##0.00);-"
 
 
@@ -40,21 +43,19 @@ def _column(
     )
 
 
+# El nombre del PDF y el saldo inicial, sin estado, extractor, versión ni
+# confianza: esos datos técnicos ya los publica la API (ADR-0013).
 _SUMMARY_COLUMNS = (
-    _column("status", "Estado", SpreadsheetCellType.TEXT, 16),
-    _column("extractor", "Extractor", SpreadsheetCellType.TEXT, 22),
-    _column("version", "Versión", SpreadsheetCellType.TEXT, 12),
-    _column("confidence", "Confianza", SpreadsheetCellType.DECIMAL, 12, "0.00%"),
+    source_file_column(),
+    _column("currency", "Moneda", SpreadsheetCellType.TEXT, 10),
     _column("pages", "Páginas", SpreadsheetCellType.INTEGER, 10, "#,##0"),
     _column("rows", "Filas", SpreadsheetCellType.INTEGER, 10, "#,##0"),
     _column("movements", "Movimientos", SpreadsheetCellType.INTEGER, 14, "#,##0"),
+    _column("opening", "Saldo inicial", SpreadsheetCellType.DECIMAL, 16, _FINANCIAL_FORMAT),
     _column("debits", "Total cargos", SpreadsheetCellType.DECIMAL, 16, _FINANCIAL_FORMAT),
     _column("credits", "Total abonos", SpreadsheetCellType.DECIMAL, 16, _FINANCIAL_FORMAT),
     _column("balance", "Saldo final", SpreadsheetCellType.DECIMAL, 16, _FINANCIAL_FORMAT),
     _column("warnings", "Advertencias", SpreadsheetCellType.INTEGER, 14, "#,##0"),
-    # Al final y no junto a la confianza, como en los otros bancos: las columnas
-    # anteriores conservan su posición para quien ya lea esta hoja.
-    _column("currency", "Moneda", SpreadsheetCellType.TEXT, 10),
 )
 
 _MOVEMENT_COLUMNS = (
@@ -63,6 +64,7 @@ _MOVEMENT_COLUMNS = (
     _column("posting_date", "Fecha proceso", SpreadsheetCellType.DATE, 15, "yyyy-mm-dd"),
     _column("value_date", "Fecha valor", SpreadsheetCellType.DATE, 15, "yyyy-mm-dd"),
     _column("description", "Descripción", SpreadsheetCellType.TEXT, 48),
+    signed_amount_column(_FINANCIAL_FORMAT),
     _column("debit", "Cargo", SpreadsheetCellType.DECIMAL, 16, _FINANCIAL_FORMAT),
     _column("credit", "Abono", SpreadsheetCellType.DECIMAL, 16, _FINANCIAL_FORMAT),
     _column("balance", "Saldo", SpreadsheetCellType.DECIMAL, 16, _FINANCIAL_FORMAT),
@@ -97,6 +99,7 @@ def _movement_rows(
             row.posting_date,
             row.value_date,
             sanitize_spreadsheet_text(row.description),
+            signed_amount(row.debit, row.credit),
             row.debit,
             row.credit,
             row.balance,
@@ -113,19 +116,21 @@ def build_bcp_workbook_plan(result: BcpPdfProcessingResult) -> WorkbookPlan:
 
     movements = tuple(row for row in result.rows if row.row_type is BcpRowType.MOVEMENT)
     final_balances = tuple(row.balance for row in result.rows if row.row_type is BcpRowType.BALANCE)
-    summary_row = (
-        sanitize_spreadsheet_text(result.validation.status.value),
-        sanitize_spreadsheet_text(result.detection.extractor_id),
-        sanitize_spreadsheet_text(result.detection.extractor_version),
-        result.detection.confidence,
+    # El que declara la fila `SALDO ANTERIOR`; sin ella queda en blanco, no se deduce.
+    opening_balances = tuple(
+        row.balance for row in result.rows if row.row_type is BcpRowType.PREVIOUS_BALANCE
+    )
+    summary_row: tuple[SpreadsheetCellValue, ...] = (
+        None,
+        result.currency,
         len(result.page_metrics),
         len(result.rows),
         len(movements),
+        opening_balances[0] if opening_balances else None,
         sum((_amount_or_zero(row.debit) for row in movements), start=Decimal("0")),
         sum((_amount_or_zero(row.credit) for row in movements), start=Decimal("0")),
         final_balances[-1] if final_balances else None,
         len(result.validation.warning_codes),
-        result.currency,
     )
 
     validation_rows = tuple(

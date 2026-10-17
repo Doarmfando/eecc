@@ -32,13 +32,14 @@ interface Dobles {
 function construir(
   opciones: {
     limite?: number;
-    sobrantes?: { id: string }[];
+    /** Documentos de la persona, del más reciente al más antiguo, como los ordena la consulta. */
+    documentos?: { id: string }[];
     artefactos?: { objectKey: string }[];
     compartidoConOtro?: boolean;
     fallaElBorrado?: boolean;
   } = {},
 ): Dobles {
-  const sobrantes = jest.fn().mockResolvedValue(opciones.sobrantes ?? []);
+  const sobrantes = jest.fn().mockResolvedValue(opciones.documentos ?? []);
   const otroArtefacto = jest
     .fn()
     .mockResolvedValue(opciones.compartidoConOtro ? { id: 'otro' } : null);
@@ -79,25 +80,75 @@ function construir(
   };
 }
 
-describe('StatementRetentionService', () => {
-  it('pide solo los documentos que exceden el cupo, del más antiguo hacia atrás', async () => {
-    const { service, sobrantes } = construir({ limite: 3 });
+/** Qué documentos se borraron, en orden. */
+function borrados(borrarDocumento: jest.Mock): string[] {
+  return borrarDocumento.mock.calls.map(
+    (llamada) =>
+      (llamada[0] as { where: { organizationId_id: { id: string } } }).where.organizationId_id.id,
+  );
+}
 
-    await service.enforceForUploader(ORGANIZATION_ID, USUARIO_ID);
+describe('StatementRetentionService', () => {
+  it('por defecto borra los que exceden el cupo empezando por el más antiguo', async () => {
+    const { service, sobrantes, borrarDocumento } = construir({
+      limite: 3,
+      documentos: [{ id: 'nuevo' }, { id: 'b' }, { id: 'c' }, { id: 'viejo' }],
+    });
+
+    await expect(service.enforceForUploader(ORGANIZATION_ID, USUARIO_ID)).resolves.toBe(1);
 
     expect(sobrantes).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { organizationId: ORGANIZATION_ID, uploadedById: USUARIO_ID },
-        // `skip: 3` sobre un orden descendente deja intactos los tres recientes.
-        skip: 3,
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       }),
     );
+    expect(borrados(borrarDocumento)).toEqual(['viejo']);
+  });
+
+  it('borra el documento que eligió la persona en vez del más antiguo', async () => {
+    const { service, borrarDocumento } = construir({
+      documentos: [{ id: 'nuevo' }, { id: 'b' }, { id: 'c' }, { id: 'viejo' }],
+    });
+
+    await service.enforceForUploader(ORGANIZATION_ID, USUARIO_ID, {
+      keepStatementId: 'nuevo',
+      preferredStatementId: 'b',
+    });
+
+    expect(borrados(borrarDocumento)).toEqual(['b']);
+  });
+
+  it.each([
+    ['es de otra persona u organización', 'ajeno'],
+    ['es el documento recién subido', 'nuevo'],
+  ])('vuelve al más antiguo si el elegido %s', async (_motivo, elegido) => {
+    const { service, borrarDocumento } = construir({
+      documentos: [{ id: 'nuevo' }, { id: 'b' }, { id: 'c' }, { id: 'viejo' }],
+    });
+
+    await service.enforceForUploader(ORGANIZATION_ID, USUARIO_ID, {
+      keepStatementId: 'nuevo',
+      preferredStatementId: elegido,
+    });
+
+    expect(borrados(borrarDocumento)).toEqual(['viejo']);
+  });
+
+  it('una elección sin cupo superado no borra nada', async () => {
+    const { service, borrarDocumento } = construir({
+      documentos: [{ id: 'nuevo' }, { id: 'b' }, { id: 'c' }],
+    });
+
+    await expect(
+      service.enforceForUploader(ORGANIZATION_ID, USUARIO_ID, { preferredStatementId: 'b' }),
+    ).resolves.toBe(0);
+    expect(borrarDocumento).not.toHaveBeenCalled();
   });
 
   it('no borra nada cuando aún no se llegó al cupo', async () => {
     const { service, borrarDocumento, borrarObjeto, descartarEnWorker } = construir({
-      sobrantes: [],
+      documentos: [{ id: 'a' }, { id: 'b' }, { id: 'c' }],
     });
 
     await expect(service.enforceForUploader(ORGANIZATION_ID, USUARIO_ID)).resolves.toBe(0);
@@ -109,7 +160,7 @@ describe('StatementRetentionService', () => {
   it('retira el PDF de origen, los artefactos del worker y la fila', async () => {
     const { service, borrarObjeto, descartarEnWorker, borrarArtefactos, borrarDocumento } =
       construir({
-        sobrantes: [{ id: 'viejo' }],
+        documentos: [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'viejo' }],
         artefactos: [
           { objectKey: clavePdf('viejo') },
           { objectKey: claveWorker('statement.xlsx') },
@@ -133,7 +184,7 @@ describe('StatementRetentionService', () => {
     // subieron el mismo archivo comparten sus resultados. Borrarlos dejaría a la
     // otra sin poder descargar lo suyo.
     const { service, descartarEnWorker, borrarDocumento } = construir({
-      sobrantes: [{ id: 'viejo' }],
+      documentos: [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'viejo' }],
       artefactos: [{ objectKey: claveWorker() }],
       compartidoConOtro: true,
     });
@@ -147,7 +198,7 @@ describe('StatementRetentionService', () => {
 
   it('sigue con los demás cuando uno falla', async () => {
     const { service, borrarDocumento } = construir({
-      sobrantes: [{ id: 'uno' }, { id: 'dos' }],
+      documentos: [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'uno' }, { id: 'dos' }],
       artefactos: [],
       fallaElBorrado: true,
     });
@@ -159,7 +210,7 @@ describe('StatementRetentionService', () => {
 
   it('al eliminar una cuenta borra todos sus documentos, no solo los que exceden el cupo', async () => {
     const { service, sobrantes, borrarDocumento } = construir({
-      sobrantes: [{ id: 'uno' }, { id: 'dos' }],
+      documentos: [{ id: 'uno' }, { id: 'dos' }],
       artefactos: [],
     });
 
@@ -175,7 +226,7 @@ describe('StatementRetentionService', () => {
     // Quien llama borra la cuenta justo después: si siguiera, quedarían archivos
     // financieros sin dueño y sin nadie que los viera en su historial.
     const { service, borrarDocumento } = construir({
-      sobrantes: [{ id: 'uno' }, { id: 'dos' }],
+      documentos: [{ id: 'uno' }, { id: 'dos' }],
       artefactos: [],
       fallaElBorrado: true,
     });

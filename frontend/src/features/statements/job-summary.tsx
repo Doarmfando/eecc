@@ -3,7 +3,7 @@ import type { ComponentType, ReactNode } from 'react';
 
 import excelIcon from '@/assets/files/excel.svg';
 import { ArtifactList } from '@/components/shared/artifact-list';
-import { describeArtifact, savedFileName } from '@/components/shared/artifact-label';
+import { describeArtifact, savedFileName, shownFileName } from '@/components/shared/artifact-label';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { CheckList, WarningList } from '@/components/shared/warning-list';
 import { Alert } from '@/components/ui/alert';
@@ -14,6 +14,8 @@ import { describeError } from '@/lib/api-error';
 import { formatBytes, formatCount } from '@/lib/format';
 import { saveBlob } from '@/lib/save-file';
 import { requiresReview, type Artifact, type Job } from '@/types/job';
+
+import { formatProcessedAt } from './format-processed-at';
 
 function Metric({
   label,
@@ -48,14 +50,20 @@ function PrimaryDownloadButton({
 }): ReactNode {
   const download = useDownloadArtifact();
   const label = describeArtifact(artifact.kind, artifact.name);
+  const name = shownFileName(artifact, sourceFileName);
   return (
     <>
       <div className="flex flex-col gap-3 rounded-lg border border-primary/20 bg-primary/10 p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           <img src={excelIcon} alt="" aria-hidden className="size-10 shrink-0" />
-          <div>
-            <p className="text-sm font-semibold text-foreground">{label}</p>
-            <p className="text-xs text-muted-foreground">{formatBytes(artifact.byteSize)}</p>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold break-words text-foreground [overflow-wrap:anywhere]">
+              {name ?? label}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {name ? `${label} · ` : ''}
+              {formatBytes(artifact.byteSize)}
+            </p>
           </div>
         </div>
         <Button
@@ -108,10 +116,9 @@ export function JobSummary({ job }: { job: Job }): ReactNode {
                 {job.sourceFileName}
               </p>
             ) : null}
-            <CardDescription>
-              Extractor {job.extractorId} versión {job.extractorVersion} · intento{' '}
-              {formatCount(job.attemptNumber)}
-            </CardDescription>
+            {job.createdAt ? (
+              <CardDescription>Convertido el {formatProcessedAt(job.createdAt)}</CardDescription>
+            ) : null}
           </CardHeader>
           <StatusBadge status={job.status} />
         </div>
@@ -188,7 +195,8 @@ export function JobSummary({ job }: { job: Job }): ReactNode {
           <CardHeader>
             <CardTitle>Invariantes verificadas</CardTitle>
             <CardDescription>
-              Una extracción no es correcta solo porque produjo filas.
+              Una extracción no es correcta solo porque produjo filas. Comprobadas por{' '}
+              {job.extractorId} {job.extractorVersion}, intento {formatCount(job.attemptNumber)}.
             </CardDescription>
           </CardHeader>
           <CheckList checks={job.checks} />

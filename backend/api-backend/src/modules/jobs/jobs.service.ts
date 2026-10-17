@@ -97,6 +97,7 @@ export class JobsService {
     return toJobResponse({
       jobId: job.id,
       statementId: job.statementId,
+      createdAt: job.createdAt,
       status: job.status,
       attempt,
       reused: false,

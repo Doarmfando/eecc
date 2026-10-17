@@ -101,7 +101,7 @@ class BbvaWorkbookTests(TestCase):
             [sheet.name for sheet in plan.sheets],
             ["Resumen", "Encabezado", "Movimientos", "Control_Paginas"],
         )
-        self.assertEqual(plan.schema_version, 2)
+        self.assertEqual(plan.schema_version, 3)
 
     def test_the_summary_drops_the_technical_columns_and_names_the_file(self) -> None:
         summary = _sheet(plan := _plan(), "Resumen")
@@ -118,7 +118,7 @@ class BbvaWorkbookTests(TestCase):
         self.assertEqual(record["Moneda"], "PEN")
         # El saldo anterior cuenta como una fila más de `Movimientos`.
         self.assertEqual(record["Movimientos"], 3)
-        self.assertEqual(record["Saldo anterior"], Decimal("100.00"))
+        self.assertEqual(record["Saldo inicial"], Decimal("100.00"))
 
         stamped = _records(_sheet(with_source_file_name(plan, "Agosto ahorro.pdf"), "Resumen"))
         self.assertEqual(stamped[0]["Archivo"], "Agosto ahorro.pdf")
@@ -138,6 +138,31 @@ class BbvaWorkbookTests(TestCase):
         self.assertIsNone(records[0]["Cargo/Abono"])
         # Los totales declarados de ITF no son filas de la tabla de movimientos.
         self.assertNotIn("CARGOS", [record["Descripción"] for record in records])
+
+    def test_separates_charges_and_credits_and_totals_them_without_the_itf(self) -> None:
+        plan = _plan()
+        records = _records(_sheet(plan, "Movimientos"))
+
+        self.assertEqual(
+            [(r["Cargo/Abono"], r["Cargo"], r["Abono"], r["ITF"]) for r in records],
+            [
+                (None, None, None, None),
+                (Decimal("-10.00"), Decimal("10.00"), None, None),
+                (Decimal("20.00"), None, Decimal("20.00"), Decimal("0.05")),
+            ],
+        )
+        summary = _records(_sheet(plan, "Resumen"))[0]
+        # Como la referencia: cada total suma su propia columna y el ITF va aparte.
+        self.assertEqual(summary["Total cargos"], Decimal("10.00"))
+        self.assertEqual(summary["Total abonos"], Decimal("20.00"))
+        self.assertEqual(summary["Total ITF"], Decimal("0.05"))
+        self.assertEqual(
+            summary["Saldo inicial"]
+            + summary["Total abonos"]
+            - summary["Total cargos"]
+            - summary["Total ITF"],
+            summary["Saldo contable final"],
+        )
 
     def test_page_control_counts_rows_and_columns_read_from_each_page(self) -> None:
         control = _sheet(_plan(), "Control_Paginas")

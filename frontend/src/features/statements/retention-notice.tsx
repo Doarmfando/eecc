@@ -31,13 +31,14 @@ export function RetentionNotice(): ReactNode {
       {enElTope ? (
         <>
           , y ya los tienes todos:{' '}
-          <strong>al procesar el siguiente se borrará el más antiguo</strong> junto con sus
-          archivos. Descarga lo que necesites conservar.
+          <strong>al procesar el siguiente elegirás cuál reemplazar</strong> (por defecto, el más
+          antiguo), que se borra con sus archivos. Descarga lo que necesites conservar.
         </>
       ) : (
         <>
           {' '}
-          ({mios} de {cupo} usados). Al superarlo, el más antiguo se borra con sus archivos.
+          ({mios} de {cupo} usados). Al superarlo eliges cuál reemplazar; por defecto, el más
+          antiguo, que se borra con sus archivos.
         </>
       )}
     </p>

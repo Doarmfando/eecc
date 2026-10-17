@@ -36,6 +36,29 @@ describe('JobSummary', () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
+  it('dice cuándo se convirtió y nombra cada archivo como el PDF que se subió', () => {
+    renderWithProviders(
+      <JobSummary
+        job={job({
+          sourceFileName: 'EECC BBVA AGOSTO.pdf',
+          createdAt: '2026-10-17T05:30:00.000Z',
+          artifacts: [
+            { id: 'x', kind: 'RESULT_XLSX', byteSize: 100, name: 'statement.xlsx' },
+            { id: 'p', kind: 'SOURCE_PDF', byteSize: 900, name: 'source.pdf' },
+          ],
+        })}
+      />,
+    );
+
+    expect(screen.getByText(/^Convertido el /)).toBeVisible();
+    expect(screen.getByText('EECC BBVA AGOSTO.xlsx')).toBeVisible();
+    // El PDF se presenta con su nombre real; «PDF original» queda como detalle.
+    expect(screen.getAllByText('EECC BBVA AGOSTO.pdf')).toHaveLength(2);
+    expect(screen.getByText(/^PDF original · /)).toBeVisible();
+    // Los datos técnicos ya no encabezan el resultado, pero siguen en las invariantes.
+    expect(screen.getByText(/Comprobadas por bcp-coordinate-v1 0\.1\.0/)).toBeVisible();
+  });
+
   it('mantiene la revisión sin afirmar un descuadre cuando solo hay filas sin clasificar', () => {
     renderWithProviders(
       <JobSummary job={job({ status: 'NEEDS_REVIEW', warningCodes: ['BBVA_ROW_UNCLASSIFIED'] })} />,

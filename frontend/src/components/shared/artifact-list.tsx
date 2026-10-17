@@ -9,7 +9,7 @@ import { formatBytes } from '@/lib/format';
 import { saveBlob } from '@/lib/save-file';
 import type { Artifact } from '@/types/job';
 
-import { describeArtifact, savedFileName } from './artifact-label';
+import { describeArtifact, savedFileName, shownFileName } from './artifact-label';
 
 interface DownloadHandlers {
   isPending: boolean;
@@ -27,18 +27,20 @@ function SecondaryArtifact({
   sourceFileName?: string | null;
 }): ReactNode {
   const label = describeArtifact(artifact.kind, artifact.name);
+  // El nombre con que se subió, no «PDF original»: es lo que la persona reconoce.
+  const name = shownFileName(artifact, sourceFileName);
   const isDownloading = handlers.isDownloading(artifact.id);
   return (
     <div className="flex cursor-pointer items-center gap-3 rounded-lg border border-slate-200 bg-white p-3.5 transition-colors hover:border-blue-300 hover:bg-blue-50/40">
       <img src={pdfIcon} alt="" aria-hidden className="size-9 shrink-0" />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-slate-800">{label}</p>
-        {sourceFileName ? (
-          <p className="text-sm break-words text-slate-700 [overflow-wrap:anywhere]">
-            {sourceFileName}
-          </p>
-        ) : null}
-        <p className="text-xs text-muted-foreground">{formatBytes(artifact.byteSize)}</p>
+        <p className="text-sm font-medium break-words text-slate-800 [overflow-wrap:anywhere]">
+          {name ?? label}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {name ? `${label} · ` : ''}
+          {formatBytes(artifact.byteSize)}
+        </p>
       </div>
       <Button
         type="button"

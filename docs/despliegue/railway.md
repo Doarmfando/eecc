@@ -62,7 +62,7 @@ DATABASE_URL=${{Postgres.DATABASE_URL}}
 WORKER_BASE_URL=http://eecc-worker.railway.internal:8000
 FINGERPRINT_SECRET=<32+ caracteres, propios de esta instalación>
 SESSION_TTL_HOURS=12
-PROFILE_VERSION=statements-2026.10.17.2
+PROFILE_VERSION=statements-2026.10.17.3
 STORAGE_ROOT=/data/storage
 ```
 
@@ -111,12 +111,14 @@ Al desplegar la migración `20260912120000_administrador_y_usuario`, en cada org
 
 ## Comprobar que quedó bien
 
-Para desplegar el Excel BBVA con encabezado y nombre del archivo (ADR-0012):
-primero el worker (BBVA `0.3.0`, campo `source_file_name`), después la API con
-`PROFILE_VERSION=statements-2026.10.17.2` —también en la variable de Railway si
-está definida— y por último el frontend. Comprobar con una carga BBVA nueva que el
-Excel trae `Resumen` con `Archivo`, `Encabezado` y `Movimientos` con el saldo
-anterior, y que la descarga se guarda con el nombre del PDF.
+Para desplegar el formato de Excel de ADR-0012 y ADR-0013 y la elección del
+documento a reemplazar (ADR-0014): primero el worker (campo `source_file_name`;
+BBVA y BCP `0.4.0`, Banco de la Nación y genérico `0.3.0`, Interbank `0.2.0`),
+después la API con `PROFILE_VERSION=statements-2026.10.17.3` —también en la
+variable de Railway si está definida— y por último el frontend. No hay migración.
+Comprobar con una carga nueva que el `Resumen` empieza por `Archivo` y trae
+`Saldo inicial`, que `Movimientos` tiene `Cargo/Abono`, que la descarga se guarda
+con el nombre del PDF y que, con el cupo lleno, se pregunta cuál reemplazar.
 
 Para desplegar la conservación del nombre del PDF (ADR-0011), actualizar primero
 la API: el arranque aplica `20261017090000_statement_source_file_name` mediante

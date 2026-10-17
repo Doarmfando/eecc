@@ -20,6 +20,7 @@ describe('JobsService', () => {
     const { service, findFirst } = buildService({
       id: JOB_ID,
       statementId: 'statement-id',
+      createdAt: new Date('2026-08-26T15:30:00.000Z'),
       status: JobStatus.NEEDS_REVIEW,
       statement: { sourceFileName: 'Cuenta sintética agosto.pdf' },
       attempts: [

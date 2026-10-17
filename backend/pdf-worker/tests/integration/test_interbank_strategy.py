@@ -65,12 +65,18 @@ class InterbankStrategyTests(TestCase):
         self.assertEqual(summary["currency"], "PEN")
         movements = plan.sheets[1].rows
         self.assertEqual(len(movements), 17)
-        self.assertEqual(movements[-1][5], closing)
+        keys = [column.key for column in plan.sheets[1].columns]
+        self.assertEqual(movements[-1][keys.index("balance")], closing)
+        for row in movements:
+            debit, credit = row[keys.index("debit")], row[keys.index("credit")]
+            self.assertEqual(
+                row[keys.index("signed_amount")], (credit or Decimal(0)) - (debit or Decimal(0))
+            )
         self.assertTrue(
             all(
                 isinstance(value, Decimal)
                 for row in movements
-                for value in row[3:6]
+                for value in row[3:7]
                 if value is not None
             )
         )

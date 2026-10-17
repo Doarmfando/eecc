@@ -39,16 +39,34 @@ export class StatementRetentionService {
    * El cupo es por persona y no por organización para que la actividad de alguien
    * no borre el trabajo reciente de otro. `uploadedById` nulo —una credencial de
    * servicio— forma su propio grupo.
+   *
+   * Por defecto sobran los más antiguos. Si la persona eligió cuál reemplazar
+   * (`preferredStatementId`), ese sale primero, siempre que sea suyo: la búsqueda
+   * ya filtra por organización y dueño, así que un identificador ajeno no
+   * coincide con nada y se vuelve al más antiguo (ADR-0014). `keepStatementId`
+   * es el documento recién subido, que nunca se borra.
    */
-  async enforceForUploader(organizationId: string, uploadedById: string | null): Promise<number> {
+  async enforceForUploader(
+    organizationId: string,
+    uploadedById: string | null,
+    options: { keepStatementId?: string; preferredStatementId?: string } = {},
+  ): Promise<number> {
     const limite = this.config.get('RETAINED_STATEMENTS_PER_USER', { infer: true });
 
-    const sobrantes = await this.prisma.statement.findMany({
+    const documentos = await this.prisma.statement.findMany({
       where: { organizationId, uploadedById },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      skip: limite,
       select: { id: true },
     });
+    const cuantosSobran = documentos.length - limite;
+    if (cuantosSobran <= 0) {
+      return 0;
+    }
+    const candidatos = documentos.filter(({ id }) => id !== options.keepStatementId).reverse();
+    const elegido = candidatos.find(({ id }) => id === options.preferredStatementId);
+    const sobrantes = (
+      elegido ? [elegido, ...candidatos.filter((documento) => documento !== elegido)] : candidatos
+    ).slice(0, cuantosSobran);
 
     let borrados = 0;
     for (const sobrante of sobrantes) {

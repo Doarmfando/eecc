@@ -14,6 +14,7 @@ import type { WorkerJobPayload } from '../src/modules/worker-client/worker-clien
 const API_KEY = 'e'.repeat(48);
 const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
 const JOB_ID = '33333333-3333-4333-8333-333333333333';
+const CREATED_AT = new Date('2026-10-17T05:30:00.000Z');
 const ARTIFACT_ID = '44444444-4444-4444-8444-444444444444';
 const PDF = Buffer.from('%PDF-1.7\nsintetico\n%%EOF', 'utf8');
 
@@ -65,7 +66,7 @@ function collectBinary(
 function buildPrismaDouble(): PrismaService {
   const tx = {
     statement: { create: jest.fn().mockResolvedValue({ id: 'statement-id' }) },
-    job: { create: jest.fn().mockResolvedValue({ id: JOB_ID }) },
+    job: { create: jest.fn().mockResolvedValue({ id: JOB_ID, createdAt: CREATED_AT }) },
     jobAttempt: {
       create: jest.fn().mockResolvedValue({ id: 'attempt-id' }),
       findUniqueOrThrow: jest.fn().mockResolvedValue(ATTEMPT),
@@ -131,6 +132,7 @@ function buildPrismaDouble(): PrismaService {
           ? Promise.resolve({
               id: JOB_ID,
               statementId: 'statement-id',
+              createdAt: CREATED_AT,
               status: 'NEEDS_REVIEW',
               statement: { sourceFileName: 'Estado sintético.pdf' },
               attempts: [ATTEMPT],
@@ -209,6 +211,7 @@ describe('API pública (e2e)', () => {
 
     expect(response.body.status).toEqual('NEEDS_REVIEW');
     expect(response.body.warningCodes).toEqual(['BCP_AMOUNT_UNPARSEABLE']);
+    expect(response.body.createdAt).toBe('2026-10-17T05:30:00.000Z');
     expect(response.body.checks).toEqual([{ code: 'BCP_PAGE_TOTALS', status: 'FAILED' }]);
     expect(response.body.artifacts).toEqual([
       { id: 'artifact-id', kind: 'RESULT_XLSX', byteSize: 2048, name: 'statement.xlsx' },

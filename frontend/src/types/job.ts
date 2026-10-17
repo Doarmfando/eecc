@@ -32,6 +32,8 @@ export const jobSchema = z.object({
     .nullish(),
   jobId: z.string(),
   statementId: z.string(),
+  // Opcional para no romper con una API anterior a la fecha de conversión.
+  createdAt: z.string().optional(),
   status: jobStatusSchema,
   attemptNumber: z.number().int().positive(),
   extractorId: z.string(),

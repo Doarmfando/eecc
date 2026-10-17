@@ -12,6 +12,8 @@ export interface UploadStatementInput {
   extractorId?: string;
   /** Contraseña de apertura de un PDF protegido. Solo viaja en esta petición. */
   pdfPassword?: string;
+  /** Documento propio que se reemplaza si este supera el cupo (ADR-0014). */
+  replaceStatementId?: string;
   idempotencyKey?: string;
   signal?: AbortSignal;
 }
@@ -107,6 +109,9 @@ export async function uploadStatement(
   }
   if (input.pdfPassword) {
     form.append('pdfPassword', input.pdfPassword);
+  }
+  if (input.replaceStatementId) {
+    form.append('replaceStatementId', input.replaceStatementId);
   }
 
   const headers: Record<string, string> = {};

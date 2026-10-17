@@ -2,8 +2,9 @@
 
 Los rótulos siguen al documento (`Cargo/Abono`, `ITF`, `Saldo contable`) para que
 quien compara el Excel con el PDF no tenga que traducir columnas. `Cargo/Abono`
-conserva el signo, como lo imprime el banco, y el ITF va en su propia columna
-porque es lo que permite cuadrar la cuenta contra el estado original.
+conserva el signo, como lo imprime el banco, y se repite separado en `Cargo` y
+`Abono` como en los demás bancos (ADR-0013). Los tres son brutos: el ITF va en su
+propia columna y su propio total, porque es lo que permite cuadrar la cuenta.
 
 `Encabezado` lleva los datos de la cuenta que imprime el banco —titular,
 dirección, RUC, CCI y código de cuenta— porque el Excel es de su dueño y los
@@ -24,18 +25,19 @@ from statement_worker.extractors.bbva.models import (
 from statement_worker.extractors.bbva.validation import BbvaValidationReport
 
 from .workbook import (
-    SOURCE_FILE_COLUMN_KEY,
     SpreadsheetCellType,
     SpreadsheetCellValue,
     SpreadsheetColumn,
     SpreadsheetSheet,
     WorkbookPlan,
     sanitize_spreadsheet_text,
+    signed_amount_column,
+    source_file_column,
     validate_workbook_plan,
 )
 
 BBVA_WORKBOOK_SCHEMA_ID = "eecc.statement.bbva"
-BBVA_WORKBOOK_SCHEMA_VERSION = 2
+BBVA_WORKBOOK_SCHEMA_VERSION = 3
 _FINANCIAL_FORMAT = "#,##0.00;[Red](#,##0.00);-"
 
 # Lo que la hoja `Movimientos` dice de cada fila. El saldo anterior va como fila
@@ -47,13 +49,13 @@ _ROW_TYPE_LABELS = {
 
 _SUMMARY_COLUMNS = (
     # La completa el trabajo al publicar: la estrategia nunca ve el nombre.
-    SpreadsheetColumn(SOURCE_FILE_COLUMN_KEY, "Archivo", SpreadsheetCellType.TEXT, 40),
+    source_file_column(),
     SpreadsheetColumn("account_type", "Tipo de cuenta", SpreadsheetCellType.TEXT, 16),
     SpreadsheetColumn("currency", "Moneda", SpreadsheetCellType.TEXT, 10),
     SpreadsheetColumn("pages", "Páginas", SpreadsheetCellType.INTEGER, 10, "#,##0"),
     SpreadsheetColumn("movements", "Movimientos", SpreadsheetCellType.INTEGER, 14, "#,##0"),
     SpreadsheetColumn(
-        "opening", "Saldo anterior", SpreadsheetCellType.DECIMAL, 16, _FINANCIAL_FORMAT
+        "opening", "Saldo inicial", SpreadsheetCellType.DECIMAL, 16, _FINANCIAL_FORMAT
     ),
     SpreadsheetColumn(
         "credits", "Total abonos", SpreadsheetCellType.DECIMAL, 16, _FINANCIAL_FORMAT
@@ -77,7 +79,10 @@ _MOVEMENT_COLUMNS = (
     SpreadsheetColumn("posting_date", "Fecha oper.", SpreadsheetCellType.DATE, 14, "yyyy-mm-dd"),
     SpreadsheetColumn("value_date", "Fecha valor", SpreadsheetCellType.DATE, 14, "yyyy-mm-dd"),
     SpreadsheetColumn("description", "Descripción", SpreadsheetCellType.TEXT, 48),
-    SpreadsheetColumn("amount", "Cargo/Abono", SpreadsheetCellType.DECIMAL, 16, _FINANCIAL_FORMAT),
+    signed_amount_column(_FINANCIAL_FORMAT),
+    # La misma cifra separada, como la publican los demás bancos. Sin el ITF.
+    SpreadsheetColumn("debit", "Cargo", SpreadsheetCellType.DECIMAL, 16, _FINANCIAL_FORMAT),
+    SpreadsheetColumn("credit", "Abono", SpreadsheetCellType.DECIMAL, 16, _FINANCIAL_FORMAT),
     SpreadsheetColumn("itf", "ITF", SpreadsheetCellType.DECIMAL, 12, _FINANCIAL_FORMAT),
     SpreadsheetColumn(
         "balance", "Saldo contable", SpreadsheetCellType.DECIMAL, 16, _FINANCIAL_FORMAT
@@ -149,7 +154,19 @@ def build_bbva_workbook_plan(
     exported = tuple(row for row in document.rows if row.row_type in _ROW_TYPE_LABELS)
 
     movement_rows: tuple[tuple[SpreadsheetCellValue, ...], ...] = tuple(
-        (row.page, _ROW_TYPE_LABELS[row.row_type], *_movement_cells(row)) for row in exported
+        (
+            row.page,
+            _ROW_TYPE_LABELS[row.row_type],
+            row.posting_date,
+            row.value_date,
+            _text(row.description),
+            row.amount,
+            row.debit,
+            row.credit,
+            row.itf,
+            row.balance,
+        )
+        for row in exported
     )
 
     summary_row: tuple[SpreadsheetCellValue, ...] = (
@@ -160,6 +177,7 @@ def build_bbva_workbook_plan(
         # El saldo anterior cuenta como una fila más de la hoja `Movimientos`.
         len(movement_rows),
         report.opening_balance,
+        # Brutos, como suman las columnas `Abono` y `Cargo`; el ITF va en su total.
         report.total_credits,
         report.total_debits,
         report.total_itf,

@@ -2,6 +2,8 @@ import { Check, CloudUpload, Cog, Download, ScrollText } from 'lucide-react';
 import { useState, type ComponentType, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { useSession } from '@/app/use-session';
+
 import { Alert } from '@/components/ui/alert';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -12,13 +14,15 @@ import {
   type BankId,
 } from '@/features/statements/bank-selector';
 import { JobSummary } from '@/features/statements/job-summary';
+import { ReplaceStatementDialog } from '@/features/statements/replace-statement-dialog';
+import { replaceableStatements } from '@/features/statements/replaceable-statements';
 import { RetentionNotice } from '@/features/statements/retention-notice';
 import {
   UploadForm,
   type PasswordProblem,
   type UploadFormValues,
 } from '@/features/statements/upload-form';
-import { useUploadStatement } from '@/features/statements/queries';
+import { useJobHistory, useUploadStatement } from '@/features/statements/queries';
 import { describeError, type ApiError } from '@/lib/api-error';
 import { cn } from '@/lib/utils';
 
@@ -93,14 +97,33 @@ function passwordProblemOf(error: ApiError | null): PasswordProblem | null {
 export function UploadPage(): ReactNode {
   const navigate = useNavigate();
   const upload = useUploadStatement();
+  const { usuario } = useSession();
+  const history = useJobHistory();
   const [selectedBank, setSelectedBank] = useState<BankId>('bcp');
+  // Envío en espera de que la persona elija qué documento reemplazar.
+  const [awaitingChoice, setAwaitingChoice] = useState<UploadFormValues | null>(null);
+
+  const cupo = usuario?.retainedStatementsPerUser ?? 0;
+  const replaceable = replaceableStatements(history.data?.items ?? []);
+
+  function send(values: UploadFormValues, replaceStatementId?: string): void {
+    upload.mutate(
+      { ...values, ...(replaceStatementId ? { replaceStatementId } : {}) },
+      {
+        onSuccess: (job) => {
+          void navigate(`/jobs/${job.jobId}`, { state: { job } });
+        },
+      },
+    );
+  }
 
   function handleSubmit(values: UploadFormValues): void {
-    upload.mutate(values, {
-      onSuccess: (job) => {
-        void navigate(`/jobs/${job.jobId}`, { state: { job } });
-      },
-    });
+    // En el cupo, antes de subir se pregunta cuál se reemplaza: después ya sería tarde.
+    if (cupo > 0 && replaceable.length >= cupo) {
+      setAwaitingChoice(values);
+      return;
+    }
+    send(values);
   }
 
   const currentStep = upload.isSuccess ? 3 : upload.isPending ? 1 : 0;
@@ -173,6 +196,22 @@ export function UploadPage(): ReactNode {
       ) : null}
 
       {upload.isSuccess ? <JobSummary job={upload.data} /> : null}
+
+      <ReplaceStatementDialog
+        open={awaitingChoice !== null}
+        fileName={awaitingChoice?.file.name ?? ''}
+        cupo={cupo}
+        documents={replaceable}
+        onConfirm={(statementId) => {
+          if (awaitingChoice) {
+            send(awaitingChoice, statementId);
+          }
+          setAwaitingChoice(null);
+        }}
+        onCancel={() => {
+          setAwaitingChoice(null);
+        }}
+      />
     </div>
   );
 }

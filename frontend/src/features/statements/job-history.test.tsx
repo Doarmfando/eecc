@@ -190,12 +190,12 @@ describe('aviso del cupo de documentos', () => {
     expect(await screen.findByText(/1 de 3 usados/)).toBeInTheDocument();
   });
 
-  it('advierte que el siguiente borrará el más antiguo al llegar al cupo', async () => {
+  it('advierte que al llegar al cupo habrá que elegir cuál reemplazar', async () => {
     // Es la advertencia que evita perder un documento sin haber sido avisado.
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(200, mios(3))));
     renderWithProviders(<JobHistory />);
 
-    expect(await screen.findByText(/se borrará el más antiguo/)).toBeInTheDocument();
+    expect(await screen.findByText(/elegirás cuál reemplazar/)).toBeInTheDocument();
   });
 
   it('no cuenta los documentos de otras personas: el cupo es por persona', async () => {

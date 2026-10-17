@@ -3,6 +3,8 @@
 - Estado: Aceptada
 - Fecha: 2026-10-17
 - Amplía: [ADR-0011](ADR-0011-nombre-privado-del-documento.md)
+- Ampliada por: [ADR-0013](ADR-0013-formato-comun-del-excel.md), que lleva a todos los bancos
+  el `Resumen` con `Archivo` y `Saldo inicial` y la columna `Cargo/Abono`.
 
 ## Contexto
 

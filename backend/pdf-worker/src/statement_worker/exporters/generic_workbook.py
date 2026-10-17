@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from statement_worker.domain.models import Detection
+from statement_worker.domain.models import Detection, ExtractionStatus
 
 from .workbook import (
     SpreadsheetCellType,
@@ -13,6 +14,9 @@ from .workbook import (
     SpreadsheetSheet,
     WorkbookPlan,
     sanitize_spreadsheet_text,
+    signed_amount,
+    signed_amount_column,
+    source_file_column,
     validate_workbook_plan,
 )
 
@@ -21,7 +25,7 @@ if TYPE_CHECKING:
     from statement_worker.extractors.generic.validation import GenericValidationReport
 
 GENERIC_WORKBOOK_SCHEMA_ID = "eecc.statement.generic"
-GENERIC_WORKBOOK_SCHEMA_VERSION = 1
+GENERIC_WORKBOOK_SCHEMA_VERSION = 2
 _FINANCIAL_FORMAT = "#,##0.00;[Red](#,##0.00);-"
 
 _MOVEMENT_COLUMNS = (
@@ -30,18 +34,19 @@ _MOVEMENT_COLUMNS = (
     SpreadsheetColumn("value_date", "Fecha valor", SpreadsheetCellType.DATE, 15, "yyyy-mm-dd"),
     SpreadsheetColumn("description", "Descripción", SpreadsheetCellType.TEXT, 48),
     SpreadsheetColumn("reference", "Referencia", SpreadsheetCellType.TEXT, 22),
+    signed_amount_column(_FINANCIAL_FORMAT),
     SpreadsheetColumn("debit", "Cargo", SpreadsheetCellType.DECIMAL, 16, _FINANCIAL_FORMAT),
     SpreadsheetColumn("credit", "Abono", SpreadsheetCellType.DECIMAL, 16, _FINANCIAL_FORMAT),
     SpreadsheetColumn("balance", "Saldo", SpreadsheetCellType.DECIMAL, 16, _FINANCIAL_FORMAT),
 )
 
 _SUMMARY_COLUMNS = (
-    SpreadsheetColumn("status", "Estado", SpreadsheetCellType.TEXT, 16),
-    SpreadsheetColumn("extractor", "Extractor", SpreadsheetCellType.TEXT, 22),
-    SpreadsheetColumn("version", "Versión", SpreadsheetCellType.TEXT, 12),
-    SpreadsheetColumn("confidence", "Confianza", SpreadsheetCellType.DECIMAL, 12, "0.00%"),
+    source_file_column(),
     SpreadsheetColumn("rows", "Movimientos", SpreadsheetCellType.INTEGER, 14, "#,##0"),
     SpreadsheetColumn("verified", "Saldos verificados", SpreadsheetCellType.INTEGER, 20, "#,##0"),
+    SpreadsheetColumn(
+        "opening", "Saldo inicial", SpreadsheetCellType.DECIMAL, 16, _FINANCIAL_FORMAT
+    ),
     SpreadsheetColumn("warnings", "Advertencias", SpreadsheetCellType.INTEGER, 14, "#,##0"),
 )
 
@@ -50,6 +55,24 @@ _VALIDATION_COLUMNS = (
     SpreadsheetColumn("code", "Código", SpreadsheetCellType.TEXT, 44),
     SpreadsheetColumn("status", "Estado", SpreadsheetCellType.TEXT, 16),
 )
+
+
+def _opening_balance(
+    rows: tuple[GenericParsedRow, ...], report: GenericValidationReport
+) -> Decimal | None:
+    """Saldo antes de la primera fila, solo cuando los saldos están demostrados.
+
+    El respaldo no lee un saldo inicial declarado. Se deduce de la primera fila
+    —su saldo menos lo que movió— únicamente si la validación comprobó que los
+    saldos avanzan con los importes; si no, la celda queda en blanco.
+    """
+
+    if report.status is not ExtractionStatus.SUCCEEDED or not rows:
+        return None
+    first = rows[0]
+    if first.balance is None:
+        return None
+    return first.balance - (first.credit or Decimal("0")) + (first.debit or Decimal("0"))
 
 
 def build_generic_workbook_plan(
@@ -66,6 +89,7 @@ def build_generic_workbook_plan(
             row.value_date,
             sanitize_spreadsheet_text(row.description),
             sanitize_spreadsheet_text(row.reference or ""),
+            signed_amount(row.debit, row.credit),
             row.debit,
             row.credit,
             row.balance,
@@ -74,12 +98,10 @@ def build_generic_workbook_plan(
     )
 
     summary_row: tuple[SpreadsheetCellValue, ...] = (
-        sanitize_spreadsheet_text(report.status.value),
-        sanitize_spreadsheet_text(detection.extractor_id),
-        sanitize_spreadsheet_text(detection.extractor_version),
-        detection.confidence,
+        None,
         len(rows),
         report.verified_transitions,
+        _opening_balance(rows, report),
         len(report.warning_codes),
     )
 

@@ -109,17 +109,27 @@ class BcpWorkbookPlanTests(TestCase):
         plan = build_bcp_workbook_plan(_result())
 
         self.assertEqual(plan.schema_id, "eecc.statement.bcp")
-        self.assertEqual(plan.schema_version, 1)
+        self.assertEqual(plan.schema_version, 2)
         self.assertEqual(
             tuple(sheet.name for sheet in plan.sheets),
             ("Resumen", "Movimientos", "Control_Paginas", "Validaciones"),
         )
-        summary = plan.sheets[0].rows[0]
-        self.assertEqual(summary[3], Decimal("0.95"))
-        self.assertEqual(summary[7], Decimal("10.00"))
-        self.assertEqual(summary[8], Decimal("0"))
-        self.assertEqual(summary[9], Decimal("90.00"))
-        self.assertNotIsInstance(summary[7], float)
+        summary = dict(
+            zip(
+                (column.header for column in plan.sheets[0].columns),
+                plan.sheets[0].rows[0],
+                strict=True,
+            )
+        )
+        for technical in ("Estado", "Extractor", "Versión", "Confianza"):
+            self.assertNotIn(technical, summary)
+        self.assertEqual(next(iter(summary)), "Archivo")
+        # El saldo inicial es el que declara la fila `SALDO ANTERIOR`.
+        self.assertEqual(summary["Saldo inicial"], Decimal("100.00"))
+        self.assertEqual(summary["Total cargos"], Decimal("10.00"))
+        self.assertEqual(summary["Total abonos"], Decimal("0"))
+        self.assertEqual(summary["Saldo final"], Decimal("90.00"))
+        self.assertNotIsInstance(summary["Total cargos"], float)
 
     def test_neutralizes_untrusted_descriptions_before_export(self) -> None:
         plan = build_bcp_workbook_plan(_result())

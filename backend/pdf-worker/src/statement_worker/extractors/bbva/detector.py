@@ -13,7 +13,7 @@ BBVA_EXTRACTOR_ID = "bbva-account-v1"
 
 class BbvaTemplateDetector:
     extractor_id = BBVA_EXTRACTOR_ID
-    version = "0.3.0"
+    version = "0.4.0"
     minimum_confidence = Decimal("0.75")
 
     def detect(self, probe: DocumentProbe) -> Detection:

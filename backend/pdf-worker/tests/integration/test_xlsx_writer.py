@@ -225,9 +225,10 @@ class XlsxWriterIntegrationTests(TestCase):
                 ["Resumen", "Movimientos", "Control_Paginas", "Validaciones"],
             )
             summary = next(iter(workbook["Resumen"].iter_rows(min_row=2, values_only=True)))
-            self.assertEqual(summary[0], result.validation.status.value)
-            self.assertEqual(summary[4], len(result.page_metrics))
-            self.assertEqual(summary[5], len(result.rows))
+            # `Archivo` lo completa el trabajo al publicar; aquí el plan llega sin él.
+            self.assertIsNone(summary[0])
+            self.assertEqual(summary[2], len(result.page_metrics))
+            self.assertEqual(summary[3], len(result.rows))
             movements = tuple(workbook["Movimientos"].iter_rows(min_row=2, values_only=True))
             self.assertEqual(len(movements), len(result.rows))
         finally:

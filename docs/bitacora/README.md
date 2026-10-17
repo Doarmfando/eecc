@@ -13,6 +13,17 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-10-17 — Formato común del Excel, totales BBVA brutos, elección del documento a reemplazar y fecha de conversión
+
+- Contexto: el responsable del producto pidió generalizar a todos los bancos lo del Excel BBVA, encontrar por qué los totales del `Resumen` no coincidían con los de la referencia, elegir qué documento se reemplaza al llegar al cupo, mejores mensajes de validación, y la fecha y los nombres reales en el resultado.
+- Hallazgo: las diferencias anotadas a mano en la referencia eran exactamente el ITF. El `Resumen` BBVA sumaba el impuesto a los cargos y lo restaba de los abonos; la referencia los deja brutos con el ITF aparte.
+- Hecho: todos los bancos publican `Resumen` con `Archivo` y `Saldo inicial`, sin estado, extractor, versión ni confianza, y `Movimientos` con `Cargo/Abono` con signo junto a sus columnas separadas. BBVA añade `Cargo` y `Abono`, brutos, y sus totales suman esas columnas. BCP toma el saldo inicial de su fila de saldo anterior; el genérico lo deduce solo con los saldos demostrados (ADR-0013).
+- Hecho: con el cupo lleno, la carga abre un diálogo con el más antiguo elegido y el foco en «Reemplazar y procesar»: Enter confirma. La API acepta `replaceStatementId` y lo ignora si no es de quien sube; el recién subido nunca se borra (ADR-0014).
+- Hecho: el resultado muestra «Convertido el …» (`createdAt` en carga y detalle), el nombre real del PDF y del Excel en lugar de «PDF original» y «Excel del estado de cuenta», y lleva extractor y versión a la tarjeta de invariantes. Mensajes de validación con el nombre del archivo y qué hacer.
+- Verificación real autorizada, sin copiar contenido: en los tres BBVA, `Cargo/Abono`, `Cargo` y `Abono` coinciden fila a fila con la referencia y los totales de cargos, abonos, ITF y saldo final también. Banco de la Nación, BCP y los tres BBVA publican y verifican XLSX y CSV con `Archivo` y `Saldo inicial`; `Cargo/Abono` es coherente con las columnas separadas en todas las filas.
+- Verificación automática: worker `scripts/check.ps1`, API `npm run check` (191 aprobadas, 13 omitidas) más las 9 de aislamiento contra PostgreSQL local, frontend `npm run check` (pruebas del diálogo, la fecha, los nombres y los mensajes incluidas).
+- Pendiente: un BCP real de mayo de 2026, añadido a la carpeta de pruebas durante la tarea, queda en `NEEDS_REVIEW` por totales declarados y saldo; no depende de este cambio. Despliegue: worker, API (`PROFILE_VERSION=statements-2026.10.17.3`) y frontend.
+
 ## 2026-10-17 — Excel BBVA comparado con otra herramienta: encabezado, tipo de fila y nombre del archivo
 
 - Contexto: el responsable del producto comparó el Excel BBVA con el de otra herramienta sobre tres documentos (corriente en soles y en dólares, ahorro en soles) y pidió, uno por captura, los cambios de esta entrada. Solo se hicieron esos; los demás bancos conservan su libro.

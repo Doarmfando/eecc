@@ -2,6 +2,8 @@
 
 - Estado: Aceptada
 - Fecha: 2026-09-08
+- Ampliada por: [ADR-0014](ADR-0014-elegir-que-documento-reemplazar.md), que deja elegir cuál se
+  reemplaza; el más antiguo sigue siendo el predeterminado.
 
 ## Contexto
 
@@ -34,7 +36,7 @@ Antes de pedir al worker que descarte un trabajo se comprueba que ningún otro d
 ## Consecuencias
 
 - El espacio queda acotado: como mucho `personas × 3` documentos. Con el valor por defecto, diez personas ocupan treinta.
-- **Se pierden documentos sin avisar.** Quien suba un cuarto documento perderá el primero, y la interfaz todavía no lo advierte. Es la consecuencia más incómoda de esta decisión.
+- **Se pierden documentos sin avisar.** Quien suba un cuarto documento perderá el primero, y la interfaz todavía no lo advierte. Es la consecuencia más incómoda de esta decisión. Resuelto en ADR-0014: ahora se pregunta cuál reemplazar antes de subir.
 - La limpieza corre dentro de la petición de subida, así que la alarga un poco. Es un borrado de pocos archivos y ocurre después de responder al trabajo pesado.
 - Si la limpieza falla, no se propaga: el documento nuevo ya está guardado y la próxima subida vuelve a intentar retirar el residuo. Un fallo persistente queda en el registro, no en la respuesta.
 - El `DELETE /internal/statements/{job_id}` del worker, que se añadió para el modo sin persistencia y se quedó sin llamador, vuelve a tener uso.

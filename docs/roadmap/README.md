@@ -37,7 +37,9 @@
 - Hecho: extractor de BBVA (`bbva-account-v1`), construido midiendo un estado de cuenta real. `CARGO/ABONO` en una sola columna con signo, ITF en columna propia que descuenta del saldo y fechas sin año resueltas con la emisión del pie. Da `SUCCEEDED` con 60 movimientos y las cinco invariantes en `PASSED`.
 - Hecho (2026-10-17): verificadas muestras BBVA de cuenta corriente en soles (10 páginas), corriente en dólares y ahorro en soles. Ahorro en dólares y otras variantes siguen sin confirmar.
 - Hecho (2026-10-17): Excel BBVA con `Encabezado`, nombre del PDF, tipo de cuenta y saldo anterior como fila (ADR-0012), contrastado con la referencia de otra herramienta.
+- Hecho (2026-10-17): formato común del Excel en todos los bancos —`Resumen` con `Archivo` y `Saldo inicial`, sin datos técnicos, y `Cargo/Abono` con signo junto a las columnas separadas (ADR-0013)— y elección del documento a reemplazar al llegar al cupo (ADR-0014).
 - Pendiente: leer tipo de cuenta y encabezado en BCP, Interbank y Banco de la Nación para que el historial los agrupe también; y decidir si `Descripción` se separa en oficina, canal y número de operación como en la referencia.
+- Pendiente: un estado de cuenta BCP real de mayo de 2026 queda en `NEEDS_REVIEW` por totales declarados y saldo del documento. Es anterior a ADR-0013, que no toca la lectura; investigarlo con la muestra.
 - Pendiente: en la interfaz, traducir los códigos `BBVA_*` en `warning-list.tsx` y ofrecer BBVA y Banco de la Nación en el selector de carga.
 - Pendiente: extractor de Scotiabank cuando llegue una muestra; el respaldo solo reconcilia cuando el documento trae columna de saldo.
 

@@ -11,7 +11,7 @@ from statement_worker.parsing.text import normalized_upper
 
 class BcpTemplateDetector:
     extractor_id = "bcp-coordinate-v1"
-    version = "0.3.2"
+    version = "0.4.0"
     minimum_confidence = Decimal("0.75")
 
     def detect(self, probe: DocumentProbe) -> Detection:

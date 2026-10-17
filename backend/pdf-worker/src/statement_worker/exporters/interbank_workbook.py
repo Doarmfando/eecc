@@ -22,18 +22,18 @@ from .workbook import (
     SpreadsheetSheet,
     WorkbookPlan,
     sanitize_spreadsheet_text,
+    signed_amount,
+    signed_amount_column,
+    source_file_column,
     validate_workbook_plan,
 )
 
 INTERBANK_WORKBOOK_SCHEMA_ID = "eecc.statement.interbank"
-INTERBANK_WORKBOOK_SCHEMA_VERSION = 1
+INTERBANK_WORKBOOK_SCHEMA_VERSION = 2
 _FINANCIAL_FORMAT = "#,##0.00;[Red](#,##0.00);-"
 
 _SUMMARY_COLUMNS = (
-    SpreadsheetColumn("status", "Estado", SpreadsheetCellType.TEXT, 16),
-    SpreadsheetColumn("extractor", "Extractor", SpreadsheetCellType.TEXT, 24),
-    SpreadsheetColumn("version", "Versión", SpreadsheetCellType.TEXT, 12),
-    SpreadsheetColumn("confidence", "Confianza", SpreadsheetCellType.DECIMAL, 12, "0.00%"),
+    source_file_column(),
     SpreadsheetColumn("currency", "Moneda", SpreadsheetCellType.TEXT, 10),
     SpreadsheetColumn("pages", "Páginas", SpreadsheetCellType.INTEGER, 10, "#,##0"),
     SpreadsheetColumn("movements", "Movimientos", SpreadsheetCellType.INTEGER, 14, "#,##0"),
@@ -52,6 +52,7 @@ _MOVEMENT_COLUMNS = (
     SpreadsheetColumn("page", "Página", SpreadsheetCellType.INTEGER, 10, "#,##0"),
     SpreadsheetColumn("posting_date", "Fecha", SpreadsheetCellType.DATE, 14, "yyyy-mm-dd"),
     SpreadsheetColumn("description", "Concepto", SpreadsheetCellType.TEXT, 40),
+    signed_amount_column(_FINANCIAL_FORMAT),
     SpreadsheetColumn("credit", "Ingresos", SpreadsheetCellType.DECIMAL, 16, _FINANCIAL_FORMAT),
     SpreadsheetColumn("debit", "Gastos", SpreadsheetCellType.DECIMAL, 16, _FINANCIAL_FORMAT),
     SpreadsheetColumn(
@@ -85,10 +86,7 @@ def build_interbank_workbook_plan(
     movements = tuple(row for row in document.rows if row.row_type is InterbankRowType.MOVEMENT)
 
     summary_row: tuple[SpreadsheetCellValue, ...] = (
-        sanitize_spreadsheet_text(report.status.value),
-        sanitize_spreadsheet_text(result.detection.extractor_id),
-        sanitize_spreadsheet_text(result.detection.extractor_version),
-        result.detection.confidence,
+        None,
         document.currency,
         len(document.page_metrics),
         len(movements),
@@ -104,6 +102,7 @@ def build_interbank_workbook_plan(
             row.page,
             row.posting_date,
             sanitize_spreadsheet_text(row.description),
+            signed_amount(row.debit, row.credit),
             row.credit,
             row.debit,
             row.balance,

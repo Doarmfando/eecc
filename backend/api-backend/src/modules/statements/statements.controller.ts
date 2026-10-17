@@ -66,6 +66,9 @@ export class StatementsController {
       ...(body.defaultYear !== undefined ? { defaultYear: body.defaultYear } : {}),
       ...(body.extractorId !== undefined ? { extractorId: body.extractorId } : {}),
       ...(body.pdfPassword ? { pdfPassword: body.pdfPassword } : {}),
+      ...(body.replaceStatementId !== undefined
+        ? { replaceStatementId: body.replaceStatementId }
+        : {}),
       ...(requestId !== undefined ? { requestId } : {}),
     });
   }

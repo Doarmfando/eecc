@@ -21,6 +21,8 @@ const CONFIG: Record<string, unknown> = {
 };
 
 const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
+const USER_ID = '66666666-6666-4666-8666-666666666666';
+const OTHER_STATEMENT_ID = '55555555-5555-4555-8555-555555555555';
 const OTHER_ORGANIZATION_ID = '22222222-2222-4222-8222-222222222222';
 
 function pdfBuffer(marker = 'sintetico'): Buffer {
@@ -44,6 +46,8 @@ function workerPayload(overrides: Partial<WorkerJobPayload> = {}): WorkerJobPayl
   };
 }
 
+const CREATED_AT = new Date('2026-10-17T05:30:00.000Z');
+
 interface TransactionRecorder {
   created: { model: string; data: unknown }[];
 }
@@ -57,7 +61,7 @@ function buildPrisma(
     (model: string) =>
     (args: { data: unknown }): Promise<{ id: string }> => {
       recorder.created.push({ model, data: args.data });
-      return Promise.resolve({ id: `${model}-id` });
+      return Promise.resolve({ id: `${model}-id`, createdAt: CREATED_AT });
     };
 
   const tx = {
@@ -105,6 +109,7 @@ function buildPrisma(
 function buildService(
   prisma: PrismaService,
   worker: Partial<WorkerClientService> = {},
+  enforceForUploader: jest.Mock = jest.fn().mockResolvedValue(0),
 ): StatementsService {
   const storage = {
     buildObjectKey: jest.fn(() => 'organizations/o/statements/s/object.pdf'),
@@ -126,9 +131,7 @@ function buildService(
 
   // La retención se comprueba en su propia especificación; aquí solo se registra
   // que se invoca, para que este doble no la ejecute contra la base.
-  const retention = {
-    enforceForUploader: jest.fn().mockResolvedValue(0),
-  } as unknown as StatementRetentionService;
+  const retention = { enforceForUploader } as unknown as StatementRetentionService;
 
   return new StatementsService(prisma, storage, workerClient, retention, config);
 }
@@ -227,6 +230,29 @@ describe('StatementsService', () => {
     ]);
   });
 
+  it('dice cuándo se convirtió y respeta el documento elegido para reemplazar', async () => {
+    const recorder: TransactionRecorder = { created: [] };
+    const { prisma } = buildPrisma(null, recorder);
+    const enforceForUploader = jest.fn().mockResolvedValue(1);
+    const service = buildService(prisma, {}, enforceForUploader);
+
+    const response = await service.process({
+      organizationId: ORGANIZATION_ID,
+      userId: USER_ID,
+      content: pdfBuffer(),
+      fileName: 'estado.pdf',
+      mimeType: 'application/pdf',
+      replaceStatementId: OTHER_STATEMENT_ID,
+    });
+
+    expect(response.createdAt).toBe('2026-10-17T05:30:00.000Z');
+    // El recién subido se protege; el elegido se borra en lugar del más antiguo.
+    expect(enforceForUploader).toHaveBeenCalledWith(ORGANIZATION_ID, USER_ID, {
+      keepStatementId: 'statement-id',
+      preferredStatementId: OTHER_STATEMENT_ID,
+    });
+  });
+
   it('reenvía la contraseña del PDF al worker sin guardarla en ninguna parte', async () => {
     const recorder: TransactionRecorder = { created: [] };
     const { prisma } = buildPrisma(null, recorder);
@@ -292,6 +318,7 @@ describe('StatementsService', () => {
       {
         id: 'job-id',
         statementId: 'statement-id',
+        createdAt: CREATED_AT,
         status: JobStatus.NEEDS_REVIEW,
         attempts: [
           {

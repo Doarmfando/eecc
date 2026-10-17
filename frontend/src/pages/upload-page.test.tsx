@@ -251,7 +251,7 @@ describe('UploadPage', () => {
     renderApp();
     await esperarSesion();
 
-    expect(await screen.findByText(/se borrará el más antiguo/)).toBeInTheDocument();
+    expect(await screen.findByText(/elegirás cuál reemplazar/)).toBeInTheDocument();
   });
 
   it('rechaza en el borde un archivo vacío, sin llamar al servidor', async () => {
@@ -266,7 +266,7 @@ describe('UploadPage', () => {
       new File([], 'vacio.pdf', { type: 'application/pdf' }),
     );
 
-    expect(await screen.findByText('El archivo está vacío.')).toBeInTheDocument();
+    expect(await screen.findByText(/«vacio.pdf» está vacío/)).toBeInTheDocument();
     expect(uploadCalls(fetchMock)).toHaveLength(0);
   });
 
@@ -345,7 +345,7 @@ describe('UploadPage', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText('El documento no corresponde a un estado de cuenta compatible.'),
+        screen.getByText(/El documento no corresponde a un estado de cuenta compatible/),
       ).toBeInTheDocument();
     });
     expect(screen.getByText('Referencia: req-987654321')).toBeInTheDocument();

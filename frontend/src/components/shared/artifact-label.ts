@@ -63,6 +63,18 @@ export function savedFileName(
   }
 }
 
+/**
+ * El nombre real del archivo, para mostrarlo en vez de «PDF original» o «Excel
+ * del estado de cuenta»: es el mismo con que se guardará al descargarlo.
+ */
+export function shownFileName(
+  artifact: { kind: string; name: string },
+  sourceFileName: string | null | undefined,
+): string | null {
+  const name = savedFileName(artifact, sourceFileName, '');
+  return name === '' ? null : name;
+}
+
 const KIND_LABELS: Record<string, string> = {
   SOURCE_PDF: 'PDF original',
   RESULT_XLSX: 'Excel del estado de cuenta',

@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Matches, Max, MaxLength, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min } from 'class-validator';
 
 export class CreateStatementDto {
   @ApiPropertyOptional({ description: 'Nombre visible del PDF, enviado como texto UTF-8' })
@@ -39,6 +39,17 @@ export class CreateStatementDto {
   @IsString()
   @MaxLength(128)
   pdfPassword?: string;
+
+  /**
+   * Documento propio que la persona eligió borrar si este supera el cupo.
+   *
+   * Solo se respeta si es suyo y de su organización; si no, se borra el más
+   * antiguo, como siempre (ADR-0014).
+   */
+  @ApiPropertyOptional({ description: 'Documento a reemplazar al superar el cupo' })
+  @IsOptional()
+  @IsUUID()
+  replaceStatementId?: string;
 }
 
 export class StatementCheckDto {
@@ -59,6 +70,8 @@ export class JobResponseDto {
   sourceFileName?: string | null;
   @ApiProperty() jobId!: string;
   @ApiProperty() statementId!: string;
+  @ApiProperty({ description: 'Cuándo se subió y convirtió el documento (ISO 8601)' })
+  createdAt!: string;
   @ApiProperty({ enum: ['PENDING', 'PROCESSING', 'SUCCEEDED', 'NEEDS_REVIEW', 'FAILED'] })
   status!: string;
   @ApiProperty() attemptNumber!: number;
