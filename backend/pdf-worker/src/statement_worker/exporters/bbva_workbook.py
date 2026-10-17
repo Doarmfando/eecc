@@ -3,18 +3,28 @@
 Los rótulos siguen al documento (`Cargo/Abono`, `ITF`, `Saldo contable`) para que
 quien compara el Excel con el PDF no tenga que traducir columnas. `Cargo/Abono`
 conserva el signo, como lo imprime el banco, y el ITF va en su propia columna
-porque es lo que permite cuadrar la cuenta contra el estado original. No se
-exportan titular, documento de identidad ni número de cuenta.
+porque es lo que permite cuadrar la cuenta contra el estado original.
+
+`Encabezado` lleva los datos de la cuenta que imprime el banco —titular,
+dirección, RUC, CCI y código de cuenta— porque el Excel es de su dueño y los
+necesita para identificarlo (ADR-0012). Las invariantes no van en el libro: las
+publica la API y las muestra la interfaz.
 """
 
 from __future__ import annotations
 
 from statement_worker.domain.errors import UnexportableStatementError
 from statement_worker.domain.models import ExtractionStatus
-from statement_worker.extractors.bbva.models import BbvaProcessingResult, BbvaRowType
+from statement_worker.extractors.bbva.models import (
+    BbvaParsedRow,
+    BbvaProcessingResult,
+    BbvaRowType,
+    BbvaStatementHeader,
+)
 from statement_worker.extractors.bbva.validation import BbvaValidationReport
 
 from .workbook import (
+    SOURCE_FILE_COLUMN_KEY,
     SpreadsheetCellType,
     SpreadsheetCellValue,
     SpreadsheetColumn,
@@ -25,14 +35,20 @@ from .workbook import (
 )
 
 BBVA_WORKBOOK_SCHEMA_ID = "eecc.statement.bbva"
-BBVA_WORKBOOK_SCHEMA_VERSION = 1
+BBVA_WORKBOOK_SCHEMA_VERSION = 2
 _FINANCIAL_FORMAT = "#,##0.00;[Red](#,##0.00);-"
 
+# Lo que la hoja `Movimientos` dice de cada fila. El saldo anterior va como fila
+# propia: es la primera línea de la tabla del documento.
+_ROW_TYPE_LABELS = {
+    BbvaRowType.OPENING_BALANCE: "SALDO_ANTERIOR",
+    BbvaRowType.MOVEMENT: "MOVIMIENTO",
+}
+
 _SUMMARY_COLUMNS = (
-    SpreadsheetColumn("status", "Estado", SpreadsheetCellType.TEXT, 16),
-    SpreadsheetColumn("extractor", "Extractor", SpreadsheetCellType.TEXT, 24),
-    SpreadsheetColumn("version", "Versión", SpreadsheetCellType.TEXT, 12),
-    SpreadsheetColumn("confidence", "Confianza", SpreadsheetCellType.DECIMAL, 12, "0.00%"),
+    # La completa el trabajo al publicar: la estrategia nunca ve el nombre.
+    SpreadsheetColumn(SOURCE_FILE_COLUMN_KEY, "Archivo", SpreadsheetCellType.TEXT, 40),
+    SpreadsheetColumn("account_type", "Tipo de cuenta", SpreadsheetCellType.TEXT, 16),
     SpreadsheetColumn("currency", "Moneda", SpreadsheetCellType.TEXT, 10),
     SpreadsheetColumn("pages", "Páginas", SpreadsheetCellType.INTEGER, 10, "#,##0"),
     SpreadsheetColumn("movements", "Movimientos", SpreadsheetCellType.INTEGER, 14, "#,##0"),
@@ -50,8 +66,14 @@ _SUMMARY_COLUMNS = (
     SpreadsheetColumn("warnings", "Advertencias", SpreadsheetCellType.INTEGER, 14, "#,##0"),
 )
 
+_HEADER_COLUMNS = (
+    SpreadsheetColumn("field", "Campo", SpreadsheetCellType.TEXT, 22),
+    SpreadsheetColumn("value", "Valor", SpreadsheetCellType.TEXT, 60),
+)
+
 _MOVEMENT_COLUMNS = (
     SpreadsheetColumn("page", "Página", SpreadsheetCellType.INTEGER, 10, "#,##0"),
+    SpreadsheetColumn("type", "Tipo de fila", SpreadsheetCellType.TEXT, 18),
     SpreadsheetColumn("posting_date", "Fecha oper.", SpreadsheetCellType.DATE, 14, "yyyy-mm-dd"),
     SpreadsheetColumn("value_date", "Fecha valor", SpreadsheetCellType.DATE, 14, "yyyy-mm-dd"),
     SpreadsheetColumn("description", "Descripción", SpreadsheetCellType.TEXT, 48),
@@ -64,16 +86,56 @@ _MOVEMENT_COLUMNS = (
 
 _PAGE_COLUMNS = (
     SpreadsheetColumn("page", "Página", SpreadsheetCellType.INTEGER, 10, "#,##0"),
-    SpreadsheetColumn("words", "Palabras", SpreadsheetCellType.INTEGER, 12, "#,##0"),
-    SpreadsheetColumn("rows", "Filas visuales", SpreadsheetCellType.INTEGER, 15, "#,##0"),
+    SpreadsheetColumn("rows", "Filas extraídas", SpreadsheetCellType.INTEGER, 16, "#,##0"),
+    SpreadsheetColumn("columns", "Columnas extraídas", SpreadsheetCellType.INTEGER, 18, "#,##0"),
     SpreadsheetColumn("header", "Cabecera detectada", SpreadsheetCellType.BOOLEAN, 20),
 )
 
-_VALIDATION_COLUMNS = (
-    SpreadsheetColumn("kind", "Tipo", SpreadsheetCellType.TEXT, 14),
-    SpreadsheetColumn("code", "Código", SpreadsheetCellType.TEXT, 44),
-    SpreadsheetColumn("status", "Estado", SpreadsheetCellType.TEXT, 16),
-)
+
+def _text(value: str) -> str | None:
+    return sanitize_spreadsheet_text(value) if value else None
+
+
+def _header_rows(header: BbvaStatementHeader) -> tuple[tuple[SpreadsheetCellValue, ...], ...]:
+    fields: tuple[tuple[str, str], ...] = (
+        ("Banco", "BBVA"),
+        ("Tipo de cuenta", header.account_product),
+        ("Titular", header.holder),
+        ("Dirección", header.address),
+        ("Moneda", header.currency_label),
+        ("RUC", header.tax_id),
+        ("Ejecutivo de cuenta", header.account_manager),
+        ("CCI", header.interbank_code),
+        ("Oficina", header.office),
+        (
+            "Fecha del estado",
+            header.statement_date.strftime("%d/%m/%Y") if header.statement_date else "",
+        ),
+        ("Código de cuenta", header.account_code),
+        ("Hoja", header.sheets),
+    )
+    return tuple((label, _text(value)) for label, value in fields)
+
+
+def _movement_cells(row: BbvaParsedRow) -> tuple[SpreadsheetCellValue, ...]:
+    """Las celdas que salen del documento, sin la página ni el tipo."""
+
+    return (
+        row.posting_date,
+        row.value_date,
+        _text(row.description),
+        row.amount,
+        row.itf,
+        row.balance,
+    )
+
+
+def _columns_with_data(rows: list[tuple[SpreadsheetCellValue, ...]]) -> int:
+    """Cuántas columnas leídas del documento traen al menos un valor en la página."""
+
+    if not rows:
+        return 0
+    return sum(1 for column in zip(*rows, strict=True) if any(v is not None for v in column))
 
 
 def build_bbva_workbook_plan(
@@ -84,16 +146,19 @@ def build_bbva_workbook_plan(
         raise UnexportableStatementError("A failed statement extraction cannot be exported")
 
     document = result.document
-    movements = tuple(row for row in document.rows if row.row_type is BbvaRowType.MOVEMENT)
+    exported = tuple(row for row in document.rows if row.row_type in _ROW_TYPE_LABELS)
+
+    movement_rows: tuple[tuple[SpreadsheetCellValue, ...], ...] = tuple(
+        (row.page, _ROW_TYPE_LABELS[row.row_type], *_movement_cells(row)) for row in exported
+    )
 
     summary_row: tuple[SpreadsheetCellValue, ...] = (
-        sanitize_spreadsheet_text(report.status.value),
-        sanitize_spreadsheet_text(result.detection.extractor_id),
-        sanitize_spreadsheet_text(result.detection.extractor_version),
-        result.detection.confidence,
+        None,
+        result.header.account_type.value if result.header.account_type else None,
         document.currency,
         len(document.page_metrics),
-        len(movements),
+        # El saldo anterior cuenta como una fila más de la hoja `Movimientos`.
+        len(movement_rows),
         report.opening_balance,
         report.total_credits,
         report.total_debits,
@@ -102,48 +167,24 @@ def build_bbva_workbook_plan(
         len(report.warning_codes),
     )
 
-    movement_rows: tuple[tuple[SpreadsheetCellValue, ...], ...] = tuple(
-        (
-            row.page,
-            row.posting_date,
-            row.value_date,
-            sanitize_spreadsheet_text(row.description),
-            row.amount,
-            row.itf,
-            row.balance,
+    page_rows: list[tuple[SpreadsheetCellValue, ...]] = []
+    for metric in document.page_metrics:
+        cells = [_movement_cells(row) for row in exported if row.page == metric.page]
+        page_rows.append(
+            (metric.page, len(cells), _columns_with_data(cells), metric.header_detected)
         )
-        for row in movements
-    )
-
-    validation_rows = tuple(
-        (
-            "CHECK",
-            sanitize_spreadsheet_text(check.code.value),
-            sanitize_spreadsheet_text(check.status.value),
-        )
-        for check in report.checks
-    ) + tuple(
-        ("WARNING", sanitize_spreadsheet_text(code.value), "PRESENT")
-        for code in report.warning_codes
-    )
 
     plan = WorkbookPlan(
         schema_id=BBVA_WORKBOOK_SCHEMA_ID,
         schema_version=BBVA_WORKBOOK_SCHEMA_VERSION,
         sheets=(
             SpreadsheetSheet("Resumen", "ResumenBbva", _SUMMARY_COLUMNS, (summary_row,)),
+            SpreadsheetSheet(
+                "Encabezado", "EncabezadoBbva", _HEADER_COLUMNS, _header_rows(result.header)
+            ),
             SpreadsheetSheet("Movimientos", "MovimientosBbva", _MOVEMENT_COLUMNS, movement_rows),
             SpreadsheetSheet(
-                "Control_Paginas",
-                "ControlPaginasBbva",
-                _PAGE_COLUMNS,
-                tuple(
-                    (metric.page, metric.word_count, metric.row_count, metric.header_detected)
-                    for metric in document.page_metrics
-                ),
-            ),
-            SpreadsheetSheet(
-                "Validaciones", "ValidacionesBbva", _VALIDATION_COLUMNS, validation_rows
+                "Control_Paginas", "ControlPaginasBbva", _PAGE_COLUMNS, tuple(page_rows)
             ),
         ),
     )

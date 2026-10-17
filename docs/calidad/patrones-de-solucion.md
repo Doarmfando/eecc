@@ -65,6 +65,15 @@ pero el manifiesto, la API y el Excel siguieran anunciando una versión antigua.
 La regresión comprueba la igualdad en todos los extractores registrados y en un
 trabajo publicado de extremo a extremo.
 
+Para comparar con un Excel de referencia hecho por otra herramienta, generar el
+libro propio en un temporal fuera del repositorio y comparar celda a celda dentro
+del proceso, imprimiendo solo conteos de coincidencias por columna. Cuando un
+valor no coincide, mostrar su forma enmascarada (letras como `x`, dígitos como
+`9`): basta para ver si sobra un rótulo o falta una línea, sin exponer el dato.
+La referencia no es la verdad: con el BBVA, sus filas por página no sumaban el
+total de filas y su CCI arrastraba texto del pie; se copió su estructura, no esos
+errores.
+
 ## Demostrar en vez de adivinar
 
 Un diccionario de sinónimos crece con cada banco y nunca termina. Cuando el propio documento contiene una relación verificable, conviene resolverla en lugar de nombrarla: de todas las formas de asignar las columnas numéricas a cargo, abono y saldo, solo una hace que el saldo avance correctamente durante decenas de filas. Esa lectura queda demostrada por el documento, no supuesta por el programa, y funciona con cualquier idioma o rotulación.

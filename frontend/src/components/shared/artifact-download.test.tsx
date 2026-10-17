@@ -49,6 +49,32 @@ describe('descarga de artefactos', () => {
     expect(saveBlob.mock.calls[0]?.[1]).toBe(`${JOB_ID}.xlsx`);
   });
 
+  it('guarda el Excel con el nombre del PDF de origen', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(new Blob(['contenido']), {
+          status: 200,
+          headers: { 'content-disposition': `attachment; filename="${JOB_ID}.xlsx"` },
+        }),
+      ),
+    );
+    renderWithProviders(
+      <ArtifactList
+        jobId={JOB_ID}
+        artifacts={ARTIFACTS}
+        sourceFileName="EECC BBVA AGOSTO CTA CTE.pdf"
+      />,
+    );
+
+    await userEvent.setup().click(screen.getByRole('button', { name: /Descargar/ }));
+
+    await waitFor(() => {
+      expect(saveBlob).toHaveBeenCalledTimes(1);
+    });
+    expect(saveBlob.mock.calls[0]?.[1]).toBe('EECC BBVA AGOSTO CTA CTE.xlsx');
+  });
+
   it('muestra el motivo cuando el servidor niega la descarga', async () => {
     vi.stubGlobal(
       'fetch',

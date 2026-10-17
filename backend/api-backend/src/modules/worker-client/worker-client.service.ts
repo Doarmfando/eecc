@@ -49,6 +49,10 @@ export class WorkerClientService {
     if (request.pdfPassword !== undefined) {
       form.append('pdf_password', request.pdfPassword);
     }
+    // Campo de texto UTF-8: el `filename` del multipart puede llegar como Latin-1.
+    if (request.sourceFileName !== undefined) {
+      form.append('source_file_name', request.sourceFileName);
+    }
 
     const headers: Record<string, string> = {};
     if (request.requestId) {

@@ -4,7 +4,7 @@ import { parseCents } from '@/lib/money';
 import { getMonthLabel } from '@/lib/month';
 
 import { bankFromExtractor } from './bank-accent';
-import type { FinancialStatement, FinancialTransaction } from './types';
+import type { AccountType, FinancialStatement, FinancialTransaction } from './types';
 
 /**
  * Arma un estado de cuenta del Centro Financiero con los CSV que el worker ya
@@ -19,9 +19,15 @@ import type { FinancialStatement, FinancialTransaction } from './types';
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-/** `Tipo de fila` solo lo trae BCP, cuya hoja incluye saldos y totales además de movimientos. */
-const MOVEMENT_ROW_TYPE = 'MOVEMENT';
-const PREVIOUS_BALANCE_ROW_TYPE = 'PREVIOUS_BALANCE';
+/**
+ * `Tipo de fila` lo traen BCP (`MOVEMENT`, `PREVIOUS_BALANCE`, totales…) y BBVA
+ * (`MOVIMIENTO`, `SALDO_ANTERIOR`), cuyas hojas incluyen el saldo anterior como fila.
+ */
+const MOVEMENT_ROW_TYPES: ReadonlySet<string> = new Set(['MOVEMENT', 'MOVIMIENTO']);
+const PREVIOUS_BALANCE_ROW_TYPES: ReadonlySet<string> = new Set([
+  'PREVIOUS_BALANCE',
+  'SALDO_ANTERIOR',
+]);
 
 interface MovementRow {
   rowType: string;
@@ -64,7 +70,7 @@ function readMovementRow(table: CsvTable, row: readonly string[]): MovementRow {
  */
 function isMovement(row: MovementRow): boolean {
   if (row.rowType) {
-    return row.rowType === MOVEMENT_ROW_TYPE;
+    return MOVEMENT_ROW_TYPES.has(row.rowType);
   }
   return (
     ISO_DATE.test(row.date) && (row.debitCents !== 0 || row.creditCents !== 0 || row.itfCents !== 0)
@@ -101,6 +107,7 @@ export function inferCategory(description: string): string {
 
 interface DeclaredSummary {
   moneda: Currency | null;
+  tipoCuenta: AccountType | null;
   saldoInicial: number | null;
   abonos: number | null;
   cargos: number | null;
@@ -108,16 +115,24 @@ interface DeclaredSummary {
 }
 
 const CURRENCIES: ReadonlySet<string> = new Set<Currency>(['PEN', 'USD']);
+const ACCOUNT_TYPES: ReadonlySet<string> = new Set<AccountType>(['AHORRO', 'CORRIENTE']);
 
 function readCurrency(raw: string): Currency | null {
   const code = raw.trim().toUpperCase();
   return CURRENCIES.has(code) ? (code as Currency) : null;
 }
 
+/** Solo lo declaran los extractores que leen la cabecera del documento (hoy, BBVA). */
+function readAccountType(raw: string): AccountType | null {
+  const code = raw.trim().toUpperCase();
+  return ACCOUNT_TYPES.has(code) ? (code as AccountType) : null;
+}
+
 /** Lee la hoja `Resumen`, que no todos los extractores llenan igual. */
 export function readSummary(csv: string | null): DeclaredSummary {
   const empty: DeclaredSummary = {
     moneda: null,
+    tipoCuenta: null,
     saldoInicial: null,
     abonos: null,
     cargos: null,
@@ -133,6 +148,7 @@ export function readSummary(csv: string | null): DeclaredSummary {
   }
   return {
     moneda: readCurrency(readCell(table, row, 'Moneda')),
+    tipoCuenta: readAccountType(readCell(table, row, 'Tipo de cuenta')),
     saldoInicial: parseCents(readCell(table, row, 'Saldo inicial', 'Saldo anterior')),
     abonos: parseCents(readCell(table, row, 'Total abonos', 'Total ingresos')),
     cargos: parseCents(readCell(table, row, 'Total cargos', 'Total gastos')),
@@ -207,7 +223,7 @@ export function buildFinancialStatement(source: StatementCsvSource): FinancialSt
 
   // Orden de preferencia: lo que el documento declara, luego lo que se puede
   // derivar de sus saldos, y solo al final la ecuación del periodo.
-  const previousBalanceRow = rows.find((row) => row.rowType === PREVIOUS_BALANCE_ROW_TYPE);
+  const previousBalanceRow = rows.find((row) => PREVIOUS_BALANCE_ROW_TYPES.has(row.rowType));
   const lastBalance = [...movementRows].reverse().find((row) => row.balanceCents !== null);
   const saldoFinal = summary.saldoFinal ?? lastBalance?.balanceCents ?? null;
   const saldoInicial =
@@ -262,6 +278,7 @@ export function buildFinancialStatement(source: StatementCsvSource): FinancialSt
     id: source.jobId,
     bancoOrigen,
     moneda,
+    ...(summary.tipoCuenta ? { tipoCuenta: summary.tipoCuenta } : {}),
     fechaPeriodo,
     periodoLabel: getMonthLabel(fechaPeriodo),
     saldoInicial,

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from decimal import Decimal
 from enum import StrEnum
@@ -13,6 +13,9 @@ from statement_worker.domain.errors import InvalidWorkbookDataError
 
 EXCEL_MAX_ROWS = 1_048_576
 EXCEL_MAX_CELL_TEXT_LENGTH = 32_767
+
+# Columna que un exportador declara vacía para el nombre del PDF de su dueño.
+SOURCE_FILE_COLUMN_KEY = "source_file"
 
 _FORMULA_PREFIXES = frozenset("=+-@")
 _INVALID_SHEET_CHARACTERS = frozenset("[]:*?/\\")
@@ -148,3 +151,28 @@ def validate_workbook_plan(
 
         sheet_names.add(normalized_sheet_name)
         table_names.add(normalized_table_name)
+
+
+def with_source_file_name(plan: WorkbookPlan, name: str | None) -> WorkbookPlan:
+    """Escribe el nombre del PDF en las hojas que declaran su columna.
+
+    El nombre es una etiqueta de la persona que subió el documento (ADR-0011), no
+    un dato del estado de cuenta: lo estampa el trabajo al publicar, para que
+    detectores, extractores y exportadores nunca lo reciban.
+    """
+
+    if name is None:
+        return plan
+    value = sanitize_spreadsheet_text(name)
+    sheets: list[SpreadsheetSheet] = []
+    for sheet in plan.sheets:
+        keys = [column.key for column in sheet.columns]
+        if SOURCE_FILE_COLUMN_KEY not in keys:
+            sheets.append(sheet)
+            continue
+        position = keys.index(SOURCE_FILE_COLUMN_KEY)
+        rows = tuple((*row[:position], value, *row[position + 1 :]) for row in sheet.rows)
+        sheets.append(replace(sheet, rows=rows))
+    stamped = replace(plan, sheets=tuple(sheets))
+    validate_workbook_plan(stamped)
+    return stamped

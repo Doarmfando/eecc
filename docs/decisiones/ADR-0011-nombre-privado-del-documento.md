@@ -2,6 +2,8 @@
 
 - Estado: Aceptada
 - Fecha: 2026-10-17
+- Ampliada por: [ADR-0012](ADR-0012-excel-bbva-con-encabezado-y-nombre-del-archivo.md),
+  que escribe el nombre en el `Resumen` del Excel BBVA y en las descargas.
 
 ## Contexto
 

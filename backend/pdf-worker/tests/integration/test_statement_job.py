@@ -1,3 +1,4 @@
+import csv
 from decimal import Decimal
 from hashlib import sha256
 from pathlib import Path
@@ -5,6 +6,7 @@ from shutil import rmtree
 from unittest import TestCase
 from uuid import uuid4
 
+from tests.support.synthetic_bbva_pdf import create_synthetic_bbva_pdf
 from tests.support.synthetic_bcp_pdf import create_synthetic_bcp_pdf
 
 from statement_worker.domain.errors import InvalidPdfError, PdfSizeLimitError
@@ -17,6 +19,7 @@ from statement_worker.extractors.registry import (
 from statement_worker.services.statement_job import (
     ArtifactKind,
     StatementJobOptions,
+    StatementJobResult,
     compute_job_id,
     read_job_manifest,
     run_statement_job,
@@ -364,3 +367,56 @@ class ExtractorVersionTests(TestCase):
         newer = compute_job_id(self.pdf_path, strategy=NewerStrategy(), options=options)
 
         self.assertNotEqual(current, newer)
+
+
+class SourceFileNameJobTests(TestCase):
+    """El nombre del PDF va al Excel de su dueño y a ningún otro sitio."""
+
+    def setUp(self) -> None:
+        self.directory = Path.cwd() / f".test_source_name_{uuid4().hex}"
+        self.directory.mkdir()
+        self.addCleanup(rmtree, self.directory, True)
+        self.artifacts = self.directory / "artifacts"
+        self.artifacts.mkdir()
+        self.pdf_path = self.directory / "statement.pdf"
+        create_synthetic_bbva_pdf(self.pdf_path)
+        self.strategy = resolve_strategy("bbva-account-v1")
+
+    def _run(self, name: str | None) -> StatementJobResult:
+        return run_statement_job(
+            self.pdf_path,
+            strategy=self.strategy,
+            artifact_root=self.artifacts,
+            options=StatementJobOptions(source_file_name=name),
+            temporary_root=self.directory,
+        )
+
+    def test_the_summary_names_the_pdf_and_nothing_else_does(self) -> None:
+        name = "Estado sintético agosto.pdf"
+
+        result = self._run(name)
+
+        job_directory = self.artifacts / result.job_id
+        with (job_directory / "statement_Resumen.csv").open(encoding="utf-8-sig") as handle:
+            summary = next(csv.DictReader(handle))
+        self.assertEqual(summary["Archivo"], name)
+        self.assertEqual(summary["Tipo de cuenta"], "CORRIENTE")
+        self.assertNotIn(name, (job_directory / "result.json").read_text(encoding="utf-8"))
+        self.assertTrue(all(name not in artifact.name for artifact in result.artifacts))
+        self.assertTrue((job_directory / "statement_Encabezado.csv").is_file())
+        self.assertFalse((job_directory / "statement_Validaciones.csv").exists())
+
+    def test_another_name_is_another_job_and_the_same_name_reuses_it(self) -> None:
+        first = self._run("primero.pdf")
+        renamed = self._run("segundo.pdf")
+        unnamed = self._run(None)
+        again = self._run("primero.pdf")
+
+        self.assertEqual(len({first.job_id, renamed.job_id, unnamed.job_id}), 3)
+        self.assertTrue(again.reused)
+        self.assertEqual(again.job_id, first.job_id)
+
+    def test_the_name_must_arrive_normalized(self) -> None:
+        for name in ("", "  espacios.pdf ", "carpeta/estado.pdf", "a\u202eb.pdf", "x" * 256):
+            with self.subTest(name=name[:20]), self.assertRaises(ValueError):
+                StatementJobOptions(source_file_name=name)

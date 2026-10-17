@@ -27,6 +27,8 @@ export interface WorkerJobPayload {
 export interface WorkerProcessRequest {
   content: Buffer;
   fileName: string;
+  /** Etiqueta ya saneada para la columna `Archivo` del Excel (ADR-0012). */
+  sourceFileName?: string;
   defaultYear?: number;
   extractorId?: string;
   pdfPassword?: string;

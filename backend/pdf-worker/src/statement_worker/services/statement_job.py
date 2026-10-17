@@ -20,11 +20,12 @@ from statement_worker.domain.errors import (
 )
 from statement_worker.domain.models import ExtractionStatus
 from statement_worker.exporters.csv_export import export_csv_bundle
-from statement_worker.exporters.workbook import WorkbookPlan
+from statement_worker.exporters.workbook import WorkbookPlan, with_source_file_name
 from statement_worker.exporters.xlsx_writer import export_workbook_plan
 
 from .atomic_artifact import publish_artifact_atomically
 from .pdf_sanitizer import DEFAULT_MAX_PDF_BYTES
+from .source_file_name import normalize_source_file_name
 from .strategy import StatementStrategy
 
 JOB_ID_LENGTH = 32
@@ -46,6 +47,9 @@ class StatementJobOptions:
     export_xlsx: bool = True
     export_csv: bool = True
     max_bytes: int = DEFAULT_MAX_PDF_BYTES
+    # Nombre del PDF para la columna `Archivo` del Excel. Solo se escribe ahí: no
+    # entra en el manifiesto, en los nombres de archivo ni en los registros.
+    source_file_name: str | None = None
 
     def __post_init__(self) -> None:
         if not self.export_xlsx and not self.export_csv:
@@ -54,16 +58,24 @@ class StatementJobOptions:
             raise ValueError("max_bytes must be positive")
         if self.default_year is not None and not 1900 <= self.default_year <= 2999:
             raise ValueError("default_year is out of the supported range")
+        if self.source_file_name is not None and (
+            normalize_source_file_name(self.source_file_name) != self.source_file_name
+        ):
+            raise ValueError("source_file_name must be normalized")
 
     @property
     def fingerprint(self) -> str:
-        return "|".join(
-            (
-                str(self.default_year or ""),
-                "xlsx" if self.export_xlsx else "",
-                "csv" if self.export_csv else "",
-            )
-        )
+        parts = [
+            str(self.default_year or ""),
+            "xlsx" if self.export_xlsx else "",
+            "csv" if self.export_csv else "",
+        ]
+        # El nombre cambia el contenido del Excel, así que forma parte de la
+        # identidad: el mismo PDF subido por otra persona con otro nombre no puede
+        # reutilizar un libro que lleva el nombre que le puso la primera.
+        if self.source_file_name is not None:
+            parts.append(self.source_file_name)
+        return "|".join(parts)
 
 
 @dataclass(frozen=True, slots=True)
@@ -337,7 +349,7 @@ def run_statement_job(
     artifacts: tuple[ArtifactRecord, ...] = ()
     if outcome.plan is not None:
         artifacts = _publish_artifacts(
-            outcome.plan,
+            with_source_file_name(outcome.plan, resolved_options.source_file_name),
             job_directory,
             resolved_options,
             overwrite=incomplete,

@@ -1,10 +1,13 @@
-"""Estado de cuenta sintético con la plantilla BBVA, confirmada con un documento real.
+"""Estado de cuenta sintético con la plantilla BBVA, confirmada con documentos reales.
 
 Reproduce lo que distingue a esta plantilla: cabecera repartida en tres líneas,
 `CARGO/ABONO` en una sola columna con signo, `ITF` en columna propia que descuenta
 del saldo, fechas `dd-mm` sin año, `SALDO ANTERIOR` como apertura, sin fila de
 saldo final —el cierre es el saldo de la última fila— y el bloque `TOTALES POR
-ITF` al final. Todos los nombres, cuentas e importes son ficticios.
+ITF` al final. La cabecera y el pie siguen la disposición medida en los reales:
+titular y dirección a la izquierda, ejecutivo a la derecha en las mismas líneas,
+`MONEDA:` con el RUC, y al pie CCI, oficina, fecha, código de cuenta y hoja.
+Todos los nombres, cuentas e importes son ficticios.
 """
 
 from __future__ import annotations
@@ -30,6 +33,18 @@ _MOVEMENTS: tuple[tuple[int, int, str, str, str | None], ...] = (
 _OPENING = Decimal("685126.55")
 _ISSUE_DATE = "31-07-2026"
 _ROWS_PER_PAGE = 5
+_FIRST_SHEET = 12
+
+# Lo que la cabecera y el pie declaran; las pruebas comparan contra esto.
+SYNTHETIC_BBVA_HEADER = {
+    "holder": "EMPRESA FICTICIA SAC",
+    "address": "AV. FICTICIA 123, URB. INVENTADA, CIUDAD FICTICIA, PERU 0000",
+    "tax_id": "20000000001",
+    "account_manager": "EJECUTIVA FICTICIA",
+    "interbank_code": "011 000 000000000001 00",
+    "office": "OFICINA FICTICIA",
+    "account_code": "0011 0000 0000000001 00",
+}
 
 _X_DATE = 40
 _X_VALUE_DATE = 78
@@ -66,6 +81,56 @@ def _header(canvas: Canvas, top: float) -> None:
     canvas.drawString(508, top - 7, "CONTABLE")
 
 
+def _account_block(canvas: Canvas, top: float, *, product: str, currency: str) -> float:
+    """Título, producto, titular, dirección, ejecutivo, moneda y RUC."""
+
+    header = SYNTHETIC_BBVA_HEADER
+    canvas.setFont("Helvetica-Bold", 9)
+    canvas.drawString(_X_DATE, top, "MOVIMIENTO Y SALDO A LA FECHA")
+    canvas.setFont("Helvetica", 7)
+    lines = (product, "TITULARES:", header["holder"], "AV. FICTICIA 123", "URB. INVENTADA")
+    for line in lines:
+        top -= 9
+        canvas.drawString(_X_DATE, top, line)
+    top -= 16
+    canvas.drawString(_X_DATE, top, "CIUDAD FICTICIA")
+    # El ejecutivo va a la derecha, casi a la altura de la dirección.
+    canvas.drawString(426, top - 2.6, "SU EJECUTIVO DE CUENTA ES:")
+    top -= 14
+    canvas.drawString(_X_DATE, top, "PERU")
+    canvas.drawString(133, top, "0000")
+    canvas.drawString(389, top - 2.6, header["account_manager"])
+    top -= 14
+    canvas.drawString(_X_DATE, top, f"MONEDA: {currency}")
+    canvas.drawString(214, top, "RUC")
+    canvas.drawString(232, top, header["tax_id"])
+    return top - 18
+
+
+def _footer(canvas: Canvas, *, sheet: int, include_issue_date: bool) -> None:
+    """CCI, banca por internet, oficina, fecha, código de cuenta y hoja."""
+
+    header = SYNTHETIC_BBVA_HEADER
+    canvas.setFont("Helvetica", 6)
+    canvas.drawString(70, 195, "CODIGO CUENTA INTERBANCARIA (CCI)")
+    canvas.drawString(214, 195, "BANCA POR TELEFONO : 595-0000")
+    canvas.drawString(90, 182, header["interbank_code"])
+    canvas.drawString(214, 182, "BANCA POR INTERNET www.bbvabancocontinental.com")
+    canvas.drawString(93, 83, "OFICINA")
+    canvas.drawString(192, 83, "FECHA")
+    canvas.drawString(337, 83, "CODIGO DE CUENTA")
+    canvas.drawString(518, 83, "HOJA")
+    canvas.drawString(86, 70, header["office"])
+    if include_issue_date:
+        canvas.drawString(187, 70, _ISSUE_DATE)
+    canvas.drawString(254, 70, "ENTIDAD")
+    canvas.drawString(320, 70, "OFICINA")
+    canvas.drawString(385, 70, "CUENTA")
+    canvas.drawString(455, 70, "D.C.")
+    canvas.drawString(522, 70, str(sheet))
+    canvas.drawString(260, 58, header["account_code"])
+
+
 def create_synthetic_bbva_pdf(
     output_path: Path,
     *,
@@ -75,6 +140,7 @@ def create_synthetic_bbva_pdf(
     wrong_itf_totals: bool = False,
     currency: str = "DOLARES US",
     include_description_continuation: bool = False,
+    account_product: str = "CUENTA CORRIENTE",
 ) -> Decimal:
     """Genera el documento y devuelve el saldo contable final.
 
@@ -84,6 +150,7 @@ def create_synthetic_bbva_pdf(
     no cuadra con la columna; `currency` cambia lo que declara `MONEDA:`, para
     comprobar que la lectura no depende de la divisa. `include_description_continuation`
     añade un concepto de dos líneas con un decimal dentro del texto.
+    `account_product` es el producto que imprime la cabecera (`CONTIAHORRO`, ...).
     """
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -107,17 +174,7 @@ def create_synthetic_bbva_pdf(
     ]
     written = 0
     for page_index, chunk in enumerate(chunks):
-        top = height - 60
-        canvas.setFont("Helvetica-Bold", 9)
-        canvas.drawString(_X_DATE, top, "MOVIMIENTO Y SALDO A LA FECHA")
-        top -= 10
-        canvas.setFont("Helvetica", 7)
-        canvas.drawString(_X_DATE, top, "CUENTA CORRIENTE")
-        top -= 10
-        canvas.drawString(_X_DATE, top, "TITULARES: EMPRESA FICTICIA SAC")
-        top -= 10
-        canvas.drawString(_X_DATE, top, f"MONEDA: {currency}")
-        top -= 20
+        top = _account_block(canvas, height - 60, product=account_product, currency=currency)
 
         _header(canvas, top)
         top -= 18
@@ -161,10 +218,7 @@ def create_synthetic_bbva_pdf(
                 canvas.drawRightString(185, top, _format(valor))
                 top -= 8
 
-        canvas.setFont("Helvetica", 6)
-        if include_issue_date:
-            canvas.drawString(187, 60, _ISSUE_DATE)
-        canvas.drawString(86, 50, "BANCA POR INTERNET www.bbvabancocontinental.com")
+        _footer(canvas, sheet=_FIRST_SHEET + page_index, include_issue_date=include_issue_date)
         canvas.showPage()
 
     canvas.save()

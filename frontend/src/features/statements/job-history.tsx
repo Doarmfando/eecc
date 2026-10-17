@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { BANK_ACCENTS, bankFromExtractor } from '@/features/financial-center/bank-accent';
 import { BankMark } from '@/features/financial-center/bank-mark';
 import { useFinancialStatements } from '@/features/financial-center/queries';
-import type { FinancialStatement } from '@/features/financial-center/types';
+import type { AccountType, FinancialStatement } from '@/features/financial-center/types';
 import { describeError } from '@/lib/api-error';
 import { CURRENCY_NAMES, currencySymbol, formatCount, type Currency } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -25,46 +25,50 @@ import {
   type StatementSelection,
 } from './statement-selection';
 
-/** Lo que distingue a un documento de otro del mismo banco: su mes y su moneda. */
+/** Lo que distingue a un documento de otro del mismo banco: su mes, su moneda y su cuenta. */
 interface StatementLabel {
   period: string;
   currencyCode: Currency;
   currency: string;
+  /** Solo cuando el documento lo declara; si no, la fila no lo inventa. */
+  accountType: AccountType | null;
 }
 
 const CURRENCY_ORDER: readonly Currency[] = ['PEN', 'USD'];
+const ACCOUNT_TYPE_ORDER: readonly AccountType[] = ['AHORRO', 'CORRIENTE'];
 
-/** Filtro de moneda: `null` muestra todas. */
-function CurrencyChips({
-  currencies,
+/** Cómo se lee en la fila del documento. */
+const ACCOUNT_TYPE_NAMES: Record<AccountType, string> = {
+  AHORRO: 'Cuenta de ahorro',
+  CORRIENTE: 'Cuenta corriente',
+};
+
+/** Cómo se lee en el filtro, donde «cuenta» ya lo dice el grupo. */
+const ACCOUNT_TYPE_CHIPS: Record<AccountType, string> = {
+  AHORRO: 'Ahorro',
+  CORRIENTE: 'Corriente',
+};
+
+/** Filtro por chips: `null` muestra todos los documentos. */
+function FilterChips<T extends string>({
+  label,
+  options,
   value,
   onChange,
 }: {
-  currencies: readonly Currency[];
-  value: Currency | null;
-  onChange: (currency: Currency | null) => void;
+  label: string;
+  options: ReadonlyArray<{ value: T; label: ReactNode }>;
+  value: T | null;
+  onChange: (value: T | null) => void;
 }): ReactNode {
-  const options: ReadonlyArray<{ key: string; currency: Currency | null; label: ReactNode }> = [
-    { key: 'todas', currency: null, label: 'Todas' },
-    ...currencies.map((currency) => ({
-      key: currency,
-      currency,
-      label: (
-        <>
-          <span className="font-semibold">{currencySymbol(currency)}</span>{' '}
-          {CURRENCY_NAMES[currency]}
-        </>
-      ),
-    })),
+  const all: ReadonlyArray<{ key: string; value: T | null; label: ReactNode }> = [
+    { key: 'todas', value: null, label: 'Todas' },
+    ...options.map((option) => ({ key: option.value, ...option })),
   ];
   return (
-    <div
-      role="radiogroup"
-      aria-label="Moneda"
-      className="inline-flex gap-1 rounded-xl bg-muted p-1"
-    >
-      {options.map((option) => {
-        const active = value === option.currency;
+    <div role="radiogroup" aria-label={label} className="inline-flex gap-1 rounded-xl bg-muted p-1">
+      {all.map((option) => {
+        const active = value === option.value;
         return (
           <button
             key={option.key}
@@ -72,7 +76,7 @@ function CurrencyChips({
             role="radio"
             aria-checked={active}
             onClick={() => {
-              onChange(option.currency);
+              onChange(option.value);
             }}
             className={cn(
               'cursor-pointer rounded-lg border px-3 py-1 text-sm font-medium transition-colors',
@@ -90,7 +94,7 @@ function CurrencyChips({
 }
 
 /**
- * Periodo y moneda de cada documento, leídos de sus CSV publicados.
+ * Periodo, moneda y tipo de cuenta de cada documento, leídos de sus CSV publicados.
  *
  * Comparte caché con el Centro Financiero y el Calendario (misma clave de
  * consulta), así que abrir esas vistas después no vuelve a descargar nada.
@@ -107,6 +111,7 @@ function useStatementLabels(jobs: readonly JobListItem[]): Map<string, Statement
             period: statement.periodoLabel,
             currencyCode: statement.moneda,
             currency: `${currencySymbol(statement.moneda)} ${CURRENCY_NAMES[statement.moneda]}`,
+            accountType: statement.tipoCuenta ?? null,
           },
         ]),
       ),
@@ -132,6 +137,7 @@ function rowText(job: JobListItem, label: StatementLabel | undefined): string {
       formatProcessedAt(job.createdAt),
       label?.period ?? '',
       label?.currency ?? '',
+      label?.accountType ? ACCOUNT_TYPE_NAMES[label.accountType] : '',
       `${formatCount(job.movementCount)} movimientos`,
       job.warningCount > 0 ? 'advertencias' : '',
     ].join(' '),
@@ -174,6 +180,7 @@ function HistoryRow({
             {label ? (
               <span className="truncate text-xs text-muted-foreground">
                 {label.period} · {label.currency}
+                {label.accountType ? ` · ${ACCOUNT_TYPE_NAMES[label.accountType]}` : ''}
               </span>
             ) : null}
           </span>
@@ -225,21 +232,33 @@ export function JobHistory(): ReactNode {
   const selection = useStatementSelection();
   const [query, setQuery] = useState('');
   const [chosenCurrency, setChosenCurrency] = useState<Currency | null>(null);
+  const [chosenAccountType, setChosenAccountType] = useState<AccountType | null>(null);
   const items = history.data?.items ?? NO_JOBS;
   const labels = useStatementLabels(items);
   const hasConsolidable = items.some(isConsolidable);
 
-  // Solo las monedas de los documentos listados; con una sola no hay nada que filtrar.
+  // Solo los valores de los documentos listados; con uno solo no hay nada que filtrar.
   const present = new Set([...labels.values()].map((label) => label.currencyCode));
   const currencies = CURRENCY_ORDER.filter((currency) => present.has(currency));
   const currency =
     chosenCurrency !== null && currencies.includes(chosenCurrency) ? chosenCurrency : null;
+
+  const presentTypes = new Set([...labels.values()].map((label) => label.accountType));
+  const accountTypes = ACCOUNT_TYPE_ORDER.filter((type) => presentTypes.has(type));
+  const accountType =
+    chosenAccountType !== null && accountTypes.includes(chosenAccountType)
+      ? chosenAccountType
+      : null;
 
   const terms = normalize(query).split(/\s+/).filter(Boolean);
   const visible = items.filter((job) => {
     const label = labels.get(job.jobId);
     // Un documento sin moneda conocida (fallido o aún cargando) no es de ninguna.
     if (currency !== null && label?.currencyCode !== currency) {
+      return false;
+    }
+    // Ni de ningún tipo de cuenta si su documento no lo declara.
+    if (accountType !== null && label?.accountType !== accountType) {
       return false;
     }
     const text = rowText(job, label);
@@ -281,10 +300,30 @@ export function JobHistory(): ReactNode {
               />
             </div>
             {currencies.length > 1 ? (
-              <CurrencyChips
-                currencies={currencies}
+              <FilterChips
+                label="Moneda"
+                options={currencies.map((code) => ({
+                  value: code,
+                  label: (
+                    <>
+                      <span className="font-semibold">{currencySymbol(code)}</span>{' '}
+                      {CURRENCY_NAMES[code]}
+                    </>
+                  ),
+                }))}
                 value={currency}
                 onChange={setChosenCurrency}
+              />
+            ) : null}
+            {accountTypes.length > 1 ? (
+              <FilterChips
+                label="Tipo de cuenta"
+                options={accountTypes.map((type) => ({
+                  value: type,
+                  label: ACCOUNT_TYPE_CHIPS[type],
+                }))}
+                value={accountType}
+                onChange={setChosenAccountType}
               />
             ) : null}
           </div>

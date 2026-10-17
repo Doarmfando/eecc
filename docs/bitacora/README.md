@@ -13,6 +13,18 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-10-17 — Excel BBVA comparado con otra herramienta: encabezado, tipo de fila y nombre del archivo
+
+- Contexto: el responsable del producto comparó el Excel BBVA con el de otra herramienta sobre tres documentos (corriente en soles y en dólares, ahorro en soles) y pidió, uno por captura, los cambios de esta entrada. Solo se hicieron esos; los demás bancos conservan su libro.
+- Hecho: `Resumen` empieza por `Archivo` (nombre del PDF) y `Tipo de cuenta` (`AHORRO`/`CORRIENTE`) y ya no lleva estado, extractor, versión ni confianza. `Movimientos` incluye el saldo anterior como primera fila y la columna `Tipo de fila` (`SALDO_ANTERIOR`/`MOVIMIENTO`); el conteo del `Resumen` lo incluye. `Control_Paginas` reemplaza palabras y filas visuales por filas y columnas extraídas por página. Nueva hoja `Encabezado`; se retiró `Validaciones`, cuyas invariantes siguen en la API y la interfaz.
+- Hecho: lector puro de cabecera y pie (`bbva/header.py`) por rótulos. Separa por columna la dirección del ejecutivo, que comparten líneas, y admite el RUC pegado a su rótulo.
+- Hecho: el nombre del PDF viaja de la API al worker como `source_file_name`, ya saneado. Ninguna estrategia lo ve: el trabajo lo escribe al publicar y lo incluye en su identidad, porque el directorio del worker se comparte por contenido entre personas.
+- Hecho: el historial muestra el tipo de cuenta y ofrece el filtro Ahorro/Corriente cuando hay más de uno; el buscador también lo encuentra. Las descargas se guardan con el nombre del PDF (`Agosto.xlsx`, `Agosto_Movimientos.csv`); la API no cambia sus cabeceras.
+- Decisión: ADR-0012. Versiones BBVA `0.3.0`, esquema 2 y perfil `statements-2026.10.17.2`.
+- Verificación real autorizada, sin copiar contenido: los tres BBVA dan `SUCCEEDED` sin advertencias. Frente a la referencia coinciden hojas, número de filas (incluido el saldo anterior) y, fila a fila, tipo, página, fechas, `Cargo/Abono`, ITF y saldo; totales de ITF y saldo final también. En 8 conceptos de dos líneas cambia solo el orden de las palabras (el número de operación va antes de la segunda línea). En el `Encabezado` coinciden producto, titular, moneda, RUC, oficina, fecha y código de cuenta; la referencia arrastraba texto del pie en el CCI, mezclaba la dirección con el ejecutivo, recortaba la dirección y dejaba la hoja vacía. Prueba de carpeta real con los cinco PDF aprobada.
+- Verificación automática: worker `scripts/check.ps1` (pytest con cobertura, Ruff, formato y mypy), API `npm run check` (186 aprobadas, 13 omitidas por requerir servicios) y frontend `npm run check` (242 aprobadas).
+- Pendiente: despliegue a cargo del usuario, en orden worker, API (actualizar `PROFILE_VERSION` en Railway si está definida) y frontend. Repetir un PDF ya procesado con otro nombre conserva en el Excel el nombre original. Otros bancos no declaran tipo de cuenta ni encabezado. `Descripción` sigue incluyendo oficina, canal y número de operación, que la referencia separa en columnas.
+
 ## 2026-10-17 — Nombre original del PDF, arrastre funcional y persistencia privada
 
 - Defecto reproducido con pruebas sintéticas: el formulario conocía el nombre del `File`, pero se descartaba después de procesar. La API conserva ahora `sourceFileName` como etiqueta privada del documento y la devuelve en carga, detalle e historial. La migración `20261017090000_statement_source_file_name` añade una columna nullable sin modificar documentos antiguos.

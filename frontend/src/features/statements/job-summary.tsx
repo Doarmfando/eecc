@@ -3,7 +3,7 @@ import type { ComponentType, ReactNode } from 'react';
 
 import excelIcon from '@/assets/files/excel.svg';
 import { ArtifactList } from '@/components/shared/artifact-list';
-import { describeArtifact } from '@/components/shared/artifact-label';
+import { describeArtifact, savedFileName } from '@/components/shared/artifact-label';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { CheckList, WarningList } from '@/components/shared/warning-list';
 import { Alert } from '@/components/ui/alert';
@@ -40,9 +40,11 @@ function Metric({
 function PrimaryDownloadButton({
   jobId,
   artifact,
+  sourceFileName,
 }: {
   jobId: string;
   artifact: Artifact;
+  sourceFileName: string | null | undefined;
 }): ReactNode {
   const download = useDownloadArtifact();
   const label = describeArtifact(artifact.kind, artifact.name);
@@ -66,7 +68,8 @@ function PrimaryDownloadButton({
               { jobId, artifactId: artifact.id },
               {
                 onSuccess: (result) => {
-                  saveBlob(result.blob, result.fileName);
+                  // Se guarda con el nombre del PDF de origen: `Agosto BBVA.xlsx`.
+                  saveBlob(result.blob, savedFileName(artifact, sourceFileName, result.fileName));
                 },
               },
             );
@@ -160,7 +163,11 @@ export function JobSummary({ job }: { job: Job }): ReactNode {
         </div>
 
         {primaryArtifact ? (
-          <PrimaryDownloadButton jobId={job.jobId} artifact={primaryArtifact} />
+          <PrimaryDownloadButton
+            jobId={job.jobId}
+            artifact={primaryArtifact}
+            sourceFileName={job.sourceFileName}
+          />
         ) : null}
       </Card>
 

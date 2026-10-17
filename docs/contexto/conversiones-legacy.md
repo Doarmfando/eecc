@@ -80,6 +80,6 @@ Las pruebas sintéticas de exportación deben cubrir:
 
 - `Decimal` se conserva durante cálculos y reconciliación; cualquier conversión ocurre únicamente en el borde del formato.
 - Los archivos de salida no heredan nombres sensibles como claves de almacenamiento ni registran rutas locales.
-- `linea_original`, titular, dirección y cuenta completa no se incluyen por defecto sin una necesidad de producto y retención explícitas.
+- `linea_original`, titular, dirección y cuenta completa no se incluyen por defecto sin una necesidad de producto y retención explícitas. BBVA la tiene desde ADR-0012: su `Encabezado` vuelve, solo dentro del Excel.
 - Los exportadores reciben datos ya validados; no repiten extracción ni reglas bancarias.
 - Un XLSX que solo sea un ZIP válido no se considera correcto: debe pasar validación semántica después de guardarse.

@@ -83,6 +83,26 @@ describe('WorkerClientService', () => {
     expect((withoutPassword.body as FormData).has('pdf_password')).toBe(false);
   });
 
+  it('envía el nombre del PDF como campo de texto solo cuando lo hay', async () => {
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(200, PAYLOAD))
+      .mockResolvedValueOnce(jsonResponse(200, PAYLOAD));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await buildService().processStatement({
+      content: Buffer.from('%PDF-1.7'),
+      fileName: 'estado.pdf',
+      sourceFileName: 'Cuenta sintética.pdf',
+    });
+    await buildService().processStatement({ content: Buffer.from('%PDF-1.7'), fileName: 'e.pdf' });
+
+    const [, named] = fetchMock.mock.calls[0] as [URL, RequestInit];
+    const [, unnamed] = fetchMock.mock.calls[1] as [URL, RequestInit];
+    expect((named.body as FormData).get('source_file_name')).toEqual('Cuenta sintética.pdf');
+    expect((unnamed.body as FormData).has('source_file_name')).toBe(false);
+  });
+
   it.each(['PDF_PASSWORD_REQUIRED', 'PDF_PASSWORD_INCORRECT'])(
     'conserva el código %s para que la interfaz pida la contraseña',
     async (code) => {

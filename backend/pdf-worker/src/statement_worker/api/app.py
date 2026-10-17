@@ -30,6 +30,7 @@ from statement_worker.extractors.registry import (
     specialised_strategy_ids,
 )
 from statement_worker.services.pdf_unlock import unlock_pdf
+from statement_worker.services.source_file_name import normalize_source_file_name
 from statement_worker.services.statement_job import (
     StatementJobOptions,
     StatementJobResult,
@@ -52,6 +53,8 @@ API_VERSION = "0.1.0"
 _UPLOAD_CHUNK_BYTES = 1024 * 1024
 # Holgado para cualquier contraseña de apertura real; corta lo que no lo es.
 _MAX_PDF_PASSWORD_LENGTH = 128
+# El mismo tope que acepta la API antes de recortar la etiqueta a 255 caracteres.
+_MAX_SOURCE_FILE_NAME_LENGTH = 1024
 _MEDIA_TYPES = {
     ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     ".csv": "text/csv; charset=utf-8",
@@ -165,9 +168,14 @@ def _build_router() -> APIRouter:
         # Solo abre el documento en memoria de este proceso: no se guarda, no se
         # registra y no entra en la identidad del trabajo.
         pdf_password: Annotated[str | None, Form()] = None,
+        # Campo de texto y no el `filename` del multipart, que puede llegar leído
+        # como Latin-1. Solo se escribe en la columna `Archivo` del Excel.
+        source_file_name: Annotated[str | None, Form()] = None,
     ) -> JSONResponse:
         settings: WorkerSettings = request.app.state.settings
-        if pdf_password is not None and len(pdf_password) > _MAX_PDF_PASSWORD_LENGTH:
+        if (pdf_password is not None and len(pdf_password) > _MAX_PDF_PASSWORD_LENGTH) or (
+            source_file_name is not None and len(source_file_name) > _MAX_SOURCE_FILE_NAME_LENGTH
+        ):
             return JSONResponse(
                 status_code=HTTP_UNPROCESSABLE_CONTENT,
                 content={"code": "INVALID_JOB_OPTIONS"},
@@ -178,6 +186,9 @@ def _build_router() -> APIRouter:
                 export_xlsx=export_xlsx,
                 export_csv=export_csv,
                 max_bytes=settings.max_pdf_bytes,
+                source_file_name=(
+                    normalize_source_file_name(source_file_name) if source_file_name else None
+                ),
             )
         except ValueError:
             return JSONResponse(

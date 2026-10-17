@@ -62,7 +62,7 @@ DATABASE_URL=${{Postgres.DATABASE_URL}}
 WORKER_BASE_URL=http://eecc-worker.railway.internal:8000
 FINGERPRINT_SECRET=<32+ caracteres, propios de esta instalación>
 SESSION_TTL_HOURS=12
-PROFILE_VERSION=statements-2026.10.17
+PROFILE_VERSION=statements-2026.10.17.2
 STORAGE_ROOT=/data/storage
 ```
 
@@ -110,6 +110,13 @@ A partir de ahí, las demás cuentas se crean desde la propia aplicación, en **
 Al desplegar la migración `20260912120000_administrador_y_usuario`, en cada organización solo queda como administradora la cuenta más antigua de rol más alto (la del arranque); las demás pasan a usuario. Ver [`ADR-0008`](../decisiones/ADR-0008-administrador-y-usuario.md).
 
 ## Comprobar que quedó bien
+
+Para desplegar el Excel BBVA con encabezado y nombre del archivo (ADR-0012):
+primero el worker (BBVA `0.3.0`, campo `source_file_name`), después la API con
+`PROFILE_VERSION=statements-2026.10.17.2` —también en la variable de Railway si
+está definida— y por último el frontend. Comprobar con una carga BBVA nueva que el
+Excel trae `Resumen` con `Archivo`, `Encabezado` y `Movimientos` con el saldo
+anterior, y que la descarga se guarda con el nombre del PDF.
 
 Para desplegar la conservación del nombre del PDF (ADR-0011), actualizar primero
 la API: el arranque aplica `20261017090000_statement_source_file_name` mediante

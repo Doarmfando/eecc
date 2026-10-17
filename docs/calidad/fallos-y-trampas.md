@@ -59,6 +59,7 @@ El extractor se escribió **sin muestra**, adivinando la plantilla, y se corrigi
 - **Con columnas juntas, el orden es más fiable que la distancia.** `CARGO/ABONO`, `ITF` y `SALDO` están a pocos puntos: el rótulo más cercano se decide por un margen de 3, que cambia con el tamaño de la fuente y hace que un PDF sintético falle donde el real funciona. El orden de las columnas es un hecho de la plantilla; la geometría sirve mejor para **comprobar** el reparto que para decidirlo.
 - **La marca del banco puede sobrevivir solo dentro de una URL.** Aquí únicamente en `WWW.BBVABANCOCONTINENTAL.COM`, donde `BBVA` no casa porque no hay frontera de palabra tras `BBVA`.
 - **El pie de página puede arrastrar una cifra.** Sin descartarlo se señala como fila con importes sin clasificar y el documento nunca llega a `SUCCEEDED`, aunque todo lo demás cuadre.
+- **La cabecera comparte líneas entre dos columnas.** La dirección del titular va a la izquierda y el ejecutivo de cuenta a la derecha, a menos de tres puntos de altura; según la fuente caen en la misma fila visual o no. Una herramienta que lee por líneas pegó «PERU <código>» de la dirección al nombre del ejecutivo y el aviso «BANCA POR INTERNET www…» —y en una página, un saldo— al CCI. Separar por la mitad de la página y cortar cada valor en su rótulo o en la primera palabra que no sea del dato.
 - **Una continuación puede contener un decimal dentro del concepto.** Antes de tratarlo como un importe financiero, comprobar su columna. La unión exige texto dentro de descripción, una línea contigua y un movimiento anterior en la misma página; nunca se descartan los decimales desconocidos de las columnas monetarias ni se cruzan páginas para silenciar una advertencia.
 
 ## Extractor genérico
@@ -109,6 +110,7 @@ El extractor se escribió **sin muestra**, adivinando la plantilla, y se corrigi
 - Un objeto ausente o con una clave de una versión anterior no es un error del servidor: devolver 404 con código, no 500 con `ENOENT`.
 - La respuesta pública no debe exponer la clave del objeto. Un nombre de descarga derivado del trabajo y del tipo evita filtrar el nombre del documento original.
 - Mientras los resultados vivan en el disco del worker, su directorio de artefactos es estado permanente: cambiarlo deja sin descarga a todos los trabajos ya publicados.
+- El directorio de un trabajo del worker se identifica por contenido y lo comparten todas las personas que suben el mismo PDF. Si un artefacto incluye algo de quien lo subió —el nombre del PDF en el `Resumen`—, ese dato tiene que entrar en la identidad del trabajo; si no, la segunda persona recibe el libro con el nombre que eligió la primera.
 - Cada código de error del contrato necesita su mensaje en el cliente. Uno sin traducir aparece como "error inesperado" y oculta la causa real al usuario.
 
 ## Navegador
@@ -165,6 +167,7 @@ El extractor se escribió **sin muestra**, adivinando la plantilla, y se corrigi
 
 - **Cada exportador rotula sus CSV a su manera, y un rótulo desconocido no falla: da cero.** El Centro Financiero y el Calendario buscaban `Cargo`/`Abono` y `Fecha proceso`/`Fecha`; el BBVA publica `Cargo/Abono` con signo y `Fecha oper.`, así que un estado de cuenta del BBVA se veía **sin un solo movimiento** y sin error. Al añadir un exportador, añadir sus cabeceras reales a `statement-from-csv.test.ts`.
 - **El ITF del BBVA ya está dentro de los totales de su `Resumen`.** El banco no imprime totales de cargos y abonos; los calcula el worker con el ITF de cada fila restado (abonos netos, cargos con su impuesto). La interfaz muestra el ITF como movimiento aparte, así que suma entradas y salidas desde las filas: sumar además el `Total ITF` lo contaba dos veces y el periodo no cuadraba (5.75 en el documento real). Las pruebas no lo vieron porque el CSV de ejemplo suponía totales sin ITF: **los fixtures del frontend se copian de lo que publica el worker, no de lo que uno espera**.
+- **`Tipo de fila` no se escribe igual en todos los bancos.** BCP publica `MOVEMENT` y `PREVIOUS_BALANCE`; BBVA, `MOVIMIENTO` y `SALDO_ANTERIOR`. Comparar con un único valor deja fuera todos los movimientos del otro banco sin ningún error: se aceptan los dos conjuntos y la prueba fija que el saldo anterior nunca entra como movimiento.
 - **Soles y dólares no se suman.** Cada estado de cuenta lleva su moneda (columna `Moneda` del `Resumen`) y las vistas consolidan una sola a la vez. Un documento sin moneda declarada se trata como soles.
 - No guardar tokens sensibles ni resultados financieros completos en almacenamiento persistente del navegador sin una decisión de seguridad.
 - Cancelar polling al llegar a un estado terminal y usar backoff.

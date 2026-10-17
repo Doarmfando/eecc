@@ -20,6 +20,17 @@ class ExtractionStatus(StrEnum):
     FAILED = "FAILED"
 
 
+class AccountType(StrEnum):
+    """Familia de la cuenta según el producto que declara el documento.
+
+    Los valores van tal cual a la columna `Tipo de cuenta` del Excel y del CSV,
+    donde la interfaz los lee para agrupar el historial.
+    """
+
+    SAVINGS = "AHORRO"
+    CHECKING = "CORRIENTE"
+
+
 @dataclass(frozen=True, slots=True)
 class Period:
     year: int | None = None

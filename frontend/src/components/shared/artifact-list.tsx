@@ -9,7 +9,7 @@ import { formatBytes } from '@/lib/format';
 import { saveBlob } from '@/lib/save-file';
 import type { Artifact } from '@/types/job';
 
-import { describeArtifact } from './artifact-label';
+import { describeArtifact, savedFileName } from './artifact-label';
 
 interface DownloadHandlers {
   isPending: boolean;
@@ -128,7 +128,7 @@ export function ArtifactList({
         { jobId, artifactId: artifact.id },
         {
           onSuccess: (result) => {
-            saveBlob(result.blob, result.fileName);
+            saveBlob(result.blob, savedFileName(artifact, sourceFileName, result.fileName));
           },
         },
       );

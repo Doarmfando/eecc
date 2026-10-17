@@ -230,6 +230,51 @@ describe('buildFinancialStatement con BBVA', () => {
   });
 });
 
+/** El mismo documento con la hoja que publica BBVA desde que lee la cabecera. */
+const BBVA_V2_MOVEMENTS = csv(
+  'Página,Tipo de fila,Fecha oper.,Fecha valor,Descripción,Cargo/Abono,ITF,Saldo contable',
+  '1,SALDO_ANTERIOR,,,SALDO ANTERIOR,,,1000.00',
+  '1,MOVIMIENTO,2026-07-02,2026-07-02,Abono por transferencia,500.00,0.02,1499.98',
+  '1,MOVIMIENTO,2026-07-05,2026-07-05,Pago a proveedor,-200.00,0.01,1299.97',
+  '1,MOVIMIENTO,2026-07-09,2026-07-09,Comision de mantenimiento,-10.00,,1289.97',
+);
+
+const BBVA_V2_SUMMARY = csv(
+  'Archivo,Tipo de cuenta,Moneda,Páginas,Movimientos,Saldo anterior,Total abonos,Total cargos,Total ITF,Saldo contable final,Advertencias',
+  'Julio.pdf,CORRIENTE,USD,1,4,1000.00,499.98,210.01,0.03,1289.97,0',
+);
+
+describe('buildFinancialStatement con la hoja BBVA que incluye el saldo anterior', () => {
+  const previous = buildFinancialStatement(
+    source({
+      extractorId: 'bbva-account-v1',
+      movementsCsv: BBVA_MOVEMENTS,
+      summaryCsv: BBVA_SUMMARY,
+    }),
+  );
+  const current = buildFinancialStatement(
+    source({
+      extractorId: 'bbva-account-v1',
+      movementsCsv: BBVA_V2_MOVEMENTS,
+      summaryCsv: BBVA_V2_SUMMARY,
+    }),
+  );
+
+  it('no convierte el saldo anterior en un movimiento', () => {
+    const { tipoCuenta, ...withoutType } = current;
+    expect(withoutType).toEqual(previous);
+    expect(tipoCuenta).toBe('CORRIENTE');
+  });
+
+  it('sin resumen, toma el saldo inicial de la fila de saldo anterior', () => {
+    const statement = buildFinancialStatement(
+      source({ extractorId: 'bbva-account-v1', movementsCsv: BBVA_V2_MOVEMENTS }),
+    );
+    expect(statement.saldoInicial).toBe(100000);
+    expect(statement.tipoCuenta).toBeUndefined();
+  });
+});
+
 const NACION_MOVEMENTS = csv(
   'Página,Fecha,Fecha valor,Descripción,Cargos,Abonos,Saldo',
   '1,2026-07-04,2026-07-04,Deposito en efectivo,,150.00,650.00',
@@ -303,6 +348,7 @@ describe('readSummary', () => {
   it('devuelve nulos cuando el trabajo no publicó resumen', () => {
     expect(readSummary(null)).toEqual({
       moneda: null,
+      tipoCuenta: null,
       saldoInicial: null,
       abonos: null,
       cargos: null,
@@ -316,6 +362,13 @@ describe('readSummary', () => {
     // BCP no la publicaba antes de esta versión del extractor.
     expect(readSummary(BCP_SUMMARY).moneda).toBeNull();
     expect(readSummary(csv('Moneda', 'EUR')).moneda).toBeNull();
+  });
+
+  it('lee el tipo de cuenta solo cuando es uno que se sabe agrupar', () => {
+    expect(readSummary(BBVA_V2_SUMMARY).tipoCuenta).toBe('CORRIENTE');
+    expect(readSummary(csv('Tipo de cuenta', 'ahorro')).tipoCuenta).toBe('AHORRO');
+    expect(readSummary(csv('Tipo de cuenta', 'PLAZO FIJO')).tipoCuenta).toBeNull();
+    expect(readSummary(BBVA_SUMMARY).tipoCuenta).toBeNull();
   });
 
   it('lee los totales con cualquiera de sus dos rótulos', () => {

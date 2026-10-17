@@ -247,6 +247,24 @@ describe('StatementsService', () => {
     expect(JSON.stringify(recorder.created)).not.toContain('clave-del-pdf-123');
   });
 
+  it('manda al worker el nombre ya saneado para la columna Archivo del Excel', async () => {
+    const recorder: TransactionRecorder = { created: [] };
+    const { prisma } = buildPrisma(null, recorder);
+    const processStatement = jest.fn().mockResolvedValue(workerPayload());
+    const service = buildService(prisma, { processStatement });
+
+    await service.process({
+      organizationId: ORGANIZATION_ID,
+      content: pdfBuffer(),
+      fileName: 'C:\\fakepath\\Cuenta sintética.pdf',
+      mimeType: 'application/pdf',
+    });
+
+    expect(processStatement).toHaveBeenCalledWith(
+      expect.objectContaining({ sourceFileName: 'Cuenta sintética.pdf' }),
+    );
+  });
+
   it('guarda el PDF de origen y los artefactos del worker con su checksum', async () => {
     const recorder: TransactionRecorder = { created: [] };
     const { prisma } = buildPrisma(null, recorder);

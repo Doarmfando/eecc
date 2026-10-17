@@ -6,6 +6,9 @@ export type { SourceBankId };
 
 export type MovementType = 'ABONO' | 'CARGO';
 
+/** Familia de la cuenta según el producto que imprime el banco (`CONTIAHORRO` es ahorro). */
+export type AccountType = 'AHORRO' | 'CORRIENTE';
+
 /**
  * Movimiento consolidado para el Centro Financiero.
  *
@@ -43,6 +46,11 @@ export interface FinancialStatement {
   bancoOrigen: SourceBankId;
   /** La moneda de la cuenta: todos los importes del documento están en ella. */
   moneda: Currency;
+  /**
+   * Ahorro o corriente, cuando el `Resumen` lo declara. Hoy solo lo lee BBVA de
+   * la cabecera; en los demás bancos queda sin definir en vez de suponerse.
+   */
+  tipoCuenta?: AccountType;
   fechaPeriodo: string;
   periodoLabel: string;
   saldoInicial: number;

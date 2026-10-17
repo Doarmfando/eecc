@@ -7,6 +7,7 @@ from unittest.mock import patch
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
+from tests.support.synthetic_bbva_pdf import create_synthetic_bbva_pdf
 from tests.support.synthetic_bcp_pdf import create_synthetic_bcp_pdf
 from tests.support.synthetic_other_bank_pdf import create_synthetic_other_bank_pdf
 
@@ -161,6 +162,27 @@ class InternalApiTests(TestCase):
 
     def test_rejects_an_implausibly_long_password(self) -> None:
         response = self._upload(pdf_password="x" * 129)
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json(), {"code": "INVALID_JOB_OPTIONS"})
+
+    def test_the_pdf_name_reaches_the_summary_and_not_the_payload(self) -> None:
+        bbva = self.directory / "bbva.pdf"
+        create_synthetic_bbva_pdf(bbva)
+
+        response = self._upload(
+            bbva.read_bytes(), source_file_name="C:\\fakepath\\Cuenta sintética.pdf"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("sintética", response.text)
+        summary = self.client.get(
+            f"/internal/statements/{response.json()['job_id']}/artifacts/statement_Resumen.csv"
+        )
+        self.assertIn("Cuenta sintética.pdf", summary.content.decode("utf-8-sig"))
+
+    def test_rejects_an_implausibly_long_pdf_name(self) -> None:
+        response = self._upload(source_file_name="x" * 1025)
 
         self.assertEqual(response.status_code, 422)
         self.assertEqual(response.json(), {"code": "INVALID_JOB_OPTIONS"})

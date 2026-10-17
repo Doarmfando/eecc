@@ -50,8 +50,11 @@ Existente hoy en `backend/api-backend`:
 
 La carga, el detalle y el historial incluyen `sourceFileName` cuando se conoce el
 nombre del PDF. Es una etiqueta privada para su dueño, independiente de las
-claves opacas y de los nombres de descarga. Persistencia y compatibilidad con
-documentos antiguos: [ADR-0011](../decisiones/ADR-0011-nombre-privado-del-documento.md).
+claves opacas. Persistencia y compatibilidad con documentos antiguos:
+[ADR-0011](../decisiones/ADR-0011-nombre-privado-del-documento.md). La API sigue
+sirviendo nombres derivados del trabajo; es el navegador el que guarda cada
+descarga con el nombre del PDF, y el worker lo recibe solo para la columna
+`Archivo` del Excel BBVA ([ADR-0012](../decisiones/ADR-0012-excel-bbva-con-encabezado-y-nombre-del-archivo.md)).
 
 Diferencias intencionales con el objetivo, todavía pendientes:
 

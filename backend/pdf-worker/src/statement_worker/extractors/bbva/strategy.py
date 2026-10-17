@@ -11,6 +11,7 @@ from statement_worker.services.pdf_sanitizer import sanitized_pdf_path
 from statement_worker.services.strategy import StatementOutcome
 
 from .detector import BBVA_EXTRACTOR_ID, BbvaTemplateDetector
+from .header import read_bbva_header
 from .models import BbvaProcessingResult, BbvaRowType
 from .pdfplumber_adapter import read_bbva_pdf
 from .rows import read_bbva_rows
@@ -46,7 +47,11 @@ class BbvaStatementStrategy:
             default_year=default_year,
         )
         report = validate_bbva_rows(document.rows, warning_codes=document.warning_codes)
-        result = BbvaProcessingResult(detection=detection, document=document)
+        result = BbvaProcessingResult(
+            detection=detection,
+            document=document,
+            header=read_bbva_header(read_result.pages, page_width=read_result.probe.page_width),
+        )
         plan = (
             build_bbva_workbook_plan(result, report)
             if report.status is not ExtractionStatus.FAILED

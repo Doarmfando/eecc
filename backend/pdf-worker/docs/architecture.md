@@ -143,7 +143,9 @@ Las columnas se aprenden **solo del bloque de cabecera** (la línea de `CARGO/AB
 
 No hay fila de saldo final: el cierre es el saldo contable de la última fila. `validation.py` exige saldo inicial declarado, continuidad fila a fila y saldo final igual al último saldo y a `inicial + movimientos - itf`; los totales de ITF son opcionales y, si están, tienen que cuadrar.
 
-El Excel usa el esquema `eecc.statement.bbva` (`Resumen`, `Movimientos` con `Cargo/Abono` con signo e `ITF` en columna propia, `Control_Paginas`, `Validaciones`) y no exporta titular, documento de identidad ni número de cuenta.
+El Excel usa el esquema `eecc.statement.bbva` versión 2 ([ADR-0012](../../../docs/decisiones/ADR-0012-excel-bbva-con-encabezado-y-nombre-del-archivo.md)): `Resumen` con el nombre del PDF y el tipo de cuenta (`AHORRO` o `CORRIENTE`); `Encabezado` con los datos que imprime la cabecera y el pie (titular, dirección, RUC, ejecutivo, CCI, oficina, fecha, código de cuenta y hoja); `Movimientos` con `Tipo de fila` (`SALDO_ANTERIOR` o `MOVIMIENTO`), `Cargo/Abono` con signo e `ITF` en columna propia; y `Control_Paginas` con filas y columnas extraídas por página. Las invariantes no van en el libro: las publica la API.
+
+`header.py` lee la cabecera y el pie por sus rótulos. El ejecutivo de cuenta comparte líneas con la dirección, a menos de tres puntos de altura, así que la columna se decide por la mitad de la página. El nombre del PDF no lo ve ninguna estrategia: `run_statement_job` lo escribe al publicar en la columna `source_file` que declara el exportador, y forma parte de la identidad del trabajo.
 
 La lectura **no depende de la divisa**: los importes se imprimen sin símbolo y la moneda se declara una sola vez, en `MONEDA:`, de donde sale la etiqueta del Excel. Hay una prueba que lo fija en soles y en dólares sobre el mismo documento sintético.
 

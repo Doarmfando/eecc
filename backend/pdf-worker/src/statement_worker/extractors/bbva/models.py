@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 from enum import StrEnum
 
-from statement_worker.domain.models import Detection, DocumentProbe
+from statement_worker.domain.models import AccountType, Detection, DocumentProbe
 
 
 class BbvaRowType(StrEnum):
@@ -128,6 +128,32 @@ class BbvaDocumentRows:
 
 
 @dataclass(frozen=True, slots=True)
+class BbvaStatementHeader:
+    """Cabecera y pie del documento, tal como los imprime el banco.
+
+    Identifica al titular y su cuenta: solo viaja al Excel de su dueño
+    (ADR-0012). Nunca entra en registros, manifiestos, la API ni la base de datos.
+    Un dato que el documento no trae queda vacío; no se completa con lo que haya
+    cerca.
+    """
+
+    account_product: str = ""
+    account_type: AccountType | None = None
+    holder: str = ""
+    address: str = ""
+    currency_label: str = ""
+    tax_id: str = ""
+    account_manager: str = ""
+    interbank_code: str = ""
+    office: str = ""
+    statement_date: date | None = None
+    account_code: str = ""
+    # Correlativo que el banco imprime en cada página: `77-86` si son varias.
+    sheets: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class BbvaProcessingResult:
     detection: Detection
     document: BbvaDocumentRows
+    header: BbvaStatementHeader = field(default_factory=BbvaStatementHeader)
