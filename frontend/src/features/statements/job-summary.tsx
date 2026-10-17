@@ -97,9 +97,14 @@ export function JobSummary({ job }: { job: Job }): ReactNode {
   return (
     <div className="space-y-6">
       <Card>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <CardHeader>
+        <div className="flex flex-col items-start justify-between gap-3 sm:flex-row">
+          <CardHeader className="w-full min-w-0 flex-1">
             <CardTitle>Resultado del procesamiento</CardTitle>
+            {job.sourceFileName ? (
+              <p className="text-lg font-semibold break-words text-foreground [overflow-wrap:anywhere]">
+                {job.sourceFileName}
+              </p>
+            ) : null}
             <CardDescription>
               Extractor {job.extractorId} versión {job.extractorVersion} · intento{' '}
               {formatCount(job.attemptNumber)}
@@ -190,7 +195,11 @@ export function JobSummary({ job }: { job: Job }): ReactNode {
             </CardDescription>
           </CardHeader>
           {supportingArtifacts.length > 0 ? (
-            <ArtifactList jobId={job.jobId} artifacts={supportingArtifacts} />
+            <ArtifactList
+              jobId={job.jobId}
+              artifacts={supportingArtifacts}
+              sourceFileName={job.sourceFileName}
+            />
           ) : (
             <p className="text-sm text-muted-foreground">
               {primaryArtifact

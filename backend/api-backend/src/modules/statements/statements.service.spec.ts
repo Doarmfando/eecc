@@ -92,6 +92,7 @@ function buildPrisma(
 
   const prisma = {
     job: { findUnique },
+    statement: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
     auditEvent: tx.auditEvent,
     $transaction: jest.fn(
       async (handler: (client: typeof tx) => Promise<unknown>): Promise<unknown> => handler(tx),
@@ -211,6 +212,10 @@ describe('StatementsService', () => {
 
     expect(response.status).toEqual(JobStatus.SUCCEEDED);
     expect(response.reused).toBe(false);
+    expect(response).toMatchObject({ sourceFileName: 'estado.pdf' });
+    expect(recorder.created.find((entry) => entry.model === 'statement')?.data).toMatchObject({
+      sourceFileName: 'estado.pdf',
+    });
     expect(response.checks).toEqual([{ code: 'BCP_ROWS_PRESENT', status: 'PASSED' }]);
     expect(recorder.created.map((entry) => entry.model)).toEqual([
       'statement',
@@ -298,6 +303,11 @@ describe('StatementsService', () => {
 
     expect(processStatement).not.toHaveBeenCalled();
     expect(response.reused).toBe(true);
+    expect(response).toMatchObject({ sourceFileName: 'estado.pdf' });
+    expect(prisma.statement.updateMany).toHaveBeenCalledWith({
+      where: { id: 'statement-id', organizationId: ORGANIZATION_ID, uploadedById: null },
+      data: { sourceFileName: 'estado.pdf' },
+    });
     expect(response.status).toEqual(JobStatus.NEEDS_REVIEW);
     expect(response.warningCodes).toEqual(['BCP_AMOUNT_UNPARSEABLE']);
     expect(recorder.created).toHaveLength(0);

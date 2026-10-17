@@ -8,11 +8,12 @@ from statement_worker.domain.errors import UnexportableStatementError
 from statement_worker.exporters.bcp_workbook import build_bcp_workbook_plan
 from statement_worker.services.strategy import StatementOutcome
 
+from .detector import BcpTemplateDetector
 from .document_processor import process_bcp_pdf
 from .models import BcpRowType
 
 BCP_STRATEGY_ID = "bcp-coordinate-v1"
-BCP_STRATEGY_VERSION = "0.3.1"
+BCP_STRATEGY_VERSION = BcpTemplateDetector.version
 
 
 class BcpStatementStrategy:

@@ -113,6 +113,11 @@ El extractor se escribió **sin muestra**, adivinando la plantilla, y se corrigi
 
 ## Navegador
 
+- Mostrar `File.name` en la carga no conserva el nombre después de navegar. El contrato debe transportarlo hasta detalle e historial; no reemplazarlo con números inventados. El nombre es texto privado del dueño, no una ruta ni una clave de almacenamiento.
+- Un `onDrop` que solo apaga el resaltado no selecciona el archivo. Cancelar la acción nativa y actualizar el campo de React Hook Form con el `FileList` recibido, ejecutando la misma validación que en el selector.
+- El `filename` de una cabecera multipart puede llegar interpretado como Latin-1. Enviar además el nombre como campo de texto UTF-8 evita romper acentos; comprobarlo con una carga real contra la API, no solo con objetos `File` simulados.
+- Un nombre largo puede desbordar un encabezado flex aunque tenga `overflow-wrap`. El contenedor también necesita `min-width: 0`; en móvil, separar el estado del bloque de nombre para que no lo comprima.
+
 - Revocar la URL del blob en el mismo tick del `click()` cancela la descarga antes de que el navegador la inicie. Liberar en el siguiente tick.
 - Cada botón de descarga necesita mostrar su propio error. El mensaje de las descargas secundarias no cubre el botón principal de Excel: cada uno tiene una mutación independiente.
 - `NEEDS_REVIEW` puede deberse solo a una advertencia. No afirmar un descuadre financiero sin una comprobación fallida; conservar la revisión aunque las comprobaciones disponibles pasen.

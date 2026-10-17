@@ -34,6 +34,7 @@ export class JobsController {
   ) {}
 
   @Get()
+  @Header('Cache-Control', 'private, no-store')
   @ApiOperation({ summary: 'Historial de los trabajos que subió quien consulta' })
   @ApiResponse({ status: 200, type: JobListDto })
   async list(
@@ -47,6 +48,7 @@ export class JobsController {
   }
 
   @Get(':jobId')
+  @Header('Cache-Control', 'private, no-store')
   @ApiOperation({ summary: 'Consulta el estado de un trabajo propio' })
   @ApiResponse({ status: 200, type: JobResponseDto })
   async findOne(

@@ -26,6 +26,12 @@ El MVP aplica minimización de datos:
 - no guarda números de cuenta completos; como máximo, un alias enmascarado y un fingerprint no reversible con alcance por organización;
 - no guarda texto crudo del PDF en campos `text` o `jsonb`.
 
+El nombre del archivo elegido por la persona se conserva como etiqueta privada
+en `statements.source_file_name` (nullable, `varchar(255)`), exclusivamente para
+reconocerlo en su resultado e historial. Se valida y separa de rutas, claves,
+logs, auditoría y outbox. No procede de la extracción del PDF y se borra con el
+documento. Ver [ADR-0011](decisiones/ADR-0011-nombre-privado-del-documento.md).
+
 Si el producto necesita búsqueda o edición de movimientos dentro del dashboard, se diseñará un modelo separado, cifrado y con una nueva evaluación de privacidad mediante ADR. No se añadirá una tabla de movimientos “por si acaso”.
 
 ## Modelo lógico inicial

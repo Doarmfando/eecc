@@ -47,7 +47,7 @@ export class JobsService {
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: limit + 1,
       include: {
-        statement: { select: { uploadedById: true } },
+        statement: { select: { uploadedById: true, sourceFileName: true } },
         attempts: {
           orderBy: { attemptNumber: 'desc' },
           take: 1,
@@ -80,6 +80,7 @@ export class JobsService {
     const job = await this.prisma.job.findFirst({
       where: { id: jobId, organizationId, statement: { uploadedById: viewerUserId } },
       include: {
+        statement: { select: { sourceFileName: true } },
         attempts: {
           orderBy: { attemptNumber: 'desc' },
           take: 1,
@@ -99,6 +100,7 @@ export class JobsService {
       status: job.status,
       attempt,
       reused: false,
+      sourceFileName: job.statement.sourceFileName,
     });
   }
 }
@@ -108,7 +110,7 @@ interface JobRow {
   statementId: string;
   status: string;
   createdAt: Date;
-  statement: { uploadedById: string | null };
+  statement: { uploadedById: string | null; sourceFileName: string | null };
   attempts: {
     extractorId: string | null;
     movementCount: number | null;
@@ -121,6 +123,7 @@ function toListItem(job: JobRow, viewerUserId: string | null): JobListItemDto {
   return {
     jobId: job.id,
     statementId: job.statementId,
+    sourceFileName: job.statement.sourceFileName ?? null,
     status: job.status,
     createdAt: job.createdAt.toISOString(),
     extractorId: attempt?.extractorId ?? '',

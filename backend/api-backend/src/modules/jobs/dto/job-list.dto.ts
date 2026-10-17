@@ -24,6 +24,7 @@ export class JobListQueryDto {
 }
 
 export class JobListItemDto {
+  @ApiPropertyOptional({ nullable: true }) sourceFileName?: string | null;
   @ApiProperty() jobId!: string;
   @ApiProperty() statementId!: string;
   @ApiProperty() status!: string;

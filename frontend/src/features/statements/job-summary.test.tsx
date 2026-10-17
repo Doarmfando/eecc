@@ -28,6 +28,12 @@ function job(overrides: Partial<Job> = {}): Job {
 }
 
 describe('JobSummary', () => {
+  it('identifica el resultado con el nombre original recibido del servidor', () => {
+    renderWithProviders(
+      <JobSummary job={job({ sourceFileName: 'Cuenta sintética agosto.pdf' })} />,
+    );
+    expect(screen.getByText('Cuenta sintética agosto.pdf')).toBeVisible();
+  });
   afterEach(() => vi.unstubAllGlobals());
 
   it('mantiene la revisión sin afirmar un descuadre cuando solo hay filas sin clasificar', () => {

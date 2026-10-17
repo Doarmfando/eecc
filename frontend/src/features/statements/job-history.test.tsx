@@ -38,6 +38,23 @@ describe('formatProcessedAt', () => {
 });
 
 describe('JobHistory', () => {
+  it('conserva el nombre recibido del servidor y permite buscarlo', async () => {
+    const user = userEvent.setup();
+    const sourceFileName = 'Cuenta sintética agosto.pdf';
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse(200, { items: [{ ...ITEM, sourceFileName }], nextCursor: null }),
+        ),
+    );
+    renderWithProviders(<JobHistory />);
+    expect(await screen.findByText(sourceFileName)).toBeInTheDocument();
+    await user.type(screen.getByRole('searchbox'), 'sintetica agosto');
+    expect(screen.getByRole('link')).toHaveTextContent(sourceFileName);
+  });
+
   it('lista los documentos procesados con su estado y conteos', async () => {
     vi.stubGlobal(
       'fetch',

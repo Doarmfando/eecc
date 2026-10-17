@@ -17,7 +17,7 @@ from .pdfplumber_adapter import read_generic_tables
 from .validation import GenericValidationReport, validate_generic_rows
 
 GENERIC_STRATEGY_ID = "generic-table-v1"
-GENERIC_STRATEGY_VERSION = "0.2.0"
+GENERIC_STRATEGY_VERSION = GenericStatementDetector.version
 
 
 class GenericStatementStrategy:

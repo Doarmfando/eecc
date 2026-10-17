@@ -34,7 +34,7 @@ _AMOUNT_PATTERN = re.compile(r"\b\d{1,3}(?:[.,]\d{3})*[.,]\d{2}\b")
 
 class GenericStatementDetector:
     extractor_id = "generic-table-v1"
-    version = "0.1.0"
+    version = "0.2.1"
     minimum_confidence = Decimal("0.70")
 
     def detect(self, probe: DocumentProbe, *, movement_rows: int = 0) -> Detection:

@@ -26,6 +26,10 @@ export const artifactSchema = z.object({
 });
 
 export const jobSchema = z.object({
+  sourceFileName: z
+    .string()
+    .refine((value) => Array.from(value).length <= 255)
+    .nullish(),
   jobId: z.string(),
   statementId: z.string(),
   status: jobStatusSchema,
@@ -42,6 +46,10 @@ export const jobSchema = z.object({
 });
 
 export const jobListItemSchema = z.object({
+  sourceFileName: z
+    .string()
+    .refine((value) => Array.from(value).length <= 255)
+    .nullish(),
   jobId: z.string(),
   statementId: z.string(),
   status: jobStatusSchema,

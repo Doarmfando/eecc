@@ -28,7 +28,7 @@ PDF  ──►  detección de plantilla  ──►  extracción  ──►  vali
 | BCP | `bcp-coordinate-v1` | Sí |
 | Interbank | `interbank-savings-v1` | Sí, solo cuenta de ahorro en soles |
 | Banco de la Nación | `banco-nacion-v1` | Sí, solo cuenta corriente en soles |
-| BBVA | `bbva-account-v1` | Sí, solo cuenta corriente en dólares |
+| BBVA | `bbva-account-v1` | Sí, cuenta corriente en soles y dólares, y ahorro en soles |
 | Scotiabank y otros | `generic-table-v1` | Respaldo: solo reconcilia si el documento trae columna de saldo |
 
 El banco **no se elige**: el worker detecta la plantilla por su cuenta, así que un documento se procesa con su extractor aunque en la interfaz se marque otro. Un banco «validado» lo está con las muestras que aparecen en la tabla; otra variante de cuenta puede cambiar la plantilla, y entonces el resultado queda en `NEEDS_REVIEW` en vez de dar cifras equivocadas.
@@ -110,7 +110,7 @@ Antes de terminar una tarea: ejecuta las comprobaciones (`npm run check`, `scrip
 
 Los PDF, Excel y CSV pueden contener información real. No se versionan, no se envían a servicios externos y no aparecen en los registros. Las pruebas usan muestras sintéticas generadas en `tests/support/`.
 
-Ninguna respuesta de la API incluye movimientos, importes, rutas locales ni trazas: solo identificadores, estados, conteos y códigos.
+Ninguna respuesta de la API incluye movimientos, importes, rutas locales ni trazas. Además de identificadores, estados, conteos y códigos, el dueño recibe el nombre de su PDF como etiqueta privada para reconocerlo en el resultado y el historial ([ADR-0011](docs/decisiones/ADR-0011-nombre-privado-del-documento.md)).
 
 
 

@@ -20,9 +20,11 @@ interface DownloadHandlers {
 function SecondaryArtifact({
   artifact,
   handlers,
+  sourceFileName,
 }: {
   artifact: Artifact;
   handlers: DownloadHandlers;
+  sourceFileName?: string | null;
 }): ReactNode {
   const label = describeArtifact(artifact.kind, artifact.name);
   const isDownloading = handlers.isDownloading(artifact.id);
@@ -31,6 +33,11 @@ function SecondaryArtifact({
       <img src={pdfIcon} alt="" aria-hidden className="size-9 shrink-0" />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-slate-800">{label}</p>
+        {sourceFileName ? (
+          <p className="text-sm break-words text-slate-700 [overflow-wrap:anywhere]">
+            {sourceFileName}
+          </p>
+        ) : null}
         <p className="text-xs text-muted-foreground">{formatBytes(artifact.byteSize)}</p>
       </div>
       <Button
@@ -96,9 +103,11 @@ function CompactArtifactRow({
 export function ArtifactList({
   jobId,
   artifacts,
+  sourceFileName,
 }: {
   jobId: string;
   artifacts: Artifact[];
+  sourceFileName?: string | null;
 }): ReactNode {
   const download = useDownloadArtifact();
 
@@ -132,7 +141,12 @@ export function ArtifactList({
   return (
     <div className="space-y-4">
       {source.map((artifact) => (
-        <SecondaryArtifact key={artifact.id} artifact={artifact} handlers={handlers} />
+        <SecondaryArtifact
+          key={artifact.id}
+          artifact={artifact}
+          handlers={handlers}
+          sourceFileName={sourceFileName}
+        />
       ))}
 
       {supporting.length > 0 ? (

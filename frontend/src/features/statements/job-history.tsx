@@ -126,6 +126,7 @@ function normalize(text: string): string {
 function rowText(job: JobListItem, label: StatementLabel | undefined): string {
   return normalize(
     [
+      job.sourceFileName ?? '',
       BANK_ACCENTS[bankFromExtractor(job.extractorId)].name,
       statusLabel(job.status),
       formatProcessedAt(job.createdAt),
@@ -156,12 +157,20 @@ function HistoryRow({
         to={`/jobs/${job.jobId}`}
         className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1 rounded-md px-2 py-3 hover:bg-accent"
       >
-        <span className="flex w-full shrink-0 items-center gap-2.5 sm:w-52">
+        <span className="flex min-w-0 basis-full items-center gap-2.5 sm:basis-80">
           <span className="flex size-10 shrink-0 items-center justify-center text-muted-foreground">
             <BankMark bankId={bankId} className="max-h-6 w-9" />
           </span>
           <span className="flex min-w-0 flex-col">
-            <span className="truncate text-sm font-medium text-foreground">{accent.name}</span>
+            <span
+              className="line-clamp-2 text-sm font-medium break-words text-foreground [overflow-wrap:anywhere]"
+              title={job.sourceFileName ?? accent.name}
+            >
+              {job.sourceFileName ?? accent.name}
+            </span>
+            {job.sourceFileName ? (
+              <span className="text-xs text-muted-foreground">{accent.name}</span>
+            ) : null}
             {label ? (
               <span className="truncate text-xs text-muted-foreground">
                 {label.period} · {label.currency}
@@ -263,7 +272,7 @@ export function JobHistory(): ReactNode {
               <Input
                 type="search"
                 value={query}
-                placeholder="Buscar por banco, mes, moneda o estado…"
+                placeholder="Buscar por archivo, banco, mes o moneda…"
                 aria-label="Buscar en el historial"
                 onChange={(event) => {
                   setQuery(event.target.value);

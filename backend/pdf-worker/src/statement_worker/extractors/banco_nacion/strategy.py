@@ -17,7 +17,7 @@ from .rows import read_banco_nacion_rows
 from .validation import validate_banco_nacion_rows
 
 BANCO_NACION_STRATEGY_ID = BANCO_NACION_EXTRACTOR_ID
-BANCO_NACION_STRATEGY_VERSION = "0.1.0"
+BANCO_NACION_STRATEGY_VERSION = BancoNacionTemplateDetector.version
 
 
 class BancoNacionStatementStrategy:

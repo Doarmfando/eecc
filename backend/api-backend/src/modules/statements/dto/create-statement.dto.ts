@@ -3,6 +3,12 @@ import { Transform } from 'class-transformer';
 import { IsInt, IsOptional, IsString, Matches, Max, MaxLength, Min } from 'class-validator';
 
 export class CreateStatementDto {
+  @ApiPropertyOptional({ description: 'Nombre visible del PDF, enviado como texto UTF-8' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1024)
+  sourceFileName?: string;
+
   @ApiPropertyOptional({ description: 'Año a usar cuando el documento omite el del periodo' })
   @IsOptional()
   @Transform(({ value }): unknown =>
@@ -49,6 +55,8 @@ export class StatementArtifactDto {
 }
 
 export class JobResponseDto {
+  @ApiPropertyOptional({ nullable: true, description: 'Nombre del PDF visible solo a su dueño' })
+  sourceFileName?: string | null;
   @ApiProperty() jobId!: string;
   @ApiProperty() statementId!: string;
   @ApiProperty({ enum: ['PENDING', 'PROCESSING', 'SUCCEEDED', 'NEEDS_REVIEW', 'FAILED'] })

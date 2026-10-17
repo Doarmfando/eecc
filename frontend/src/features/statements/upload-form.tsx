@@ -52,6 +52,7 @@ export function UploadForm({
     handleSubmit,
     watch,
     setFocus,
+    setValue,
     formState: { errors },
   } = useForm<UploadFormSchema>({
     resolver: zodResolver(uploadSchema),
@@ -106,8 +107,15 @@ export function UploadForm({
             preventDrag(event);
             setDragging(false);
           }}
-          onDrop={() => {
+          onDrop={(event) => {
+            preventDrag(event);
             setDragging(false);
+            if (!disabled && !pending && event.dataTransfer.files.length > 0) {
+              setValue('document', event.dataTransfer.files, {
+                shouldDirty: true,
+                shouldValidate: true,
+              });
+            }
           }}
           className={cn(
             'relative mt-2 flex flex-col items-center gap-2 rounded-xl border-2 border-dashed p-8 text-center transition-colors sm:p-10',
@@ -139,7 +147,12 @@ export function UploadForm({
 
           {selected ? (
             <>
-              <p className="text-sm font-medium text-foreground">{selected.name}</p>
+              <p
+                aria-live="polite"
+                className="max-w-full text-sm font-semibold break-words text-foreground [overflow-wrap:anywhere]"
+              >
+                {selected.name}
+              </p>
               <p className="text-xs text-muted-foreground">
                 {formatBytes(selected.size)} · haz clic para cambiar el archivo
               </p>
@@ -163,6 +176,7 @@ export function UploadForm({
             id={fileInputId}
             type="file"
             accept="application/pdf,.pdf"
+            disabled={disabled || pending}
             className="absolute inset-0 h-full w-full cursor-pointer border-0 bg-transparent p-0 opacity-0 shadow-none file:hidden"
             aria-invalid={hasError ? true : undefined}
             aria-describedby={fileErrorId}
@@ -245,6 +259,11 @@ export function UploadForm({
             <Loader2 aria-hidden className="size-5 shrink-0 animate-spin text-primary" />
             <div className="min-w-0 flex-1 space-y-2">
               <p className="text-sm font-medium text-foreground">Procesando tu documento</p>
+              {selected ? (
+                <p className="text-sm break-words text-foreground [overflow-wrap:anywhere]">
+                  {selected.name}
+                </p>
+              ) : null}
               <Progress aria-label="Procesando el documento" />
               <p className="text-xs text-muted-foreground">
                 Extrayendo, validando invariantes y publicando los archivos…

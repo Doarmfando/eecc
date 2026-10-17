@@ -191,6 +191,8 @@ model Statement {
   organizationId     String          @map("organization_id") @db.Uuid
   uploadedById       String?         @map("uploaded_by") @db.Uuid
   contentFingerprint String          @map("content_fingerprint") @db.VarChar(64)
+  /// Etiqueta privada para el dueño; nunca se usa como ruta ni se registra.
+  sourceFileName     String?         @map("source_file_name") @db.VarChar(255)
   byteSize           Int             @map("byte_size")
   status             StatementStatus @default(REGISTERED)
   bankCode           String?         @map("bank_code") @db.VarChar(32)

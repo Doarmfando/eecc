@@ -328,4 +328,53 @@ describeDatabase('Aislamiento multi-tenant (base real)', () => {
     expect(second.body.jobId).toBe(first.body.jobId);
     expect(second.body.reused).toBe(true);
   });
+
+  it('conserva el nombre UTF-8 en detalle e historial y lo actualiza al reutilizar', async () => {
+    const sourceFileName = 'Estado sintético agosto.pdf';
+    const first = await request(app.getHttpServer())
+      .post('/v1/statements')
+      .set('x-api-key', alpha.token)
+      .field('sourceFileName', sourceFileName)
+      .attach('document', PDF, 'transporte.pdf')
+      .expect(201);
+    expect(first.body.sourceFileName).toBe(sourceFileName);
+
+    const stored = await prisma.statement.findUniqueOrThrow({
+      where: { id: first.body.statementId },
+    });
+    expect(stored.sourceFileName).toBe(sourceFileName);
+
+    const detail = await request(app.getHttpServer())
+      .get(`/v1/jobs/${first.body.jobId as string}`)
+      .set('x-api-key', alpha.token)
+      .expect(200);
+    expect(detail.body.sourceFileName).toBe(sourceFileName);
+
+    const history = await request(app.getHttpServer())
+      .get('/v1/jobs')
+      .set('x-api-key', alpha.token)
+      .expect(200);
+    expect(history.body.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ jobId: first.body.jobId, sourceFileName }),
+      ]),
+    );
+
+    const renamed = await request(app.getHttpServer())
+      .post('/v1/statements')
+      .set('x-api-key', alpha.token)
+      .field('sourceFileName', 'Cuenta actualizada.pdf')
+      .attach('document', PDF, 'transporte.pdf')
+      .expect(201);
+    expect(renamed.body.jobId).toBe(first.body.jobId);
+    expect(renamed.body.reused).toBe(true);
+    expect(renamed.body.sourceFileName).toBe('Cuenta actualizada.pdf');
+
+    const audits = await prisma.auditEvent.findMany({
+      where: { organizationId: alpha.organizationId },
+    });
+    const outbox = await prisma.outboxEvent.findMany({ where: { aggregateId: first.body.jobId } });
+    expect(JSON.stringify([audits, outbox])).not.toContain(sourceFileName);
+    expect(JSON.stringify([audits, outbox])).not.toContain('Cuenta actualizada.pdf');
+  });
 });

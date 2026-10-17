@@ -48,6 +48,11 @@ Existente hoy en `backend/api-backend`:
 - La idempotencia usa `Idempotency-Key` o, en su ausencia, una huella HMAC del contenido con alcance por organización más la versión del perfil; en ambos casos repartida por dueño, para no reutilizar el trabajo de otra persona.
 - Los errores públicos son códigos estables y llevan `x-request-id`; nunca trazas ni contenido del documento.
 
+La carga, el detalle y el historial incluyen `sourceFileName` cuando se conoce el
+nombre del PDF. Es una etiqueta privada para su dueño, independiente de las
+claves opacas y de los nombres de descarga. Persistencia y compatibilidad con
+documentos antiguos: [ADR-0011](../decisiones/ADR-0011-nombre-privado-del-documento.md).
+
 Diferencias intencionales con el objetivo, todavía pendientes:
 
 - la carga llega al servidor y no por URL firmada, y el PDF se guarda en disco tras la interfaz de objetos;

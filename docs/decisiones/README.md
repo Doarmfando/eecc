@@ -36,3 +36,4 @@ Los Architecture Decision Records (ADR) explican decisiones duraderas y sus cons
 - [`ADR-0008-administrador-y-usuario.md`](ADR-0008-administrador-y-usuario.md)
 - [`ADR-0009-cada-persona-ve-solo-sus-documentos.md`](ADR-0009-cada-persona-ve-solo-sus-documentos.md)
 - [`ADR-0010-centro-financiero-lee-los-csv-publicados.md`](ADR-0010-centro-financiero-lee-los-csv-publicados.md)
+- [`ADR-0011-nombre-privado-del-documento.md`](ADR-0011-nombre-privado-del-documento.md)

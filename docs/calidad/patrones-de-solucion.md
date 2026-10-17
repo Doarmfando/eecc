@@ -13,6 +13,16 @@
 
 Una corrección manual sin prueba es temporal y debe quedar como deuda explícita.
 
+## Identidad visible del documento
+
+El nombre del PDF debe viajar como dato, desde el `File` seleccionado o arrastrado
+hasta la etiqueta persistida que devuelve la API. Comprobar selección, reemplazo,
+envío UTF-8, navegación, recarga e historial; incluir nombres largos y acentos.
+La selección por arrastre actualiza el mismo campo y aplica la misma validación.
+Reutilizar un trabajo puede actualizar su etiqueta sin volver a extraerlo.
+Verificar con PostgreSQL que el nombre persiste y con navegador que no desborda;
+comprobar además que no aparece en auditoría, outbox, rutas ni claves de objetos.
+
 ## Pruebas de caracterización
 
 Antes de mover lógica legacy, congelar resultados seguros por plantilla:
@@ -34,6 +44,26 @@ La comparación se ejecuta contra el script legacy real, cargado por ruta relati
 El PDF sintético escribía el nombre del banco como texto, algo que el documento real no hace porque lo lleva en el logo. Las pruebas pasaban y la realidad fallaba. Cuando una señal proviene del layout, el fixture debe reproducir también el caso en que esa señal falta.
 
 Los documentos reales no se versionan, pero sí puede versionarse una prueba que los use cuando estén presentes en la máquina y se active con una variable de entorno. Sus aserciones comparan conteos y sumas entre sí, nunca imprimen contenido.
+
+Para verificar una carpeta explícitamente autorizada, definir `RUN_REAL_STATEMENTS=1`
+y `REAL_STATEMENTS_DIRECTORY` y ejecutar
+`python -m pytest tests/characterization/test_statement_directory.py` desde el worker.
+La prueba descubre los PDF sin fijar nombres ni rutas personales, selecciona el
+extractor, exige reconciliación sin advertencias y exporta cada Excel a un temporal.
+La publicación reabre y compara las celdas contra el plan. Los errores se identifican
+por número de documento; no se imprimen excepciones del lector ni contenido bancario.
+
+Una corrección local no demuestra que producción la ejecute. Comparar la versión
+del worker y el perfil de la API con los del trabajo afectado antes de cambiar reglas
+ya corregidas. Después del despliegue, verificar una carga nueva y sus descargas:
+los resultados anteriores y las claves de idempotencia pueden conservar la lectura vieja.
+
+La versión del extractor tiene una sola fuente: el detector de su plantilla.
+La estrategia toma ese valor tanto para invalidar la caché como para identificar
+el resultado. Duplicarla en ambas clases permitió que las correcciones se ejecutaran
+pero el manifiesto, la API y el Excel siguieran anunciando una versión antigua.
+La regresión comprueba la igualdad en todos los extractores registrados y en un
+trabajo publicado de extremo a extremo.
 
 ## Demostrar en vez de adivinar
 

@@ -62,7 +62,7 @@ DATABASE_URL=${{Postgres.DATABASE_URL}}
 WORKER_BASE_URL=http://eecc-worker.railway.internal:8000
 FINGERPRINT_SECRET=<32+ caracteres, propios de esta instalación>
 SESSION_TTL_HOURS=12
-PROFILE_VERSION=statements-2026.10.14
+PROFILE_VERSION=statements-2026.10.17
 STORAGE_ROOT=/data/storage
 ```
 
@@ -110,6 +110,13 @@ A partir de ahí, las demás cuentas se crean desde la propia aplicación, en **
 Al desplegar la migración `20260912120000_administrador_y_usuario`, en cada organización solo queda como administradora la cuenta más antigua de rol más alto (la del arranque); las demás pasan a usuario. Ver [`ADR-0008`](../decisiones/ADR-0008-administrador-y-usuario.md).
 
 ## Comprobar que quedó bien
+
+Para desplegar la conservación del nombre del PDF (ADR-0011), actualizar primero
+la API: el arranque aplica `20261017090000_statement_source_file_name` mediante
+`prisma migrate deploy`. Después desplegar el frontend en Railway o Vercel.
+La migración es aditiva y no reconstruye nombres de documentos antiguos.
+Verificar una carga con espacios y acentos, recargar el detalle y buscar el nombre
+en el historial. Repetir el mismo PDF debe reutilizarlo y actualizar su etiqueta.
 
 ```powershell
 curl https://<tu-dominio>.up.railway.app/health

@@ -80,6 +80,7 @@ class StatementJobTests(TestCase):
         self.assertGreater(result.row_count, 0)
         self.assertEqual(result.movement_count, 1)
         self.assertEqual(result.page_count, 1)
+        self.assertEqual(result.extractor_version, self.strategy.extractor_version)
 
         kinds = [artifact.kind for artifact in result.artifacts]
         self.assertEqual(kinds.count(ArtifactKind.XLSX), 1)

@@ -17,7 +17,7 @@ _DATE_LABELS = ("FECHA", "DIA")
 
 class BancoNacionTemplateDetector:
     extractor_id = BANCO_NACION_EXTRACTOR_ID
-    version = "0.2.0"
+    version = "0.2.1"
     minimum_confidence = Decimal("0.75")
 
     def detect(self, probe: DocumentProbe) -> Detection:

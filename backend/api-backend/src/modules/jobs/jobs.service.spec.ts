@@ -21,6 +21,7 @@ describe('JobsService', () => {
       id: JOB_ID,
       statementId: 'statement-id',
       status: JobStatus.NEEDS_REVIEW,
+      statement: { sourceFileName: 'Cuenta sintética agosto.pdf' },
       attempts: [
         {
           attemptNumber: 2,
@@ -55,6 +56,7 @@ describe('JobsService', () => {
       }),
     );
     expect(response.status).toEqual(JobStatus.NEEDS_REVIEW);
+    expect(response.sourceFileName).toBe('Cuenta sintética agosto.pdf');
     expect(response.attemptNumber).toEqual(2);
     expect(response.checks).toEqual([{ code: 'BCP_PAGE_TOTALS', status: 'FAILED' }]);
     expect(response.artifacts).toEqual([
@@ -90,7 +92,7 @@ describe('JobsService.list', () => {
       statementId: 'statement-id',
       status: 'SUCCEEDED',
       createdAt: new Date(`2026-08-2${String(index)}T10:00:00Z`),
-      statement: { uploadedById: USER_ID },
+      statement: { uploadedById: USER_ID, sourceFileName: 'Cuenta sintética agosto.pdf' },
       attempts: [
         {
           extractorId: 'bcp-coordinate-v1',
@@ -120,6 +122,7 @@ describe('JobsService.list', () => {
       warningCount: 2,
       artifactCount: 6,
       uploadedByMe: true,
+      sourceFileName: 'Cuenta sintética agosto.pdf',
     });
   });
 

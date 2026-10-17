@@ -17,7 +17,7 @@ from .rows import read_interbank_rows
 from .validation import validate_interbank_rows
 
 INTERBANK_STRATEGY_ID = INTERBANK_EXTRACTOR_ID
-INTERBANK_STRATEGY_VERSION = "0.1.0"
+INTERBANK_STRATEGY_VERSION = InterbankTemplateDetector.version
 
 
 class InterbankStatementStrategy:

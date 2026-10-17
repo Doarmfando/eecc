@@ -15,6 +15,7 @@ export interface AttemptWithRelations {
 }
 
 export interface JobResponseInput {
+  sourceFileName?: string | null;
   jobId: string;
   statementId: string;
   status: JobStatus;
@@ -28,6 +29,7 @@ export function toJobResponse(input: JobResponseInput): JobResponseDto {
   return {
     jobId: input.jobId,
     statementId: input.statementId,
+    sourceFileName: input.sourceFileName ?? null,
     status: input.status,
     attemptNumber: attempt.attemptNumber,
     extractorId: attempt.extractorId ?? '',

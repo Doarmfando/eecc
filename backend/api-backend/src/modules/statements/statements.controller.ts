@@ -60,7 +60,7 @@ export class StatementsController {
       organizationId: organization.organizationId,
       userId: organization.userId,
       content: document.buffer,
-      fileName: document.originalname,
+      fileName: body.sourceFileName ?? document.originalname,
       mimeType: document.mimetype,
       ...(idempotencyKey !== undefined ? { idempotencyKey } : {}),
       ...(body.defaultYear !== undefined ? { defaultYear: body.defaultYear } : {}),

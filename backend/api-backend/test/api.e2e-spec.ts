@@ -116,6 +116,7 @@ function buildPrismaDouble(): PrismaService {
           statementId: 'statement-id',
           status: 'NEEDS_REVIEW',
           createdAt: new Date('2026-08-26T10:00:00Z'),
+          statement: { uploadedById: null, sourceFileName: 'Estado sintético.pdf' },
           attempts: [
             {
               extractorId: 'bcp-coordinate-v1',
@@ -131,6 +132,7 @@ function buildPrismaDouble(): PrismaService {
               id: JOB_ID,
               statementId: 'statement-id',
               status: 'NEEDS_REVIEW',
+              statement: { sourceFileName: 'Estado sintético.pdf' },
               attempts: [ATTEMPT],
             })
           : Promise.resolve(null),
@@ -212,7 +214,8 @@ describe('API pública (e2e)', () => {
       { id: 'artifact-id', kind: 'RESULT_XLSX', byteSize: 2048, name: 'statement.xlsx' },
     ]);
     expect(JSON.stringify(response.body)).not.toContain('objectKey');
-    expect(JSON.stringify(response.body)).not.toContain('estado.pdf');
+    expect(response.body.sourceFileName).toBe('estado.pdf');
+    expect(JSON.stringify(response.body.artifacts)).not.toContain('estado.pdf');
     expect(response.headers['x-request-id']).toEqual('req-abcdef123456');
   });
 
@@ -320,6 +323,7 @@ describe('API pública (e2e)', () => {
       artifactCount: 5,
     });
     expect(response.body.nextCursor).toBeNull();
+    expect(response.headers['cache-control']).toBe('private, no-store');
     expect(JSON.stringify(response.body)).not.toContain('objectKey');
   });
 

@@ -125,6 +125,26 @@ describe('UploadPage', () => {
     expect(screen.getByRole('button', { name: 'Cuenta de Persona de prueba' })).toBeInTheDocument();
   });
 
+  it('envía el nombre con acentos como texto UTF-8 y lo conserva al abrir el resultado', async () => {
+    const sourceFileName = 'Cuenta sintética agosto.pdf';
+    const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      if (url.includes('/v1/auth/me')) return Promise.resolve(jsonResponse(200, SESION));
+      if (/\/v1\/jobs(\?|$)/.test(url)) return Promise.resolve(jsonResponse(200, EMPTY_HISTORY));
+      return Promise.resolve(
+        jsonResponse(init?.method === 'POST' ? 201 : 200, { ...JOB, sourceFileName }),
+      );
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const user = userEvent.setup();
+    renderApp();
+    await esperarSesion();
+    await user.upload(screen.getByLabelText('Estado de cuenta en PDF'), pdfFile(sourceFileName));
+    await user.click(screen.getByRole('button', { name: 'Procesar estado de cuenta' }));
+    await screen.findByRole('link', { name: 'Volver a cargar otro documento' });
+    expect(await screen.findByText(sourceFileName)).toBeVisible();
+    expect(uploadedForm(fetchMock, 0).get('sourceFileName')).toBe(sourceFileName);
+  });
+
   it('ofrece los bancos con extractor y deja fuera el que aún no tiene', async () => {
     vi.stubGlobal(
       'fetch',

@@ -96,6 +96,9 @@ export async function uploadStatement(
 ): Promise<Job> {
   const form = new FormData();
   form.append('document', input.file, input.file.name);
+  // El campo de texto conserva UTF-8 aunque el lector multipart decodifique
+  // el filename de la cabecera como Latin-1.
+  form.append('sourceFileName', input.file.name);
   if (input.defaultYear !== undefined) {
     form.append('defaultYear', String(input.defaultYear));
   }
