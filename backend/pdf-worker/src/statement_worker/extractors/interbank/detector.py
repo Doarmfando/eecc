@@ -13,7 +13,7 @@ INTERBANK_EXTRACTOR_ID = "interbank-savings-v1"
 
 class InterbankTemplateDetector:
     extractor_id = INTERBANK_EXTRACTOR_ID
-    version = "0.2.0"
+    version = "0.3.0"
     minimum_confidence = Decimal("0.75")
 
     def detect(self, probe: DocumentProbe) -> Detection:

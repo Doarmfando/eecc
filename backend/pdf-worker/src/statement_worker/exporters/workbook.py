@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass, replace
 from datetime import date
 from decimal import Decimal
@@ -96,6 +97,71 @@ def signed_amount(debit: Decimal | None, credit: Decimal | None) -> Decimal | No
     if debit is None and credit is None:
         return None
     return (credit or Decimal("0")) - (debit or Decimal("0"))
+
+
+# `Encabezado`: los datos de la cuenta que imprime el banco, en pares campo-valor
+# (ADR-0012, ADR-0015). Cada banco decide qué campos lee de su cabecera.
+ACCOUNT_HEADER_COLUMNS = (
+    SpreadsheetColumn("field", "Campo", SpreadsheetCellType.TEXT, 22),
+    SpreadsheetColumn("value", "Valor", SpreadsheetCellType.TEXT, 60),
+)
+
+# `Control_Paginas` común: cuánto se extrajo de cada página, no cómo se leyó. Las
+# palabras y filas visuales del lector no le dicen nada a quien audita el Excel;
+# filas y columnas extraídas sí, y se cuentan sobre lo que publica `Movimientos`.
+PAGE_CONTROL_COLUMNS = (
+    SpreadsheetColumn("page", "Página", SpreadsheetCellType.INTEGER, 10, "#,##0"),
+    SpreadsheetColumn("rows", "Filas extraídas", SpreadsheetCellType.INTEGER, 16, "#,##0"),
+    SpreadsheetColumn("columns", "Columnas extraídas", SpreadsheetCellType.INTEGER, 18, "#,##0"),
+    SpreadsheetColumn("header", "Cabecera detectada", SpreadsheetCellType.BOOLEAN, 20),
+)
+
+
+def account_header_rows(
+    fields: tuple[tuple[str, str], ...],
+) -> tuple[tuple[SpreadsheetCellValue, ...], ...]:
+    """Una fila por campo; el valor queda en blanco si el documento no lo imprime."""
+
+    return tuple(
+        (label, sanitize_spreadsheet_text(value) if value else None) for label, value in fields
+    )
+
+
+PageCells: TypeAlias = dict[int, list[tuple[SpreadsheetCellValue, ...]]]
+
+
+def group_cells_by_page(
+    cells: Iterable[tuple[int, tuple[SpreadsheetCellValue, ...]]],
+) -> PageCells:
+    """Agrupa una sola vez: un estado de cuenta real tiene cientos de páginas.
+
+    Cada celda es lo que sale del documento —sin página, tipo de fila ni columnas
+    derivadas como `Cargo/Abono`—, para que `Columnas extraídas` cuente solo lo leído.
+    """
+
+    grouped: PageCells = {}
+    for page, row in cells:
+        grouped.setdefault(page, []).append(row)
+    return grouped
+
+
+def page_control_row(
+    page: int,
+    header_detected: bool | None,
+    cells_by_page: PageCells,
+) -> tuple[SpreadsheetCellValue, ...]:
+    """Fila de `Control_Paginas`: filas extraídas y columnas con al menos un valor.
+
+    `header_detected` es `None` cuando el lector no lo sabe por página.
+    """
+
+    cells = cells_by_page.get(page, [])
+    columns = (
+        sum(1 for column in zip(*cells, strict=True) if any(v is not None for v in column))
+        if cells
+        else 0
+    )
+    return (page, len(cells), columns, header_detected)
 
 
 def sanitize_spreadsheet_text(value: str) -> str:

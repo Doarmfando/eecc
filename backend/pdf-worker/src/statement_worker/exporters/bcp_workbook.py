@@ -1,20 +1,32 @@
-"""Mapeo BCP hacia un contrato XLSX versionado y seguro."""
+"""Mapeo BCP hacia un contrato XLSX versionado y seguro.
+
+Las mismas hojas que BBVA (ADR-0013, ADR-0015): `Resumen`, `Encabezado` con los
+datos de la cuenta que imprime la cabecera, `Movimientos` con el tipo de fila en
+español y `Control_Paginas` con filas y columnas extraídas. Las invariantes no van
+en el libro: las publica la API y las muestra la interfaz.
+"""
 
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
 
 from statement_worker.domain.errors import UnexportableStatementError
 from statement_worker.domain.models import ExtractionStatus
 from statement_worker.extractors.bcp.document_processor import BcpPdfProcessingResult
-from statement_worker.extractors.bcp.models import BcpParsedRow, BcpRowType
+from statement_worker.extractors.bcp.models import BcpParsedRow, BcpRowType, BcpStatementHeader
 
 from .workbook import (
+    ACCOUNT_HEADER_COLUMNS,
+    PAGE_CONTROL_COLUMNS,
     SpreadsheetCellType,
     SpreadsheetCellValue,
     SpreadsheetColumn,
     SpreadsheetSheet,
     WorkbookPlan,
+    account_header_rows,
+    group_cells_by_page,
+    page_control_row,
     sanitize_spreadsheet_text,
     signed_amount,
     signed_amount_column,
@@ -23,7 +35,7 @@ from .workbook import (
 )
 
 BCP_WORKBOOK_SCHEMA_ID = "eecc.statement.bcp"
-BCP_WORKBOOK_SCHEMA_VERSION = 2
+BCP_WORKBOOK_SCHEMA_VERSION = 3
 _FINANCIAL_FORMAT = "#,##0.00;[Red](#,##0.00);-"
 
 
@@ -43,10 +55,21 @@ def _column(
     )
 
 
+# Lo que la hoja `Movimientos` dice de cada fila, con los mismos rótulos que BBVA.
+_ROW_TYPE_LABELS = {
+    BcpRowType.PREVIOUS_BALANCE: "SALDO_ANTERIOR",
+    BcpRowType.MOVEMENT: "MOVIMIENTO",
+    BcpRowType.MOVEMENT_TOTAL: "TOTAL_MOVIMIENTO",
+    BcpRowType.BALANCE: "SALDO",
+    BcpRowType.CONTINUATION: "CONTINUACION",
+    BcpRowType.UNCLASSIFIED: "NO_CLASIFICADA",
+}
+
 # El nombre del PDF y el saldo inicial, sin estado, extractor, versión ni
 # confianza: esos datos técnicos ya los publica la API (ADR-0013).
 _SUMMARY_COLUMNS = (
     source_file_column(),
+    _column("account_type", "Tipo de cuenta", SpreadsheetCellType.TEXT, 16),
     _column("currency", "Moneda", SpreadsheetCellType.TEXT, 10),
     _column("pages", "Páginas", SpreadsheetCellType.INTEGER, 10, "#,##0"),
     _column("rows", "Filas", SpreadsheetCellType.INTEGER, 10, "#,##0"),
@@ -70,23 +93,47 @@ _MOVEMENT_COLUMNS = (
     _column("balance", "Saldo", SpreadsheetCellType.DECIMAL, 16, _FINANCIAL_FORMAT),
 )
 
-_PAGE_COLUMNS = (
-    _column("page", "Página", SpreadsheetCellType.INTEGER, 10, "#,##0"),
-    _column("words", "Palabras", SpreadsheetCellType.INTEGER, 12, "#,##0"),
-    _column("rows", "Filas visuales", SpreadsheetCellType.INTEGER, 15, "#,##0"),
-    _column("header", "Cabecera detectada", SpreadsheetCellType.BOOLEAN, 20),
-    _column("footer", "Pie detectado", SpreadsheetCellType.BOOLEAN, 18),
-)
-
-_VALIDATION_COLUMNS = (
-    _column("kind", "Tipo", SpreadsheetCellType.TEXT, 14),
-    _column("code", "Código", SpreadsheetCellType.TEXT, 44),
-    _column("status", "Estado", SpreadsheetCellType.TEXT, 16),
-)
-
 
 def _amount_or_zero(value: Decimal | None) -> Decimal:
     return value if value is not None else Decimal("0")
+
+
+def _short_date(value: date | None) -> str:
+    return value.strftime("%d/%m/%Y") if value else ""
+
+
+def _header_rows(header: BcpStatementHeader) -> tuple[tuple[SpreadsheetCellValue, ...], ...]:
+    return account_header_rows(
+        (
+            ("Banco", "BCP"),
+            ("Tipo de cuenta", header.account_product),
+            ("Titular", header.holder),
+            ("Dirección", header.address),
+            ("Código de cuenta", header.account_code),
+            ("Moneda", header.currency_label),
+            ("Periodo", header.period),
+            ("Fecha inicio", _short_date(header.period_start)),
+            ("Fecha fin", _short_date(header.period_end)),
+            ("Página inicial", str(header.first_page) if header.first_page else ""),
+            (
+                "Total de páginas declarado",
+                str(header.declared_pages) if header.declared_pages else "",
+            ),
+        )
+    )
+
+
+def _document_cells(row: BcpParsedRow) -> tuple[SpreadsheetCellValue, ...]:
+    """Las celdas que salen del documento, sin la página ni el tipo."""
+
+    return (
+        row.posting_date,
+        row.value_date,
+        row.description or None,
+        row.debit,
+        row.credit,
+        row.balance,
+    )
 
 
 def _movement_rows(
@@ -95,7 +142,7 @@ def _movement_rows(
     return tuple(
         (
             row.page,
-            sanitize_spreadsheet_text(row.row_type.value),
+            _ROW_TYPE_LABELS[row.row_type],
             row.posting_date,
             row.value_date,
             sanitize_spreadsheet_text(row.description),
@@ -122,6 +169,7 @@ def build_bcp_workbook_plan(result: BcpPdfProcessingResult) -> WorkbookPlan:
     )
     summary_row: tuple[SpreadsheetCellValue, ...] = (
         None,
+        result.header.account_type.value if result.header.account_type else None,
         result.currency,
         len(result.page_metrics),
         len(result.rows),
@@ -133,20 +181,10 @@ def build_bcp_workbook_plan(result: BcpPdfProcessingResult) -> WorkbookPlan:
         len(result.validation.warning_codes),
     )
 
-    validation_rows = tuple(
-        (
-            "CHECK",
-            sanitize_spreadsheet_text(check.code.value),
-            sanitize_spreadsheet_text(check.status.value),
-        )
-        for check in result.validation.checks
-    ) + tuple(
-        (
-            "WARNING",
-            sanitize_spreadsheet_text(warning.value),
-            "PRESENT",
-        )
-        for warning in result.validation.warning_codes
+    cells_by_page = group_cells_by_page((row.page, _document_cells(row)) for row in result.rows)
+    page_rows = tuple(
+        page_control_row(metric.page, metric.header_detected, cells_by_page)
+        for metric in result.page_metrics
     )
 
     plan = WorkbookPlan(
@@ -160,6 +198,12 @@ def build_bcp_workbook_plan(result: BcpPdfProcessingResult) -> WorkbookPlan:
                 rows=(summary_row,),
             ),
             SpreadsheetSheet(
+                name="Encabezado",
+                table_name="EncabezadoEstadoCuenta",
+                columns=ACCOUNT_HEADER_COLUMNS,
+                rows=_header_rows(result.header),
+            ),
+            SpreadsheetSheet(
                 name="Movimientos",
                 table_name="MovimientosEstadoCuenta",
                 columns=_MOVEMENT_COLUMNS,
@@ -168,23 +212,8 @@ def build_bcp_workbook_plan(result: BcpPdfProcessingResult) -> WorkbookPlan:
             SpreadsheetSheet(
                 name="Control_Paginas",
                 table_name="ControlPaginasEstadoCuenta",
-                columns=_PAGE_COLUMNS,
-                rows=tuple(
-                    (
-                        metric.page,
-                        metric.word_count,
-                        metric.row_count,
-                        metric.header_detected,
-                        metric.footer_detected,
-                    )
-                    for metric in result.page_metrics
-                ),
-            ),
-            SpreadsheetSheet(
-                name="Validaciones",
-                table_name="ValidacionesEstadoCuenta",
-                columns=_VALIDATION_COLUMNS,
-                rows=validation_rows,
+                columns=PAGE_CONTROL_COLUMNS,
+                rows=page_rows,
             ),
         ),
     )

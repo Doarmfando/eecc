@@ -22,6 +22,7 @@ from pathlib import Path
 from unittest import TestCase
 
 from tests.support.synthetic_banco_nacion_pdf import (
+    SYNTHETIC_BANCO_NACION_HEADER,
     create_synthetic_banco_nacion_real_layout_pdf,
 )
 from tests.support.synthetic_bcp_pdf import create_synthetic_bcp_pdf
@@ -119,3 +120,26 @@ class BancoNacionRealLayoutTests(TestCase):
                 )
 
                 self.assertFalse(aceptado)
+
+    def test_the_account_header_fills_encabezado_and_the_account_type(self) -> None:
+        path, _closing = self._build()
+
+        outcome = BancoNacionStatementStrategy().process(path)
+
+        assert outcome.plan is not None
+        header = dict(next(s for s in outcome.plan.sheets if s.name == "Encabezado").rows)
+        self.assertEqual(header["Banco"], "Banco de la Nación")
+        self.assertEqual(header["Tipo de cuenta"], "CTA CTE")
+        # El titular comparte la línea con el título; la dirección, con la fecha.
+        self.assertEqual(header["Titular"], SYNTHETIC_BANCO_NACION_HEADER["holder"])
+        self.assertEqual(header["Dirección"], SYNTHETIC_BANCO_NACION_HEADER["address"])
+        self.assertEqual(header["Código de cliente"], "000001-001")
+        self.assertEqual(header["Nombre de cuenta"], "EMPRESA FICTICIA SAC-D.LEG.000")
+        # El número de cuenta no arrastra la fecha de impresión de su misma línea.
+        self.assertEqual(header["Número de cuenta"], "00-000-000001")
+        self.assertEqual(header["Fecha del estado"], "31/07/2026")
+        self.assertEqual(header["Fecha de impresión"], "01/08/2026 10:00:00")
+        self.assertEqual(header["Página inicial"], "1")
+        summary = next(s for s in outcome.plan.sheets if s.name == "Resumen")
+        headers = [column.header for column in summary.columns]
+        self.assertEqual(summary.rows[0][headers.index("Tipo de cuenta")], "CORRIENTE")

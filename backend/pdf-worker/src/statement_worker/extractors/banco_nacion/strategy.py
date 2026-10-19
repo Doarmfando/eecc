@@ -11,6 +11,7 @@ from statement_worker.services.pdf_sanitizer import sanitized_pdf_path
 from statement_worker.services.strategy import StatementOutcome
 
 from .detector import BANCO_NACION_EXTRACTOR_ID, BancoNacionTemplateDetector
+from .header import read_banco_nacion_header
 from .models import BancoNacionProcessingResult, BancoNacionRowType
 from .pdfplumber_adapter import read_banco_nacion_pdf
 from .rows import read_banco_nacion_rows
@@ -50,7 +51,11 @@ class BancoNacionStatementStrategy:
             default_year=default_year,
         )
         report = validate_banco_nacion_rows(document.rows, warning_codes=document.warning_codes)
-        result = BancoNacionProcessingResult(detection=detection, document=document)
+        result = BancoNacionProcessingResult(
+            detection=detection,
+            document=document,
+            header=read_banco_nacion_header(read_result.pages[0].rows),
+        )
         plan = (
             build_banco_nacion_workbook_plan(result, report)
             if report.status is not ExtractionStatus.FAILED

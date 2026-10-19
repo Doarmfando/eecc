@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from statement_worker.domain.errors import UnsupportedDocumentError
@@ -10,8 +10,9 @@ from statement_worker.domain.models import Detection
 from statement_worker.services.pdf_sanitizer import sanitized_pdf_path
 
 from .detector import BcpTemplateDetector
+from .header import read_bcp_header
 from .metadata import extract_bcp_currency, extract_bcp_statement_year
-from .models import BcpPageReadMetrics, BcpParsedRow
+from .models import BcpPageReadMetrics, BcpParsedRow, BcpStatementHeader
 from .pdfplumber_adapter import probe_bcp_pdf_with_pdfplumber, read_bcp_pdf_with_pdfplumber
 from .pipeline import process_bcp_visual_rows
 from .validation import BcpValidationReport
@@ -24,6 +25,7 @@ class BcpPdfProcessingResult:
     validation: BcpValidationReport
     page_metrics: tuple[BcpPageReadMetrics, ...]
     currency: str | None = None
+    header: BcpStatementHeader = field(default_factory=BcpStatementHeader)
 
 
 def process_bcp_pdf(
@@ -55,4 +57,5 @@ def process_bcp_pdf(
         validation=core_result.validation,
         page_metrics=read_result.page_metrics,
         currency=extract_bcp_currency(probe.first_page_text),
+        header=read_bcp_header(read_result.header_words),
     )

@@ -10,6 +10,7 @@ from tests.support.synthetic_other_bank_pdf import create_synthetic_other_bank_p
 
 from statement_worker.domain.errors import UnsupportedDocumentError
 from statement_worker.domain.models import ExtractionStatus
+from statement_worker.exporters.workbook import SpreadsheetSheet, WorkbookPlan
 from statement_worker.extractors.bcp.strategy import BCP_STRATEGY_ID
 from statement_worker.extractors.generic.strategy import GENERIC_STRATEGY_ID
 from statement_worker.extractors.interbank.strategy import INTERBANK_STRATEGY_ID
@@ -19,6 +20,18 @@ from statement_worker.extractors.registry import (
     specialised_strategy_ids,
 )
 from statement_worker.services.statement_job import ArtifactKind, run_statement_job
+
+
+def _sheet(plan: WorkbookPlan, name: str) -> SpreadsheetSheet:
+    return next(sheet for sheet in plan.sheets if sheet.name == name)
+
+
+def _movements(plan: WorkbookPlan) -> tuple[list[str], list[tuple[object, ...]]]:
+    """Columnas y filas `MOVIMIENTO` de la hoja, sin saldos ni totales."""
+
+    sheet = _sheet(plan, "Movimientos")
+    keys = [column.key for column in sheet.columns]
+    return keys, [row for row in sheet.rows if row[keys.index("type")] == "MOVIMIENTO"]
 
 
 class InterbankStrategyTests(TestCase):
@@ -52,21 +65,26 @@ class InterbankStrategyTests(TestCase):
         self.assertEqual(plan.schema_id, "eecc.statement.interbank")
         self.assertEqual(
             [sheet.name for sheet in plan.sheets],
-            ["Resumen", "Movimientos", "Control_Paginas", "Validaciones"],
+            ["Resumen", "Encabezado", "Movimientos", "Control_Paginas"],
         )
+        summary_sheet = _sheet(plan, "Resumen")
         summary = dict(
             zip(
-                (column.key for column in plan.sheets[0].columns),
-                plan.sheets[0].rows[0],
+                (column.key for column in summary_sheet.columns),
+                summary_sheet.rows[0],
                 strict=True,
             )
         )
         self.assertEqual(summary["closing"], closing)
         self.assertEqual(summary["currency"], "PEN")
-        movements = plan.sheets[1].rows
+        keys, movements = _movements(plan)
         self.assertEqual(len(movements), 17)
-        keys = [column.key for column in plan.sheets[1].columns]
         self.assertEqual(movements[-1][keys.index("balance")], closing)
+        # El saldo inicial abre la hoja y el cierre la termina, con su tipo.
+        types = [row[keys.index("type")] for row in _sheet(plan, "Movimientos").rows]
+        self.assertEqual((types[0], types[-1]), ("SALDO_ANTERIOR", "SALDO"))
+        self.assertEqual(summary["rows"], 19)
+        self.assertEqual(summary["account_type"], "AHORRO")
         for row in movements:
             debit, credit = row[keys.index("debit")], row[keys.index("credit")]
             self.assertEqual(
@@ -76,8 +94,8 @@ class InterbankStrategyTests(TestCase):
             all(
                 isinstance(value, Decimal)
                 for row in movements
-                for value in row[3:7]
-                if value is not None
+                for key in ("signed_amount", "credit", "debit", "balance")
+                if (value := row[keys.index(key)]) is not None
             )
         )
 
@@ -89,7 +107,8 @@ class InterbankStrategyTests(TestCase):
         )
 
         assert outcome.plan is not None
-        years = {row[1].year for row in outcome.plan.sheets[1].rows}  # type: ignore[union-attr]
+        keys, movements = _movements(outcome.plan)
+        years = {row[keys.index("posting_date")].year for row in movements}  # type: ignore[union-attr]
         self.assertEqual(years, {2026})
 
     def test_a_broken_balance_is_flagged_for_review(self) -> None:
@@ -168,3 +187,22 @@ class InterbankStrategyTests(TestCase):
         kinds = [artifact.kind for artifact in result.artifacts]
         self.assertEqual(kinds.count(ArtifactKind.XLSX), 1)
         self.assertEqual(kinds.count(ArtifactKind.CSV), 4)
+
+    def test_the_account_header_fills_encabezado(self) -> None:
+        path, _closing = self._statement()
+
+        outcome = resolve_strategy(INTERBANK_STRATEGY_ID).process(
+            path, temporary_parent=self.directory
+        )
+
+        assert outcome.plan is not None
+        header = dict(_sheet(outcome.plan, "Encabezado").rows)
+        self.assertEqual(header["Banco"], "Interbank")
+        # `CUENTA SIMPLE` es ahorro aunque su nombre no lo diga.
+        self.assertEqual(header["Tipo de cuenta"], "CUENTA SIMPLE SOLES")
+        self.assertEqual(header["Titular"], "TITULAR FICTICIO")
+        self.assertEqual(header["Documento de identidad"], "DNI 00000000")
+        self.assertEqual(header["Número de cuenta"], "000-0000000001")
+        self.assertEqual(header["Moneda"], "SOLES")
+        self.assertEqual(header["Periodo"], "DEL 30 DE ABRIL AL 31 DE MAYO")
+        self.assertEqual(header["Fecha de apertura"], "01/01/2020")

@@ -71,6 +71,11 @@ _COLUMN_LABELS: tuple[tuple[re.Pattern[str], _Role], ...] = (
 )
 
 
+# `N° OPER.` en dos palabras (`N`/`NO`/`NRO` y `OPER.`) o pegado en una.
+_OPERATION_PREFIX = re.compile(r"^N(?:O|RO)?$")
+_OPERATION_LABEL = re.compile(r"^N(?:O|RO)?OPER$")
+
+
 def _token(text: str) -> str:
     return re.sub(r"[^A-Z0-9/]", "", normalized_upper(text))
 
@@ -144,13 +149,27 @@ class _Span:
         return min(abs(word.x0 - self.x0), abs(word.x1 - self.x1), abs(word.center_x - center))
 
 
+@dataclass(frozen=True, slots=True)
+class _TextColumns:
+    """Lo que la fila trae antes de los importes, repartido por columna."""
+
+    description: tuple[BbvaWord, ...]
+    office: tuple[BbvaWord, ...] = ()
+    channel: tuple[BbvaWord, ...] = ()
+    operation_number: tuple[BbvaWord, ...] = ()
+
+
 class _Columns:
-    """Posición de las tres columnas de dinero, tomada de la cabecera."""
+    """Posición de las columnas, tomada de la cabecera."""
 
     def __init__(self) -> None:
         self.spans: dict[_Role, _Span] = {}
         self.description_right: Decimal | None = None
         self.office_left: Decimal | None = None
+        self.office_right: Decimal | None = None
+        self.channel_left: Decimal | None = None
+        self.channel_right: Decimal | None = None
+        self.operation_left: Decimal | None = None
 
     @property
     def description_end(self) -> Decimal | None:
@@ -163,15 +182,56 @@ class _Columns:
         return _Role.AMOUNT in self.spans and _Role.BALANCE in self.spans
 
     def learn(self, words: tuple[BbvaWord, ...]) -> None:
-        for word in words:
+        for index, word in enumerate(words):
             token = _token(word.text)
             if token == "DESCRIPCION":
                 self.description_right = word.x1
             elif token == "OFICINA":
-                self.office_left = word.x0
+                self.office_left, self.office_right = word.x0, word.x1
+            elif token == "CAN":
+                self.channel_left, self.channel_right = word.x0, word.x1
+            elif (
+                token == "OPER"
+                and index > 0
+                and _OPERATION_PREFIX.match(_token(words[index - 1].text))
+            ):
+                # `N° OPER.` llega en dos palabras y la columna empieza en la primera,
+                # que según la fuente se lee `N`, `NO` o `NRO`. El `OPER.` suelto de
+                # `FECHA OPER.`, a la izquierda de la página, no nombra esta columna.
+                self.operation_left = words[index - 1].x0
+            elif _OPERATION_LABEL.match(token):
+                self.operation_left = word.x0
             for pattern, role in _COLUMN_LABELS:
                 if pattern.match(token) and role not in self.spans:
                     self.spans[role] = _Span(word.x0, word.x1)
+
+    def split_text(self, words: tuple[BbvaWord, ...]) -> _TextColumns:
+        """Reparte por posición lo que va antes de los importes.
+
+        Los datos no se alinean con su rótulo —la oficina empieza unos veinte
+        puntos antes que `OFICINA`—, así que cada columna empieza a medio camino
+        entre el rótulo anterior y el suyo, y una palabra pertenece a la columna
+        donde empieza. Sin los cuatro rótulos todo queda en la descripción, que es
+        como se leía antes de separarlas.
+        """
+
+        description_end = self.description_end
+        if (
+            description_end is None
+            or self.office_right is None
+            or self.channel_left is None
+            or self.channel_right is None
+            or self.operation_left is None
+        ):
+            return _TextColumns(description=words)
+        channel_start = (self.office_right + self.channel_left) / Decimal("2")
+        operation_start = (self.channel_right + self.operation_left) / Decimal("2")
+        return _TextColumns(
+            description=tuple(word for word in words if word.x0 < description_end),
+            office=tuple(word for word in words if description_end <= word.x0 < channel_start),
+            channel=tuple(word for word in words if channel_start <= word.x0 < operation_start),
+            operation_number=tuple(word for word in words if word.x0 >= operation_start),
+        )
 
     def role_of(self, word: BbvaWord) -> _Role | None:
         ranked = sorted((span.distance(word), role) for role, span in self.spans.items())
@@ -367,19 +427,23 @@ def read_bbva_rows(
                 continue
 
             amount, itf, balance = split
+            text = columns.split_text(text_words)
             last_movement_index = index
-            description_start = text_words[0].x0 if text_words else None
+            description_start = text.description[0].x0 if text.description else None
             last_top = min(word.top for word in words)
             rows.append(
                 BbvaParsedRow(
                     row_type=BbvaRowType.MOVEMENT,
                     page=readout.page,
-                    description=" ".join(word.text for word in text_words),
+                    description=" ".join(word.text for word in text.description),
                     posting_date=posting_date,
                     value_date=value_date,
                     amount=amount,
                     itf=itf,
                     balance=balance,
+                    office=" ".join(word.text for word in text.office),
+                    channel=" ".join(word.text for word in text.channel),
+                    operation_number=" ".join(word.text for word in text.operation_number),
                 )
             )
 

@@ -20,8 +20,10 @@ import type { AccountType, FinancialStatement, FinancialTransaction } from './ty
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
- * `Tipo de fila` lo traen BCP (`MOVEMENT`, `PREVIOUS_BALANCE`, totales…) y BBVA
- * (`MOVIMIENTO`, `SALDO_ANTERIOR`), cuyas hojas incluyen el saldo anterior como fila.
+ * `Tipo de fila` lo traen todos los bancos (`MOVIMIENTO`, `SALDO_ANTERIOR`, totales,
+ * saldos…), cuyas hojas incluyen esas filas junto a los movimientos. Los Excel BCP
+ * anteriores a ADR-0015 lo escribían en inglés (`MOVEMENT`, `PREVIOUS_BALANCE`), y los
+ * de otros bancos no lo traían; se siguen leyendo.
  */
 const MOVEMENT_ROW_TYPES: ReadonlySet<string> = new Set(['MOVEMENT', 'MOVIMIENTO']);
 const PREVIOUS_BALANCE_ROW_TYPES: ReadonlySet<string> = new Set([
@@ -122,7 +124,7 @@ function readCurrency(raw: string): Currency | null {
   return CURRENCIES.has(code) ? (code as Currency) : null;
 }
 
-/** Solo lo declaran los extractores que leen la cabecera del documento (hoy, BBVA). */
+/** Lo declaran los extractores que leen la cabecera del documento; el genérico, no. */
 function readAccountType(raw: string): AccountType | null {
   const code = raw.trim().toUpperCase();
   return ACCOUNT_TYPES.has(code) ? (code as AccountType) : null;

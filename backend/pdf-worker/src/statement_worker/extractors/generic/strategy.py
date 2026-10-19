@@ -61,7 +61,12 @@ class GenericStatementStrategy:
             warning_codes=tuple(code.value for code in document.warning_codes),
         )
         plan = (
-            build_generic_workbook_plan(detection, ordered, report)
+            build_generic_workbook_plan(
+                detection,
+                ordered,
+                report,
+                pages=tuple(page.page for page in read_result.pages),
+            )
             if report.status is not ExtractionStatus.FAILED
             else None
         )

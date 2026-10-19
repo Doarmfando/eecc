@@ -66,6 +66,11 @@ class BbvaParsedRow:
     balance: Decimal | None = None
     # Solo en `DECLARED_ITF_TOTALS`: el rótulo que declara el importe.
     label: str = ""
+    # Columnas `OFICINA`, `CAN` y `N° OPER.` del movimiento, separadas de la
+    # descripción. Vacías si la fila no las trae o la cabecera no las nombra.
+    office: str = ""
+    channel: str = ""
+    operation_number: str = ""
 
     def __post_init__(self) -> None:
         if self.page < 1:

@@ -98,6 +98,44 @@ describe('buildFinancialStatement con BCP', () => {
   });
 });
 
+// El BCP de hoy: tipos de fila en español, como BBVA, y el tipo de cuenta en el resumen.
+const BCP_V3_MOVEMENTS = csv(
+  'Página,Tipo de fila,Fecha proceso,Fecha valor,Descripción,Cargo/Abono,Cargo,Abono,Saldo',
+  '1,SALDO_ANTERIOR,,,SALDO ANTERIOR,,,,1000.00',
+  '1,MOVIMIENTO,2026-09-02,2026-09-02,Transferencia recibida,500.00,,500.00,',
+  '1,MOVIMIENTO,2026-09-05,2026-09-05,Pago de servicios agua,-200.00,200.00,,',
+  '1,TOTAL_MOVIMIENTO,,,TOTAL MOVIMIENTOS,300.00,200.00,500.00,',
+  '1,SALDO,,,SALDO,,,,1300.00',
+);
+
+const BCP_V3_SUMMARY = csv(
+  'Archivo,Tipo de cuenta,Moneda,Páginas,Filas,Movimientos,Saldo inicial,Total cargos,Total abonos,Saldo final,Advertencias',
+  'Agosto.pdf,AHORRO,PEN,1,5,2,1000.00,200.00,500.00,1300.00,0',
+);
+
+describe('buildFinancialStatement con el BCP de tipos en español', () => {
+  const statement = buildFinancialStatement(
+    source({ movementsCsv: BCP_V3_MOVEMENTS, summaryCsv: BCP_V3_SUMMARY }),
+  );
+
+  it('deja fuera saldo anterior, totales y saldo', () => {
+    expect(statement.movimientos.map((movimiento) => movimiento.description)).toEqual([
+      'Transferencia recibida',
+      'Pago de servicios agua',
+    ]);
+  });
+
+  it('agrupa por el tipo de cuenta que declara su resumen', () => {
+    expect(statement).toMatchObject({
+      tipoCuenta: 'AHORRO',
+      saldoInicial: 100000,
+      abonos: 50000,
+      cargos: 20000,
+      saldoFinal: 130000,
+    });
+  });
+});
+
 const INTERBANK_MOVEMENTS = csv(
   'Página,Fecha,Concepto,Ingresos,Gastos,Saldo contable',
   '1,2026-08-03,Abono de haberes,300.00,,1100.00',
@@ -310,6 +348,34 @@ describe('buildFinancialStatement con Banco de la Nación', () => {
         source({ extractorId: 'banco-nacion-v1', movementsCsv: withoutSigned }),
       ),
     );
+  });
+
+  it('con tipo de fila, deja fuera saldos, arrastres y totales', () => {
+    const statement = buildFinancialStatement(
+      source({
+        extractorId: 'banco-nacion-v1',
+        movementsCsv: csv(
+          'Página,Tipo de fila,Fecha,Fecha valor,Descripción,Cargo/Abono,Cargos,Abonos,Saldo',
+          '1,SALDO_ANTERIOR,,,SALDO ANTERIOR,,,,500.00',
+          '1,MOVIMIENTO,2026-07-04,2026-07-04,Deposito en efectivo,150.00,,150.00,650.00',
+          '1,SALDO_ARRASTRADO,,,VAN,,,,650.00',
+          '2,MOVIMIENTO,2026-07-05,2026-07-05,Pago de servicio,-50.00,50.00,,600.00',
+          '2,TOTAL_MOVIMIENTO,,,TOTALES,100.00,50.00,150.00,',
+          '2,SALDO,,,SALDO FINAL,,,,600.00',
+        ),
+        summaryCsv: csv(
+          'Archivo,Tipo de cuenta,Moneda,Páginas,Filas,Movimientos,Saldo inicial,Total abonos,Total cargos,Saldo final,Advertencias',
+          'Julio.pdf,CORRIENTE,,2,6,2,500.00,150.00,50.00,600.00,0',
+        ),
+      }),
+    );
+
+    expect(statement.movimientos.map((movimiento) => movimiento.description)).toEqual([
+      'Deposito en efectivo',
+      'Pago de servicio',
+    ]);
+    // El documento no declara moneda: se muestra en soles, como siempre.
+    expect(statement).toMatchObject({ tipoCuenta: 'CORRIENTE', moneda: 'PEN', saldoFinal: 60000 });
   });
 });
 

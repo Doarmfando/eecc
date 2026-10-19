@@ -29,7 +29,7 @@ import re
 from datetime import date
 from decimal import Decimal
 
-from statement_worker.domain.models import AccountType
+from statement_worker.parsing.account_type import classify_account_type
 from statement_worker.parsing.text import normalized_upper
 
 from .models import BbvaPageReadout, BbvaStatementHeader, BbvaWord
@@ -54,17 +54,6 @@ def _labels(words: tuple[BbvaWord, ...]) -> list[str]:
 
 def _join(words: list[BbvaWord] | tuple[BbvaWord, ...]) -> str:
     return " ".join(word.text for word in words).strip()
-
-
-def classify_account_type(product: str) -> AccountType | None:
-    """Familia de la cuenta según el nombre del producto (`CONTIAHORRO` es ahorro)."""
-
-    text = normalized_upper(product)
-    if "AHORRO" in text:
-        return AccountType.SAVINGS
-    if "CORRIENTE" in text or re.search(r"\bCTA\.?\s*CTE\b", text):
-        return AccountType.CHECKING
-    return None
 
 
 def _find(rows: tuple[tuple[BbvaWord, ...], ...], *labels: str, start: int = 0) -> int | None:

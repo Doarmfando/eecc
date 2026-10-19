@@ -13,6 +13,7 @@ from tests.support.synthetic_other_bank_pdf import create_synthetic_other_bank_p
 
 from statement_worker.domain.errors import UnsupportedDocumentError
 from statement_worker.domain.models import ExtractionStatus
+from statement_worker.exporters.workbook import SpreadsheetSheet, WorkbookPlan
 from statement_worker.extractors.banco_nacion.strategy import BANCO_NACION_STRATEGY_ID
 from statement_worker.extractors.bcp.strategy import BCP_STRATEGY_ID
 from statement_worker.extractors.generic.strategy import GENERIC_STRATEGY_ID
@@ -23,6 +24,18 @@ from statement_worker.extractors.registry import (
     specialised_strategy_ids,
 )
 from statement_worker.services.statement_job import ArtifactKind, run_statement_job
+
+
+def _sheet(plan: WorkbookPlan, name: str) -> SpreadsheetSheet:
+    return next(sheet for sheet in plan.sheets if sheet.name == name)
+
+
+def _movements(plan: WorkbookPlan) -> tuple[list[str], list[tuple[object, ...]]]:
+    """Columnas y filas `MOVIMIENTO` de la hoja, sin saldos ni totales."""
+
+    sheet = _sheet(plan, "Movimientos")
+    keys = [column.key for column in sheet.columns]
+    return keys, [row for row in sheet.rows if row[keys.index("type")] == "MOVIMIENTO"]
 
 
 class BancoNacionStrategyTests(TestCase):
@@ -57,22 +70,28 @@ class BancoNacionStrategyTests(TestCase):
         self.assertEqual(plan.schema_id, "eecc.statement.banco_nacion")
         self.assertEqual(
             [sheet.name for sheet in plan.sheets],
-            ["Resumen", "Movimientos", "Control_Paginas", "Validaciones"],
+            ["Resumen", "Encabezado", "Movimientos", "Control_Paginas"],
         )
+        summary_sheet = _sheet(plan, "Resumen")
         summary = dict(
             zip(
-                (column.key for column in plan.sheets[0].columns),
-                plan.sheets[0].rows[0],
+                (column.key for column in summary_sheet.columns),
+                summary_sheet.rows[0],
                 strict=True,
             )
         )
         self.assertEqual(summary["opening"], Decimal("1034.20"))
         self.assertEqual(summary["closing"], closing)
         self.assertEqual(summary["currency"], "PEN")
-        movements = plan.sheets[1].rows
+        keys, movements = _movements(plan)
         self.assertEqual(len(movements), 13)
-        keys = [column.key for column in plan.sheets[1].columns]
         self.assertEqual(movements[-1][keys.index("balance")], closing)
+        # Saldo anterior, arrastres entre páginas, totales y saldo final, con su tipo.
+        types = [row[keys.index("type")] for row in _sheet(plan, "Movimientos").rows]
+        self.assertEqual(types[0], "SALDO_ANTERIOR")
+        self.assertIn("SALDO_ARRASTRADO", types)
+        self.assertEqual(types[-2:], ["TOTAL_MOVIMIENTO", "SALDO"])
+        self.assertEqual(summary["rows"], len(types))
         # `Cargo/Abono` con signo junto a las columnas separadas (ADR-0013).
         for row in movements:
             debit, credit = row[keys.index("debit")], row[keys.index("credit")]
@@ -83,8 +102,8 @@ class BancoNacionStrategyTests(TestCase):
             all(
                 isinstance(value, Decimal)
                 for row in movements
-                for value in row[4:8]
-                if value is not None
+                for key in ("signed_amount", "debit", "credit", "balance")
+                if (value := row[keys.index(key)]) is not None
             )
         )
 
@@ -94,7 +113,8 @@ class BancoNacionStrategyTests(TestCase):
         outcome = self._process(path)
 
         assert outcome.plan is not None
-        descriptions = [row[3] for row in outcome.plan.sheets[1].rows]
+        keys, movements = _movements(outcome.plan)
+        descriptions = [row[keys.index("description")] for row in movements]
         self.assertIn("TRANSF. RECIBIDA 000102 CLIENTE FICTICIO UNO", descriptions)
         self.assertFalse(
             any("Pagina" in text or "ficticio generado" in text for text in descriptions)
@@ -107,7 +127,8 @@ class BancoNacionStrategyTests(TestCase):
 
         self.assertEqual(outcome.status, ExtractionStatus.SUCCEEDED)
         assert outcome.plan is not None
-        self.assertEqual(outcome.plan.sheets[1].rows[0][1], date(2026, 6, 2))
+        keys, movements = _movements(outcome.plan)
+        self.assertEqual(movements[0][keys.index("posting_date")], date(2026, 6, 2))
 
     def test_the_header_on_the_first_page_is_enough_for_the_whole_document(self) -> None:
         path, _closing = self._statement(repeat_header=False)

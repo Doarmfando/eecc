@@ -22,11 +22,11 @@ Cubren o cubrirán adaptadores reales con archivos sintéticos mínimos:
 
 ## Caracterización
 
-`tests/characterization/` ejecuta el exportador BCP legacy real sobre el mismo PDF sintético y compara su XLSX con el nuevo: conteo de filas, equivalencia de tipos de fila renombrados, página, descripción, fechas, cargo, abono, saldo, totales del resumen y control por página. Nunca se comparan archivos byte a byte.
+`tests/characterization/` ejecuta el exportador BCP legacy real sobre el mismo PDF sintético y compara su XLSX con el nuevo: hojas, conteo de filas, tipos de fila (los mismos rótulos), página, descripción, fechas, cargo, abono, saldo, totales del resumen, control por página y los campos de `Encabezado` que ambos leen igual. Nunca se comparan archivos byte a byte.
 
 El arnés carga el script legacy por ruta relativa a la raíz del repositorio y no lo modifica. Si falta el script o alguna de sus dependencias (`pandas`, `tqdm`, `pdfplumber`), la clase se salta con el motivo explícito en lugar de fallar.
 
-El mismo módulo verifica las mejoras documentadas: el legacy publica `Encabezado` con titular, dirección y código de cuenta, escribe importes como números de Python y no reporta invariantes; el nuevo sustituye esa hoja por `Validaciones`, conserva `Decimal` y publica su reconciliación.
+El mismo módulo verifica las mejoras documentadas: el legacy pega al titular los rótulos de su línea, escribe importes como números de Python y no reporta invariantes; el nuevo lee el titular solo, conserva `Decimal` y publica su reconciliación en la API. Una diferencia es a propósito (ADR-0015): `Filas extraídas` cuenta las filas que publica `Movimientos`, mientras el legacy cuenta aparte la segunda línea de un concepto partido.
 
 Además, `tests/unit/test_export_contract.py` congela el contrato de salida sin ejecutar el legacy: identidad del esquema, hojas, columnas conservadas, columnas retiradas a propósito, formatos declarados y ausencia de columnas identificatorias o del entorno.
 

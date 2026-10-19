@@ -38,7 +38,7 @@ Para cada conducta:
 - Las continuaciones no cruzan páginas ni se adjuntan a saldos/totales sin una regla explícita.
 - Los totales declarados y el balance global se comparan con tolerancia decimal sin incluir montos en el reporte de diagnóstico.
 - El legacy descartaba en silencio las filas del pie que no podía clasificar; la versión nueva las une a su etiqueta y con ello reconcilia el documento.
-- El workbook nuevo reemplaza `Encabezado` por `Validaciones`; no exporta por defecto titular, dirección, cuenta completa ni texto crudo. Excepción: BBVA, que por pedido explícito del producto vuelve a publicar `Encabezado` y deja las invariantes solo en la API (ADR-0012).
+- El workbook nuevo reemplazó `Encabezado` por `Validaciones` y dejó de exportar titular, dirección, cuenta completa y texto crudo. Por pedido explícito del producto, BBVA (ADR-0012) y después BCP, Banco de la Nación e Interbank (ADR-0015) volvieron a publicar `Encabezado`, y ningún banco publica ya `Validaciones`: las invariantes las publica la API. BCP vuelve así a las cuatro hojas del legacy, con el titular leído sin los rótulos que el legacy le pegaba.
 - Solo `SUCCEEDED` y `NEEDS_REVIEW` son exportables; `FAILED` no produce un artefacto vacío.
 - El fallback genérico del legacy adivinaba si un importe era cargo o abono con palabras de la descripción. El nuevo lee el rol de cada columna desde su encabezado y, si no lo reconoce, se detiene.
 - El escritor publica solo después de reabrir y verificar; el legacy guardaba directamente sobre el destino.

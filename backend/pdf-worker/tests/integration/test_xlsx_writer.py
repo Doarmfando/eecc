@@ -7,7 +7,12 @@ from uuid import uuid4
 from zipfile import ZipFile
 
 from openpyxl import Workbook, load_workbook
-from tests.support.synthetic_bcp_pdf import create_synthetic_bcp_pdf
+from tests.support.synthetic_bcp_pdf import (
+    SYNTHETIC_ACCOUNT_CODE,
+    SYNTHETIC_ADDRESS_LINES,
+    SYNTHETIC_HOLDER,
+    create_synthetic_bcp_pdf,
+)
 
 from statement_worker.domain.errors import (
     ArtifactAlreadyExistsError,
@@ -222,13 +227,19 @@ class XlsxWriterIntegrationTests(TestCase):
         try:
             self.assertEqual(
                 workbook.sheetnames,
-                ["Resumen", "Movimientos", "Control_Paginas", "Validaciones"],
+                ["Resumen", "Encabezado", "Movimientos", "Control_Paginas"],
             )
             summary = next(iter(workbook["Resumen"].iter_rows(min_row=2, values_only=True)))
             # `Archivo` lo completa el trabajo al publicar; aquí el plan llega sin él.
             self.assertIsNone(summary[0])
-            self.assertEqual(summary[2], len(result.page_metrics))
-            self.assertEqual(summary[3], len(result.rows))
+            self.assertEqual(summary[1], "AHORRO")
+            self.assertEqual(summary[3], len(result.page_metrics))
+            self.assertEqual(summary[4], len(result.rows))
+            header = dict(workbook["Encabezado"].iter_rows(min_row=2, values_only=True))
+            self.assertEqual(header["Titular"], SYNTHETIC_HOLDER)
+            self.assertEqual(header["Código de cuenta"], SYNTHETIC_ACCOUNT_CODE)
+            self.assertEqual(header["Dirección"], " ".join(SYNTHETIC_ADDRESS_LINES))
+            self.assertEqual(header["Periodo"], "DEL 01/04/26 AL 30/04/26")
             movements = tuple(workbook["Movimientos"].iter_rows(min_row=2, values_only=True))
             self.assertEqual(len(movements), len(result.rows))
         finally:

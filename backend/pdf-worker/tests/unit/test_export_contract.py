@@ -131,18 +131,12 @@ class BcpExportContractTests(TestCase):
         self.assertEqual(self.plan.schema_id, BCP_WORKBOOK_SCHEMA_ID)
         self.assertEqual(BCP_WORKBOOK_SCHEMA_ID, "eecc.statement.bcp")
         self.assertEqual(self.plan.schema_version, BCP_WORKBOOK_SCHEMA_VERSION)
-        self.assertEqual(BCP_WORKBOOK_SCHEMA_VERSION, 2)
+        self.assertEqual(BCP_WORKBOOK_SCHEMA_VERSION, 3)
 
-    def test_sheets_keep_the_legacy_shape_except_the_documented_difference(self) -> None:
-        sheet_names = tuple(sheet.name for sheet in self.plan.sheets)
-
-        self.assertEqual(sheet_names, ("Resumen", "Movimientos", "Control_Paginas", "Validaciones"))
-        self.assertEqual(
-            set(_LEGACY_BCP_SHEETS) - set(sheet_names),
-            {"Encabezado"},
-            "La única hoja legacy retirada es `Encabezado`; ver docs/migration.md.",
-        )
-        self.assertEqual(set(sheet_names) - set(_LEGACY_BCP_SHEETS), {"Validaciones"})
+    def test_sheets_are_the_legacy_ones(self) -> None:
+        # `Encabezado` vuelve a pedido del producto y `Validaciones` se retira: las
+        # invariantes las publica la API (ADR-0015).
+        self.assertEqual(tuple(sheet.name for sheet in self.plan.sheets), _LEGACY_BCP_SHEETS)
 
     def test_movement_headers_match_the_preserved_legacy_columns(self) -> None:
         movements = next(sheet for sheet in self.plan.sheets if sheet.name == "Movimientos")
@@ -179,10 +173,18 @@ class BcpExportContractTests(TestCase):
 
     def test_no_sheet_exports_identifying_or_environment_columns(self) -> None:
         for sheet in self.plan.sheets:
+            if sheet.name == "Encabezado":
+                # Excepción documentada: los datos de la cuenta que imprime la
+                # cabecera, en pares campo-valor, para su dueño (ADR-0012, ADR-0015).
+                self.assertEqual(
+                    tuple(column.header for column in sheet.columns), ("Campo", "Valor")
+                )
+                continue
             for column in sheet.columns:
-                if column.key == SOURCE_FILE_COLUMN_KEY:
-                    # Excepción documentada: el nombre que la persona dio a su PDF
-                    # (ADR-0011, ADR-0013). No es un dato leído del documento.
+                if column.key in (SOURCE_FILE_COLUMN_KEY, "account_type"):
+                    # Excepciones documentadas: el nombre que la persona dio a su PDF
+                    # (ADR-0011, ADR-0013) y la familia de la cuenta, `AHORRO` o
+                    # `CORRIENTE`, que no identifica a nadie (ADR-0015).
                     continue
                 haystack = f"{column.key} {column.header}".casefold()
                 for token in _SENSITIVE_TOKENS:
@@ -217,8 +219,8 @@ class BcpExportContractTests(TestCase):
             tuple(csv_file_name("eecc", sheet.name) for sheet in self.plan.sheets),
             (
                 "eecc_Resumen.csv",
+                "eecc_Encabezado.csv",
                 "eecc_Movimientos.csv",
                 "eecc_Control_Paginas.csv",
-                "eecc_Validaciones.csv",
             ),
         )

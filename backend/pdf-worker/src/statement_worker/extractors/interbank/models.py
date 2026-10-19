@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 from enum import StrEnum
 
-from statement_worker.domain.models import Detection, DocumentProbe
+from statement_worker.domain.models import AccountType, Detection, DocumentProbe
 
 
 class InterbankRowType(StrEnum):
@@ -100,6 +100,26 @@ class InterbankDocumentRows:
 
 
 @dataclass(frozen=True, slots=True)
+class InterbankStatementHeader:
+    """Cabecera del documento, tal como la imprime el banco.
+
+    Identifica al titular y su cuenta: solo viaja al Excel de su dueño
+    (ADR-0012, ADR-0015). Nunca entra en registros, manifiestos, la API ni la base
+    de datos. Un dato que el documento no trae queda vacío.
+    """
+
+    account_product: str = ""
+    account_type: AccountType | None = None
+    holder: str = ""
+    identity_document: str = ""
+    account_number: str = ""
+    currency_label: str = ""
+    period: str = ""
+    opened_on: date | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class InterbankProcessingResult:
     detection: Detection
     document: InterbankDocumentRows
+    header: InterbankStatementHeader = field(default_factory=InterbankStatementHeader)

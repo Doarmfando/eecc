@@ -3,6 +3,9 @@
 - Estado: Aceptada
 - Fecha: 2026-10-17
 - Amplía: [ADR-0012](ADR-0012-excel-bbva-con-encabezado-y-nombre-del-archivo.md)
+- Ampliada por: [ADR-0015](ADR-0015-mismas-hojas-en-todos-los-bancos.md), que lleva
+  `Encabezado` a todos los bancos con plantilla, retira `Validaciones` y unifica
+  `Control_Paginas`.
 
 ## Contexto
 

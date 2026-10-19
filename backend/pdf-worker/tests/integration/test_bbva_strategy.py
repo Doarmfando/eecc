@@ -216,3 +216,43 @@ class BbvaStatementTests(TestCase):
                 )
                 with self.assertRaises(UnsupportedDocumentError):
                     BbvaStatementStrategy().process(path)
+
+    def test_office_channel_and_operation_number_have_their_own_columns(self) -> None:
+        path, _closing = self._build(include_description_continuation=True)
+        read = read_bbva_pdf(path)
+        document = read_bbva_rows(read.pages, first_page_text=read.probe.first_page_text)
+        movements = [row for row in document.rows if row.row_type is BbvaRowType.MOVEMENT]
+
+        first, third, fourth = movements[0], movements[2], movements[3]
+        # La segunda línea del concepto sigue en la descripción; la oficina no.
+        self.assertEqual(first.description, "PAGO FACT F0000001 DETALLE 1.25 FICTICIO")
+        self.assertEqual(
+            (first.office, first.channel, first.operation_number),
+            ("BCA. INTERNET", "BIE", "0001"),
+        )
+        self.assertEqual(
+            (fourth.office, fourth.channel, fourth.operation_number),
+            ("OF. PRINCIPAL", "VEN", "0004"),
+        )
+        # Sin oficina ni canal impresos, solo el número de operación.
+        self.assertEqual(third.description, "COMISION TRANSFERENCIAS")
+        self.assertEqual((third.office, third.channel, third.operation_number), ("", "", "0003"))
+
+    def test_without_the_column_labels_everything_stays_in_the_description(self) -> None:
+        path, _closing = self._build()
+        read = read_bbva_pdf(path)
+        # Una cabecera sin `CAN` no permite repartir: se lee como antes de separarlas.
+        pages = tuple(
+            replace(
+                page,
+                rows=tuple(
+                    tuple(word for word in words if word.text != "CAN") for words in page.rows
+                ),
+            )
+            for page in read.pages
+        )
+        document = read_bbva_rows(pages, first_page_text=read.probe.first_page_text)
+        first = next(row for row in document.rows if row.row_type is BbvaRowType.MOVEMENT)
+
+        self.assertEqual(first.description, "PAGO FACT F0000001 BCA. INTERNET BIE 0001")
+        self.assertEqual((first.office, first.channel, first.operation_number), ("", "", ""))

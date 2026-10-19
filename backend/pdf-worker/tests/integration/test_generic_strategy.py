@@ -126,13 +126,25 @@ class GenericStrategyTests(TestCase):
         assert plan is not None
         self.assertEqual(plan.schema_id, "eecc.statement.generic")
         self.assertEqual(
-            [sheet.name for sheet in plan.sheets], ["Resumen", "Movimientos", "Validaciones"]
+            [sheet.name for sheet in plan.sheets], ["Resumen", "Movimientos", "Control_Paginas"]
         )
 
         movements = plan.sheets[1]
         self.assertEqual(len(movements.rows), 7)
-        amounts = [value for row in movements.rows for value in row[5:8] if value is not None]
+        keys = [column.key for column in movements.columns]
+        # Sin plantilla no lee saldos ni totales declarados: todas son movimientos.
+        self.assertEqual({row[keys.index("type")] for row in movements.rows}, {"MOVIMIENTO"})
+        amounts = [
+            row[keys.index(key)]
+            for row in movements.rows
+            for key in ("signed_amount", "debit", "credit", "balance")
+            if row[keys.index(key)] is not None
+        ]
         self.assertTrue(all(isinstance(value, Decimal) for value in amounts))
+        control = plan.sheets[2]
+        self.assertEqual(sum(row[1] for row in control.rows), 7)
+        # Si encontró la cabecera lo sabe el documento, no cada página: queda vacío.
+        self.assertTrue(all(row[3] is None for row in control.rows))
 
 
 class GenericInferenceStrategyTests(TestCase):

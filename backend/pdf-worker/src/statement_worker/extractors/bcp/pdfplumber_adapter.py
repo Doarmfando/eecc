@@ -83,6 +83,7 @@ class _PageReadout:
     text: str
     width: Decimal
     height: Decimal
+    header_words: tuple[PdfWord, ...] = ()
 
 
 def _read_single_page(page: pdfplumber.page.Page, page_number: int) -> _PageReadout:
@@ -119,6 +120,17 @@ def _read_single_page(page: pdfplumber.page.Page, page_number: int) -> _PageRead
     # El texto completo solo hace falta de la primera página; extraerlo de todas
     # duplicaría justo la operación más cara del documento.
     text = page.extract_text(x_tolerance=1, y_tolerance=3) or "" if page_number == 1 else ""
+    # La cabecera de la cuenta cae por encima del recorte de la tabla: se lee sin
+    # recortar, solo en la primera página y solo hasta la cabecera de la tabla.
+    header_words = (
+        tuple(
+            PdfWord.from_mapping(word)
+            for word in page.extract_words(x_tolerance=1, y_tolerance=2, keep_blank_chars=False)
+            if _decimal(word["top"]) <= bounds.top
+        )
+        if page_number == 1
+        else ()
+    )
 
     return _PageReadout(
         page=page_number,
@@ -135,6 +147,7 @@ def _read_single_page(page: pdfplumber.page.Page, page_number: int) -> _PageRead
         text=text,
         width=page_width,
         height=page_height,
+        header_words=header_words,
     )
 
 
@@ -194,4 +207,5 @@ def read_bcp_pdf_with_pdfplumber(
         ),
         page_rows=tuple((readout.page, row) for readout in readouts for row in readout.rows),
         page_metrics=tuple(readout.metrics for readout in readouts),
+        header_words=first.header_words,
     )

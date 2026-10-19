@@ -11,6 +11,7 @@ from statement_worker.services.pdf_sanitizer import sanitized_pdf_path
 from statement_worker.services.strategy import StatementOutcome
 
 from .detector import INTERBANK_EXTRACTOR_ID, InterbankTemplateDetector
+from .header import read_interbank_header
 from .models import InterbankProcessingResult, InterbankRowType
 from .pdfplumber_adapter import read_interbank_pdf
 from .rows import read_interbank_rows
@@ -46,7 +47,11 @@ class InterbankStatementStrategy:
             read_result.pages, first_page_text=read_result.probe.first_page_text
         )
         report = validate_interbank_rows(document.rows, warning_codes=document.warning_codes)
-        result = InterbankProcessingResult(detection=detection, document=document)
+        result = InterbankProcessingResult(
+            detection=detection,
+            document=document,
+            header=read_interbank_header(read_result.pages[0].rows),
+        )
         plan = (
             build_interbank_workbook_plan(result, report)
             if report.status is not ExtractionStatus.FAILED

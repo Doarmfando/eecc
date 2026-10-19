@@ -8,7 +8,7 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 
-from statement_worker.domain.models import DocumentProbe
+from statement_worker.domain.models import AccountType, DocumentProbe
 
 
 class BcpColumn(StrEnum):
@@ -161,3 +161,28 @@ class BcpPdfReadResult:
     probe: DocumentProbe
     page_rows: tuple[tuple[int, BcpVisualRow], ...]
     page_metrics: tuple[BcpPageReadMetrics, ...]
+    # Palabras de la primera página por encima de la tabla, sin recortar: la
+    # cabecera de la cuenta queda fuera del recorte con que se leen movimientos.
+    header_words: tuple[PdfWord, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class BcpStatementHeader:
+    """Cabecera del documento, tal como la imprime el banco.
+
+    Identifica al titular y su cuenta: solo viaja al Excel de su dueño
+    (ADR-0012, ADR-0015). Nunca entra en registros, manifiestos, la API ni la base
+    de datos. Un dato que el documento no trae queda vacío.
+    """
+
+    account_product: str = ""
+    account_type: AccountType | None = None
+    holder: str = ""
+    address: str = ""
+    account_code: str = ""
+    currency_label: str = ""
+    period: str = ""
+    period_start: date | None = None
+    period_end: date | None = None
+    first_page: int | None = None
+    declared_pages: int | None = None

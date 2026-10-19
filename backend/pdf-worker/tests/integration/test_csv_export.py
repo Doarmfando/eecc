@@ -253,12 +253,12 @@ class CsvExportIntegrationTests(TestCase):
             [path.name for path in published],
             [
                 "bcp-sintetico_Resumen.csv",
+                "bcp-sintetico_Encabezado.csv",
                 "bcp-sintetico_Movimientos.csv",
                 "bcp-sintetico_Control_Paginas.csv",
-                "bcp-sintetico_Validaciones.csv",
             ],
         )
-        movements = published[1].read_text(encoding=CSV_ENCODING).splitlines()
+        movements = published[2].read_text(encoding=CSV_ENCODING).splitlines()
         self.assertEqual(len(movements), len(result.rows) + 1)
         self.assertTrue(movements[0].startswith("Página,Tipo de fila,"))
         for sheet, path in zip(plan.sheets, published, strict=True):

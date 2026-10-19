@@ -21,7 +21,7 @@ from reportlab.pdfgen.canvas import Canvas
 # (día, mes, descripción, importe con signo, itf). El ITF es `None` cuando la
 # operación no lo paga, que es lo que hace el documento real en la mitad de sus filas.
 _MOVEMENTS: tuple[tuple[int, int, str, str, str | None], ...] = (
-    (1, 7, "PAGO FACT BCA. INTERNET", "-1,200.00", "0.05"),
+    (1, 7, "PAGO FACT F0000001", "-1,200.00", "0.05"),
     (1, 7, "INMOB E INV FICTICIA", "-450.25", "0.02"),
     (1, 7, "COMISION TRANSFERENCIAS", "-15.50", None),
     (2, 7, "INGRESO EN EFECTIVO", "+3,000.00", "0.15"),
@@ -30,6 +30,12 @@ _MOVEMENTS: tuple[tuple[int, int, str, str, str | None], ...] = (
     (5, 7, "MANTENIMIENTO DE CUENTA", "-30.00", None),
     (6, 7, "INGRESO EN EFECTIVO", "+1,480.00", "0.07"),
 )
+# Oficina y canal, por posición del movimiento. Como en el real, no todas las
+# filas los traen: el mantenimiento de cuenta, por ejemplo, los deja en blanco.
+SYNTHETIC_BBVA_OFFICE_AND_CHANNEL: dict[int, tuple[str, str]] = {
+    0: ("BCA. INTERNET", "BIE"),
+    3: ("OF. PRINCIPAL", "VEN"),
+}
 _OPENING = Decimal("685126.55")
 _ISSUE_DATE = "31-07-2026"
 _ROWS_PER_PAGE = 5
@@ -49,6 +55,8 @@ SYNTHETIC_BBVA_HEADER = {
 _X_DATE = 40
 _X_VALUE_DATE = 78
 _X_DESCRIPTION = 116
+_X_OFFICE = 255
+_X_CHANNEL = 318
 _X_OPERATION = 352
 _X_AMOUNT = 416  # borde derecho de cada columna de importes
 _X_ITF = 467
@@ -190,6 +198,10 @@ def create_synthetic_bbva_pdf(
             canvas.drawString(_X_DATE, top, fecha)
             canvas.drawString(_X_VALUE_DATE, top, fecha)
             canvas.drawString(_X_DESCRIPTION, top, description)
+            if written in SYNTHETIC_BBVA_OFFICE_AND_CHANNEL:
+                office, channel = SYNTHETIC_BBVA_OFFICE_AND_CHANNEL[written]
+                canvas.drawString(_X_OFFICE, top, office)
+                canvas.drawString(_X_CHANNEL, top, channel)
             canvas.drawString(_X_OPERATION, top, f"{written + 1:04d}")
             canvas.drawRightString(_X_AMOUNT, top, _format(_parse(amount)))
             if itf:

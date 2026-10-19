@@ -188,6 +188,11 @@ _REAL_MOVEMENTS: tuple[tuple[int, str, str, str], ...] = (
     (9, "DEPOSITO", "0019", "+310.00"),
 )
 _REAL_OPENING = Decimal("9864.06")
+# Titular y dirección ficticios; las pruebas los buscan en el `Encabezado`.
+SYNTHETIC_BANCO_NACION_HEADER = {
+    "holder": "EMPRESA FICTICIA SAC",
+    "address": "AV. FICTICIA 123 CIUDAD DE PRUEBA",
+}
 _REAL_ROWS_PER_PAGE = 5
 
 _R_DETAIL = 32
@@ -251,12 +256,21 @@ def create_synthetic_banco_nacion_real_layout_pdf(
     for page_index, chunk in enumerate(chunks):
         top = height - 60
         canvas.setFont("Helvetica", 8)
-        canvas.drawString(_R_DETAIL, top, "EMPRESA FICTICIA SAC")
+        # La cabecera de la cuenta, como la imprime el original en cada página.
+        canvas.drawString(_R_DETAIL, top, SYNTHETIC_BANCO_NACION_HEADER["holder"])
         canvas.drawString(400, top, "ESTADO DE CTA CTE AL :")
-        top -= 12
-        canvas.drawString(_R_DETAIL, top, "NUMERO DE CUENTA : 00-000-000001")
-        top -= 12
+        top -= 10
+        canvas.drawString(_R_DETAIL, top, SYNTHETIC_BANCO_NACION_HEADER["address"])
+        canvas.drawString(470, top, "31/07/2026")
+        top -= 10
+        canvas.drawString(470, top, f"Página : {page_index + 1}")
+        top -= 10
         canvas.drawString(_R_DETAIL, top, "CODIGO DE CLIENTE : 000001-001")
+        top -= 10
+        canvas.drawString(_R_DETAIL, top, "NOMBRE DE CUENTA : EMPRESA FICTICIA SAC-D.LEG.000")
+        top -= 10
+        canvas.drawString(_R_DETAIL, top, "NUMERO DE CUENTA : 00-000-000001")
+        canvas.drawString(360, top, "Fecha de Impresion :01/08/2026 10:00:00")
         top -= 24
 
         _real_header(canvas, top)

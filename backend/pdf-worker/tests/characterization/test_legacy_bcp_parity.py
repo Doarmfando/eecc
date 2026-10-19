@@ -13,24 +13,19 @@ from statement_worker.domain.models import ExtractionStatus
 from statement_worker.exporters import build_bcp_workbook_plan
 from statement_worker.exporters.xlsx_writer import export_workbook_plan
 from statement_worker.extractors.bcp.document_processor import process_bcp_pdf
-from statement_worker.extractors.bcp.models import BcpRowType
 from tests.characterization.legacy_harness import run_legacy_bcp_export, unavailable_reason
-from tests.support.synthetic_bcp_pdf import create_synthetic_bcp_pdf
+from tests.support.synthetic_bcp_pdf import SYNTHETIC_HOLDER, create_synthetic_bcp_pdf
 
 _UNAVAILABLE = unavailable_reason()
 
-# Renombres intencionales del tipo de fila; la semántica debe coincidir.
-_ROW_TYPE_EQUIVALENCE = {
-    "SALDO_ANTERIOR": BcpRowType.PREVIOUS_BALANCE,
-    "MOVIMIENTO": BcpRowType.MOVEMENT,
-    "TOTAL_MOVIMIENTO": BcpRowType.MOVEMENT_TOTAL,
-    "SALDO": BcpRowType.BALANCE,
-    "CONTINUACION": BcpRowType.CONTINUATION,
-    "NO_CLASIFICADA": BcpRowType.UNCLASSIFIED,
-}
-
-# Campos que el legacy exporta en `Encabezado` y la migración decidió no publicar.
-_LEGACY_HEADER_FIELDS_DROPPED = ("titular", "direccion", "codigo_cuenta")
+# Campos de `Encabezado` que el legacy y el nuevo leen igual (ADR-0015).
+_SHARED_HEADER_FIELDS = (
+    ("codigo_cuenta", "Código de cuenta"),
+    ("moneda", "Moneda"),
+    ("periodo", "Periodo"),
+    ("pagina_inicial", "Página inicial"),
+    ("total_paginas_declarado", "Total de páginas declarado"),
+)
 
 
 def _amount(value: object) -> Decimal | None:
@@ -104,9 +99,9 @@ class LegacyBcpParityTests(TestCase):
         self.assertEqual(len(legacy) - 1, len(new) - 1)
         for index, (legacy_row, new_row) in enumerate(zip(legacy[1:], new[1:], strict=True)):
             with self.subTest(row=index):
-                legacy_type = str(legacy_row[legacy_columns["tipo_fila"]])
+                # Los mismos rótulos que el legacy, en español (ADR-0015).
                 self.assertEqual(
-                    _ROW_TYPE_EQUIVALENCE[legacy_type].value,
+                    legacy_row[legacy_columns["tipo_fila"]],
                     new_row[new_columns["Tipo de fila"]],
                 )
                 self.assertEqual(
@@ -179,19 +174,32 @@ class LegacyBcpParityTests(TestCase):
         legacy_columns = _columns(legacy)
         new_columns = _columns(new)
 
+        movements = _rows(self.new_xlsx, "Movimientos")
+        page_index = _columns(movements)["Página"]
+        summary = _rows(self.new_xlsx, "Resumen")
+
         self.assertEqual(len(legacy) - 1, len(new) - 1)
         for index, (legacy_row, new_row) in enumerate(zip(legacy[1:], new[1:], strict=True)):
             with self.subTest(page=index):
+                page = new_row[new_columns["Página"]]
+                self.assertEqual(legacy_row[legacy_columns["pagina_pdf"]], page)
+                # El legacy cuenta aparte la segunda línea de un concepto partido; el
+                # nuevo cuenta las filas que publica `Movimientos` en esa página.
                 self.assertEqual(
-                    legacy_row[legacy_columns["pagina_pdf"]],
-                    new_row[new_columns["Página"]],
+                    new_row[new_columns["Filas extraídas"]],
+                    sum(1 for row in movements[1:] if row[page_index] == page),
                 )
-                self.assertEqual(
+                self.assertLessEqual(
+                    new_row[new_columns["Filas extraídas"]],
                     legacy_row[legacy_columns["filas_extraidas"]],
-                    new_row[new_columns["Filas visuales"]],
                 )
                 self.assertEqual(legacy_row[legacy_columns["texto_detectado"]], "SI")
                 self.assertIs(new_row[new_columns["Cabecera detectada"]], True)
+        # Así la hoja suma lo mismo que el `Resumen`.
+        self.assertEqual(
+            sum(row[new_columns["Filas extraídas"]] for row in new[1:]),
+            summary[1][_columns(summary)["Filas"]],
+        )
 
     def test_the_new_export_improves_the_documented_weak_points(self) -> None:
         legacy_workbook = load_workbook(filename=self.legacy_xlsx, data_only=True)
@@ -208,13 +216,10 @@ class LegacyBcpParityTests(TestCase):
         finally:
             legacy_workbook.close()
 
-        # El legacy publica metadata identificatoria; el nuevo la sustituye por validaciones.
-        self.assertIn("Encabezado", legacy_sheets)
-        for field in _LEGACY_HEADER_FIELDS_DROPPED:
-            self.assertIn(field, legacy_header_fields)
-        new_sheets = tuple(sheet.name for sheet in self.plan.sheets)
-        self.assertNotIn("Encabezado", new_sheets)
-        self.assertIn("Validaciones", new_sheets)
+        # Las mismas hojas que el legacy: `Encabezado` vuelve a pedido del producto
+        # y las invariantes las publica la API, no una hoja del libro (ADR-0015).
+        self.assertEqual(tuple(sheet.name for sheet in self.plan.sheets), legacy_sheets)
+        self.assertIn("titular", legacy_header_fields)
 
         # El legacy escribe importes como números de Python; el nuevo conserva `Decimal`.
         self.assertNotIn("Decimal", legacy_amount_types)
@@ -226,3 +231,14 @@ class LegacyBcpParityTests(TestCase):
         # El legacy no reporta invariantes; el nuevo publica su reconciliación.
         self.assertTrue(self.result.validation.checks)
         self.assertEqual(self.result.validation.warning_codes, ())
+
+    def test_account_header_matches_and_reads_the_holder_alone(self) -> None:
+        legacy = dict(_rows(self.legacy_xlsx, "Encabezado")[1:])
+        new = dict(_rows(self.new_xlsx, "Encabezado")[1:])
+
+        for legacy_key, new_key in _SHARED_HEADER_FIELDS:
+            with self.subTest(field=legacy_key):
+                self.assertEqual(str(legacy[legacy_key]), str(new[new_key]))
+        # El titular comparte la línea con los rótulos de la cuenta; el nuevo los separa.
+        self.assertEqual(new["Titular"], SYNTHETIC_HOLDER)
+        self.assertEqual(new["Tipo de cuenta"], "Cuenta de Ahorros CLASICA")

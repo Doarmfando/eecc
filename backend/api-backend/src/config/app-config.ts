@@ -48,7 +48,7 @@ export class AppConfig {
 
   @IsString()
   @MinLength(1)
-  PROFILE_VERSION = 'statements-2026.10.17.3';
+  PROFILE_VERSION = 'statements-2026.10.18';
 
   /** Orígenes autorizados del navegador, separados por coma. Vacío desactiva CORS. */
   @IsString()

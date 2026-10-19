@@ -12,6 +12,42 @@ from reportlab.pdfgen.canvas import Canvas
 _MAXIMUM_SYNTHETIC_PAGES = 28
 
 
+# Datos ficticios de la cabecera de la cuenta; las pruebas los buscan en el Excel.
+SYNTHETIC_HOLDER = "EMPRESA SINTETICA DE PRUEBA S.A.C."
+SYNTHETIC_ADDRESS_LINES = ("AV. FICTICIA 123 URB. DE PRUEBA", "LIMA-LIMA")
+SYNTHETIC_ACCOUNT_CODE = "191-00000000-0-00"
+
+
+def _draw_account_header(
+    canvas: Canvas,
+    *,
+    page_number: int,
+    page_count: int,
+    currency_label: str,
+) -> None:
+    """La cabecera con la disposición de los estados de cuenta reales.
+
+    Titular y dirección a la izquierda; rótulos y datos de la cuenta a la derecha,
+    con el código de cuenta unos puntos antes que su rótulo, como en el original.
+    """
+
+    canvas.setFillColor(HexColor("#111111"))
+    canvas.setFont("Helvetica", 9)
+    canvas.drawString(28, 695, "Estado de Cuenta de Ahorros CLASICA")
+    canvas.setFont("Helvetica", 7)
+    canvas.drawString(392, 687, f"PAGINA {page_number} DE {page_count}")
+    canvas.drawString(31, 677, SYNTHETIC_HOLDER)
+    canvas.drawString(372, 677, "CODIGO DE CUENTA")
+    canvas.drawString(502, 677, "MONEDA")
+    canvas.drawString(343, 667, SYNTHETIC_ACCOUNT_CODE)
+    canvas.drawString(488, 667, currency_label)
+    canvas.drawString(31, 657, SYNTHETIC_ADDRESS_LINES[0])
+    canvas.drawString(31, 647, SYNTHETIC_ADDRESS_LINES[1])
+    canvas.drawString(409, 647, "FECHA DE ESTADO DE CUENTA")
+    canvas.drawString(60, 637, "1,234")
+    canvas.drawString(361, 637, "DEL 01/04/26 AL 30/04/26")
+
+
 def _draw_page(
     canvas: Canvas,
     width: float,
@@ -21,6 +57,7 @@ def _draw_page(
     include_movements: bool,
     include_bank_marker: bool,
     currency_label: str,
+    include_account_header: bool,
 ) -> None:
     canvas.setFillColor(HexColor("#17365D"))
     canvas.rect(25, 704, width - 50, 60, fill=1, stroke=0)
@@ -31,6 +68,14 @@ def _draw_page(
     canvas.setFont("Helvetica", 9)
     canvas.drawString(42, 720, "DEL 01/04/26 AL 30/04/26")
     canvas.drawRightString(width - 42, 720, f"CUENTA 000-00000000-0-00 - {currency_label}")
+
+    if include_account_header:
+        _draw_account_header(
+            canvas,
+            page_number=page_number,
+            page_count=page_count,
+            currency_label=currency_label,
+        )
 
     table_left = 25
     table_right = 575
@@ -100,8 +145,12 @@ def create_synthetic_bcp_pdf(
     page_count: int = 1,
     currency_label: str = "SOLES",
     password: str | None = None,
+    include_account_header: bool = True,
 ) -> None:
     """Crea un documento ficticio sin datos derivados de clientes reales.
+
+    Con `include_account_header=False` falta el bloque «Estado de Cuenta …» con
+    titular y cuenta: el `Encabezado` del Excel debe quedar vacío.
 
     Con `include_movements=False` conserva cabecera, tabla vacía y pie: sirve para
     comprobar que un estado de cuenta detectado pero sin filas termina en `FAILED`.
@@ -139,6 +188,7 @@ def create_synthetic_bcp_pdf(
             include_movements=include_movements,
             include_bank_marker=include_bank_marker,
             currency_label=currency_label,
+            include_account_header=include_account_header,
         )
         canvas.showPage()
 

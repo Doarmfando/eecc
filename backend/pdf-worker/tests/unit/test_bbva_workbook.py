@@ -38,6 +38,9 @@ _ROWS = (
         value_date=date(2026, 7, 1),
         amount=Decimal("-10.00"),
         balance=Decimal("90.00"),
+        office="BCA. INTERNET",
+        channel="BIE",
+        operation_number="0001",
     ),
     BbvaParsedRow(
         row_type=BbvaRowType.MOVEMENT,
@@ -101,7 +104,7 @@ class BbvaWorkbookTests(TestCase):
             [sheet.name for sheet in plan.sheets],
             ["Resumen", "Encabezado", "Movimientos", "Control_Paginas"],
         )
-        self.assertEqual(plan.schema_version, 3)
+        self.assertEqual(plan.schema_version, 4)
 
     def test_the_summary_drops_the_technical_columns_and_names_the_file(self) -> None:
         summary = _sheet(plan := _plan(), "Resumen")
@@ -174,8 +177,10 @@ class BbvaWorkbookTests(TestCase):
         self.assertEqual(
             control.rows,
             (
-                # Saldo anterior y un cargo sin ITF: cinco de las seis columnas del documento.
-                (1, 2, 5, True),
+                # Saldo anterior y un cargo con oficina, canal y operación, sin ITF:
+                # ocho de las nueve columnas del documento.
+                (1, 2, 8, True),
+                # Un abono sin oficina, canal ni operación, con ITF.
                 (2, 1, 6, True),
                 # Una página sin filas lo dice, en vez de desaparecer del control.
                 (3, 0, 0, False),
@@ -230,3 +235,22 @@ class SourceFileNameStampTests(TestCase):
             with self.subTest(sheet=name):
                 self.assertEqual(_sheet(stamped, name), _sheet(plan, name))
         self.assertIs(with_source_file_name(plan, None), plan)
+
+    def test_office_channel_and_operation_number_follow_the_description(self) -> None:
+        movements = _sheet(_plan(), "Movimientos")
+        headers = [column.header for column in movements.columns]
+
+        self.assertEqual(
+            headers[4:9],
+            ["Descripción", "Oficina", "Canal", "N.º operación", "Cargo/Abono"],
+        )
+        records = _records(movements)
+        self.assertEqual(
+            (records[1]["Oficina"], records[1]["Canal"], records[1]["N.º operación"]),
+            ("BCA. INTERNET", "BIE", "0001"),
+        )
+        # Vacías, no rellenas, cuando la fila no las trae.
+        self.assertEqual(
+            (records[2]["Oficina"], records[2]["Canal"], records[2]["N.º operación"]),
+            (None, None, None),
+        )

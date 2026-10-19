@@ -4,7 +4,7 @@ from decimal import Decimal
 from unittest import TestCase
 
 from statement_worker.domain.errors import InvalidWorkbookDataError, UnexportableStatementError
-from statement_worker.domain.models import Detection, ExtractionStatus
+from statement_worker.domain.models import AccountType, Detection, ExtractionStatus
 from statement_worker.exporters import (
     SpreadsheetCellType,
     SpreadsheetColumn,
@@ -19,6 +19,7 @@ from statement_worker.extractors.bcp.models import (
     BcpPageReadMetrics,
     BcpParsedRow,
     BcpRowType,
+    BcpStatementHeader,
     BcpWarningCode,
 )
 from statement_worker.extractors.bcp.validation import (
@@ -29,7 +30,15 @@ from statement_worker.extractors.bcp.validation import (
 )
 
 
-def _result(*, status: ExtractionStatus = ExtractionStatus.SUCCEEDED) -> BcpPdfProcessingResult:
+def _sheet(plan: WorkbookPlan, name: str) -> SpreadsheetSheet:
+    return next(sheet for sheet in plan.sheets if sheet.name == name)
+
+
+def _result(
+    *,
+    status: ExtractionStatus = ExtractionStatus.SUCCEEDED,
+    header: BcpStatementHeader | None = None,
+) -> BcpPdfProcessingResult:
     rows = (
         BcpParsedRow(
             row_type=BcpRowType.PREVIOUS_BALANCE,
@@ -90,6 +99,7 @@ def _result(*, status: ExtractionStatus = ExtractionStatus.SUCCEEDED) -> BcpPdfP
                 footer_detected=True,
             ),
         ),
+        header=header or BcpStatementHeader(),
     )
 
 
@@ -109,10 +119,11 @@ class BcpWorkbookPlanTests(TestCase):
         plan = build_bcp_workbook_plan(_result())
 
         self.assertEqual(plan.schema_id, "eecc.statement.bcp")
-        self.assertEqual(plan.schema_version, 2)
+        self.assertEqual(plan.schema_version, 3)
+        # Las mismas hojas que BBVA y que el legacy; sin `Validaciones` (ADR-0015).
         self.assertEqual(
             tuple(sheet.name for sheet in plan.sheets),
-            ("Resumen", "Movimientos", "Control_Paginas", "Validaciones"),
+            ("Resumen", "Encabezado", "Movimientos", "Control_Paginas"),
         )
         summary = dict(
             zip(
@@ -131,17 +142,74 @@ class BcpWorkbookPlanTests(TestCase):
         self.assertEqual(summary["Saldo final"], Decimal("90.00"))
         self.assertNotIsInstance(summary["Total cargos"], float)
 
+    def test_row_types_use_the_same_spanish_labels_as_bbva(self) -> None:
+        plan = build_bcp_workbook_plan(_result())
+
+        self.assertEqual(
+            tuple(row[1] for row in _sheet(plan, "Movimientos").rows),
+            ("SALDO_ANTERIOR", "MOVIMIENTO", "TOTAL_MOVIMIENTO", "SALDO"),
+        )
+
+    def test_page_control_counts_published_rows_and_columns(self) -> None:
+        plan = build_bcp_workbook_plan(_result())
+        page_control = _sheet(plan, "Control_Paginas")
+
+        self.assertEqual(
+            tuple(column.header for column in page_control.columns),
+            ("Página", "Filas extraídas", "Columnas extraídas", "Cabecera detectada"),
+        )
+        # Cuatro filas en `Movimientos`; fechas, descripción, cargo, abono y saldo.
+        self.assertEqual(page_control.rows, ((1, 4, 6, True),))
+
+    def test_account_header_fills_encabezado_and_the_account_type(self) -> None:
+        header = BcpStatementHeader(
+            account_product="Cuenta de Ahorros CLASICA",
+            account_type=AccountType.SAVINGS,
+            holder="EMPRESA SINTETICA S.A.C.",
+            address="AV. FICTICIA 123",
+            account_code="191-00000000-0-00",
+            currency_label="SOLES",
+            period="DEL 01/04/26 AL 30/04/26",
+            period_start=date(2026, 4, 1),
+            period_end=date(2026, 4, 30),
+            first_page=1,
+            declared_pages=3,
+        )
+        plan = build_bcp_workbook_plan(_result(header=header))
+
+        fields = dict(_sheet(plan, "Encabezado").rows)
+        self.assertEqual(fields["Banco"], "BCP")
+        self.assertEqual(fields["Tipo de cuenta"], "Cuenta de Ahorros CLASICA")
+        self.assertEqual(fields["Titular"], "EMPRESA SINTETICA S.A.C.")
+        self.assertEqual(fields["Código de cuenta"], "191-00000000-0-00")
+        self.assertEqual(fields["Periodo"], "DEL 01/04/26 AL 30/04/26")
+        self.assertEqual(fields["Fecha inicio"], "01/04/2026")
+        self.assertEqual(fields["Fecha fin"], "30/04/2026")
+        self.assertEqual(fields["Total de páginas declarado"], "3")
+        summary = _sheet(plan, "Resumen")
+        headers = [column.header for column in summary.columns]
+        self.assertEqual(summary.rows[0][headers.index("Tipo de cuenta")], "AHORRO")
+
+    def test_header_not_found_leaves_values_blank(self) -> None:
+        plan = build_bcp_workbook_plan(_result())
+
+        fields = dict(_sheet(plan, "Encabezado").rows)
+        self.assertEqual(fields["Banco"], "BCP")
+        self.assertTrue(all(value is None for key, value in fields.items() if key != "Banco"))
+
     def test_neutralizes_untrusted_descriptions_before_export(self) -> None:
         plan = build_bcp_workbook_plan(_result())
 
-        movement_description = plan.sheets[1].rows[1][4]
+        movement_description = _sheet(plan, "Movimientos").rows[1][4]
         self.assertEqual(movement_description, '\'=HYPERLINK("unsafe")')
 
-    def test_allows_reviewable_results_and_exports_warning_codes(self) -> None:
+    def test_allows_reviewable_results_and_counts_their_warnings(self) -> None:
         plan = build_bcp_workbook_plan(_result(status=ExtractionStatus.NEEDS_REVIEW))
 
-        validation_rows = plan.sheets[3].rows
-        self.assertIn(("WARNING", "BCP_DECLARED_TOTAL_MISMATCH", "PRESENT"), validation_rows)
+        summary = _sheet(plan, "Resumen")
+        headers = [column.header for column in summary.columns]
+        # Los códigos los publica la API; el libro dice cuántas advertencias hubo.
+        self.assertEqual(summary.rows[0][headers.index("Advertencias")], 1)
 
     def test_rejects_failed_extractions(self) -> None:
         failed = _result(status=ExtractionStatus.FAILED)

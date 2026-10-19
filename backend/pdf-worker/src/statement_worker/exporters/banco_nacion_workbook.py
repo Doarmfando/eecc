@@ -1,7 +1,9 @@
 """Mapeo Banco de la Nación hacia un contrato XLSX versionado y seguro.
 
 Los rótulos de importes son los habituales del banco (`Cargos`, `Abonos`, `Saldo`).
-No se exportan titular, documento de identidad ni número de cuenta.
+Las hojas son las de BBVA y BCP (ADR-0015): `Encabezado` con los datos de la cuenta
+que imprime la cabecera y `Movimientos` con el tipo de fila, saldos y totales
+incluidos. El documento no declara su moneda: la celda queda vacía.
 """
 
 from __future__ import annotations
@@ -9,17 +11,24 @@ from __future__ import annotations
 from statement_worker.domain.errors import UnexportableStatementError
 from statement_worker.domain.models import ExtractionStatus
 from statement_worker.extractors.banco_nacion.models import (
+    BancoNacionParsedRow,
     BancoNacionProcessingResult,
     BancoNacionRowType,
+    BancoNacionStatementHeader,
 )
 from statement_worker.extractors.banco_nacion.validation import BancoNacionValidationReport
 
 from .workbook import (
+    ACCOUNT_HEADER_COLUMNS,
+    PAGE_CONTROL_COLUMNS,
     SpreadsheetCellType,
     SpreadsheetCellValue,
     SpreadsheetColumn,
     SpreadsheetSheet,
     WorkbookPlan,
+    account_header_rows,
+    group_cells_by_page,
+    page_control_row,
     sanitize_spreadsheet_text,
     signed_amount,
     signed_amount_column,
@@ -28,13 +37,24 @@ from .workbook import (
 )
 
 BANCO_NACION_WORKBOOK_SCHEMA_ID = "eecc.statement.banco_nacion"
-BANCO_NACION_WORKBOOK_SCHEMA_VERSION = 2
+BANCO_NACION_WORKBOOK_SCHEMA_VERSION = 3
 _FINANCIAL_FORMAT = "#,##0.00;[Red](#,##0.00);-"
+
+# Los mismos rótulos que BCP y BBVA. `VAN`/`VIENEN` arrastran el saldo entre páginas.
+_ROW_TYPE_LABELS = {
+    BancoNacionRowType.OPENING_BALANCE: "SALDO_ANTERIOR",
+    BancoNacionRowType.MOVEMENT: "MOVIMIENTO",
+    BancoNacionRowType.CARRIED_BALANCE: "SALDO_ARRASTRADO",
+    BancoNacionRowType.DECLARED_TOTALS: "TOTAL_MOVIMIENTO",
+    BancoNacionRowType.CLOSING_BALANCE: "SALDO",
+}
 
 _SUMMARY_COLUMNS = (
     source_file_column(),
+    SpreadsheetColumn("account_type", "Tipo de cuenta", SpreadsheetCellType.TEXT, 16),
     SpreadsheetColumn("currency", "Moneda", SpreadsheetCellType.TEXT, 10),
     SpreadsheetColumn("pages", "Páginas", SpreadsheetCellType.INTEGER, 10, "#,##0"),
+    SpreadsheetColumn("rows", "Filas", SpreadsheetCellType.INTEGER, 10, "#,##0"),
     SpreadsheetColumn("movements", "Movimientos", SpreadsheetCellType.INTEGER, 14, "#,##0"),
     SpreadsheetColumn(
         "opening", "Saldo inicial", SpreadsheetCellType.DECIMAL, 16, _FINANCIAL_FORMAT
@@ -49,6 +69,7 @@ _SUMMARY_COLUMNS = (
 
 _MOVEMENT_COLUMNS = (
     SpreadsheetColumn("page", "Página", SpreadsheetCellType.INTEGER, 10, "#,##0"),
+    SpreadsheetColumn("type", "Tipo de fila", SpreadsheetCellType.TEXT, 20),
     SpreadsheetColumn("posting_date", "Fecha", SpreadsheetCellType.DATE, 14, "yyyy-mm-dd"),
     SpreadsheetColumn("value_date", "Fecha valor", SpreadsheetCellType.DATE, 14, "yyyy-mm-dd"),
     SpreadsheetColumn("description", "Descripción", SpreadsheetCellType.TEXT, 48),
@@ -58,18 +79,40 @@ _MOVEMENT_COLUMNS = (
     SpreadsheetColumn("balance", "Saldo", SpreadsheetCellType.DECIMAL, 16, _FINANCIAL_FORMAT),
 )
 
-_PAGE_COLUMNS = (
-    SpreadsheetColumn("page", "Página", SpreadsheetCellType.INTEGER, 10, "#,##0"),
-    SpreadsheetColumn("words", "Palabras", SpreadsheetCellType.INTEGER, 12, "#,##0"),
-    SpreadsheetColumn("rows", "Filas visuales", SpreadsheetCellType.INTEGER, 15, "#,##0"),
-    SpreadsheetColumn("header", "Cabecera detectada", SpreadsheetCellType.BOOLEAN, 20),
-)
 
-_VALIDATION_COLUMNS = (
-    SpreadsheetColumn("kind", "Tipo", SpreadsheetCellType.TEXT, 14),
-    SpreadsheetColumn("code", "Código", SpreadsheetCellType.TEXT, 44),
-    SpreadsheetColumn("status", "Estado", SpreadsheetCellType.TEXT, 16),
-)
+def _header_rows(
+    header: BancoNacionStatementHeader,
+) -> tuple[tuple[SpreadsheetCellValue, ...], ...]:
+    return account_header_rows(
+        (
+            ("Banco", "Banco de la Nación"),
+            ("Tipo de cuenta", header.account_product),
+            ("Titular", header.holder),
+            ("Dirección", header.address),
+            ("Código de cliente", header.client_code),
+            ("Nombre de cuenta", header.account_name),
+            ("Número de cuenta", header.account_number),
+            (
+                "Fecha del estado",
+                header.statement_date.strftime("%d/%m/%Y") if header.statement_date else "",
+            ),
+            ("Fecha de impresión", header.printed_at),
+            ("Página inicial", str(header.first_page) if header.first_page else ""),
+        )
+    )
+
+
+def _document_cells(row: BancoNacionParsedRow) -> tuple[SpreadsheetCellValue, ...]:
+    """Lo leído del documento; `Cargo/Abono` se deriva y no cuenta como columna extraída."""
+
+    return (
+        row.posting_date,
+        row.value_date,
+        row.description or None,
+        row.debit,
+        row.credit,
+        row.balance,
+    )
 
 
 def build_banco_nacion_workbook_plan(
@@ -81,11 +124,14 @@ def build_banco_nacion_workbook_plan(
 
     document = result.document
     movements = tuple(row for row in document.rows if row.row_type is BancoNacionRowType.MOVEMENT)
+    header = result.header
 
     summary_row: tuple[SpreadsheetCellValue, ...] = (
         None,
+        header.account_type.value if header.account_type else None,
         document.currency,
         len(document.page_metrics),
+        len(document.rows),
         len(movements),
         report.opening_balance,
         report.total_credits,
@@ -97,6 +143,7 @@ def build_banco_nacion_workbook_plan(
     movement_rows: tuple[tuple[SpreadsheetCellValue, ...], ...] = tuple(
         (
             row.page,
+            _ROW_TYPE_LABELS[row.row_type],
             row.posting_date,
             row.value_date,
             sanitize_spreadsheet_text(row.description),
@@ -105,19 +152,13 @@ def build_banco_nacion_workbook_plan(
             row.credit,
             row.balance,
         )
-        for row in movements
+        for row in document.rows
     )
 
-    validation_rows = tuple(
-        (
-            "CHECK",
-            sanitize_spreadsheet_text(check.code.value),
-            sanitize_spreadsheet_text(check.status.value),
-        )
-        for check in report.checks
-    ) + tuple(
-        ("WARNING", sanitize_spreadsheet_text(code.value), "PRESENT")
-        for code in report.warning_codes
+    cells_by_page = group_cells_by_page((row.page, _document_cells(row)) for row in document.rows)
+    page_rows = tuple(
+        page_control_row(metric.page, metric.header_detected, cells_by_page)
+        for metric in document.page_metrics
     )
 
     plan = WorkbookPlan(
@@ -126,19 +167,13 @@ def build_banco_nacion_workbook_plan(
         sheets=(
             SpreadsheetSheet("Resumen", "ResumenBancoNacion", _SUMMARY_COLUMNS, (summary_row,)),
             SpreadsheetSheet(
+                "Encabezado", "EncabezadoBancoNacion", ACCOUNT_HEADER_COLUMNS, _header_rows(header)
+            ),
+            SpreadsheetSheet(
                 "Movimientos", "MovimientosBancoNacion", _MOVEMENT_COLUMNS, movement_rows
             ),
             SpreadsheetSheet(
-                "Control_Paginas",
-                "ControlPaginasBancoNacion",
-                _PAGE_COLUMNS,
-                tuple(
-                    (metric.page, metric.word_count, metric.row_count, metric.header_detected)
-                    for metric in document.page_metrics
-                ),
-            ),
-            SpreadsheetSheet(
-                "Validaciones", "ValidacionesBancoNacion", _VALIDATION_COLUMNS, validation_rows
+                "Control_Paginas", "ControlPaginasBancoNacion", PAGE_CONTROL_COLUMNS, page_rows
             ),
         ),
     )
