@@ -101,6 +101,7 @@ class StatementJobResult:
     check_codes: tuple[tuple[str, str], ...]
     artifacts: tuple[ArtifactRecord, ...]
     reused: bool = False
+    warning_pages: tuple[tuple[str, int], ...] = ()
 
     def as_payload(self) -> dict[str, Any]:
         """Representación serializable para HTTP o una cola."""
@@ -114,6 +115,7 @@ class StatementJobResult:
             "movement_count": self.movement_count,
             "page_count": self.page_count,
             "warning_codes": list(self.warning_codes),
+            "warning_pages": [{"code": code, "page": page} for code, page in self.warning_pages],
             "checks": [{"code": code, "status": status} for code, status in self.check_codes],
             "artifacts": [
                 {
@@ -138,6 +140,10 @@ def _result_from_payload(payload: dict[str, Any], *, reused: bool) -> StatementJ
         movement_count=int(payload["movement_count"]),
         page_count=int(payload["page_count"]),
         warning_codes=tuple(str(code) for code in payload["warning_codes"]),
+        # Un manifiesto anterior a los avisos con página no trae la clave.
+        warning_pages=tuple(
+            (str(item["code"]), int(item["page"])) for item in payload.get("warning_pages", [])
+        ),
         check_codes=tuple(
             (str(check["code"]), str(check["status"])) for check in payload["checks"]
         ),
@@ -364,6 +370,7 @@ def run_statement_job(
         movement_count=outcome.movement_count,
         page_count=outcome.page_count,
         warning_codes=outcome.warning_codes,
+        warning_pages=outcome.warning_pages,
         check_codes=outcome.check_codes,
         artifacts=artifacts,
     )

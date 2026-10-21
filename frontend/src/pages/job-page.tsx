@@ -1,6 +1,6 @@
 import { ArrowLeft, Loader2, Trash2 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,8 @@ import {
 } from '@/features/statements/delete-statements-dialog';
 import { JobSummary } from '@/features/statements/job-summary';
 import { useJob } from '@/features/statements/queries';
+import { pideRevision } from '@/features/statements/review-result';
+import { ReviewResultDialog } from '@/features/statements/review-result-dialog';
 import { describeError } from '@/lib/api-error';
 import { isTerminal } from '@/types/job';
 
@@ -18,8 +20,20 @@ export function JobPage(): ReactNode {
   const { jobId } = useParams<{ jobId: string }>();
   const query = useJob(jobId);
   const navigate = useNavigate();
+  const location = useLocation();
   const [aBorrar, setABorrar] = useState<DeleteTarget | null>(null);
+  const [revisado, setRevisado] = useState(false);
   const documento = query.data;
+  // Solo al llegar desde la carga: abrir el enlace o recargar no vuelve a preguntar.
+  const recienConvertido = leerTrabajoRecibido(location.state) === jobId;
+  const preguntar =
+    recienConvertido && !revisado && documento !== undefined && pideRevision(documento);
+
+  function terminarRevision(): void {
+    setRevisado(true);
+    // Sin el estado de la navegación, volver atrás o recargar no reabre el aviso.
+    void navigate(location.pathname, { replace: true, state: null });
+  }
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6">
@@ -82,6 +96,19 @@ export function JobPage(): ReactNode {
         </>
       ) : null}
 
+      {documento ? (
+        <ReviewResultDialog
+          job={documento}
+          open={preguntar}
+          onContinue={terminarRevision}
+          onDiscarded={() => {
+            setRevisado(true);
+            // Ya no existe: quedarse aquí solo daría un error al refrescar.
+            void navigate('/', { replace: true });
+          }}
+        />
+      ) : null}
+
       <DeleteStatementsDialog
         target={aBorrar}
         onClose={() => {
@@ -94,4 +121,15 @@ export function JobPage(): ReactNode {
       />
     </div>
   );
+}
+
+/** El trabajo que la carga dejó en el estado de la navegación, si lo hay. */
+function leerTrabajoRecibido(state: unknown): string | null {
+  if (typeof state !== 'object' || state === null || !('job' in state)) {
+    return null;
+  }
+  const { job } = state;
+  return typeof job === 'object' && job !== null && 'jobId' in job && typeof job.jobId === 'string'
+    ? job.jobId
+    : null;
 }

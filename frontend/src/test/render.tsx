@@ -62,8 +62,8 @@ export function renderWithProviders(
     usuario?: SessionUser | null;
     cerrar?: SessionValue['cerrar'];
     aviso?: string | null;
-    /** Ruta inicial, para las páginas que leen parámetros de la URL. */
-    ruta?: string;
+    /** Ruta inicial, para las páginas que leen parámetros o estado de la navegación. */
+    ruta?: string | { pathname: string; state?: unknown };
   } = {},
 ): RenderResult {
   const value: SessionValue = {

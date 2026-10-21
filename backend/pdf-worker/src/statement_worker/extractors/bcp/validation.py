@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Iterable
-from dataclasses import dataclass
+from collections.abc import Iterable, Sequence
+from dataclasses import dataclass, replace
 from decimal import Decimal
 from enum import StrEnum
+from statistics import median_low
 
 from statement_worker.domain.models import ExtractionStatus
 
-from .models import BcpParsedRow, BcpRowType, BcpWarningCode
+from .models import BcpPageReadMetrics, BcpParsedRow, BcpRowType, BcpWarningCode
 
 
 class BcpInvariantCode(StrEnum):
@@ -40,6 +41,17 @@ class BcpValidationReport:
     checks: tuple[BcpInvariantResult, ...]
     warning_codes: tuple[BcpWarningCode, ...] = ()
     metrics: tuple[tuple[str, int], ...] = ()
+    # Avisos que se pueden ubicar: código y página. Solo números, nunca contenido.
+    warning_pages: tuple[tuple[BcpWarningCode, int], ...] = ()
+
+
+# Una página intermedia «incompleta» trae menos de 3/4 de las filas habituales. Hace
+# falta un mínimo de páginas intermedias para que «lo habitual» signifique algo.
+_SPARSE_PAGE_RATIO = (3, 4)
+_MIN_INTERMEDIATE_PAGES = 3
+_RECONCILIATION_FAILURES = frozenset(
+    {BcpWarningCode.DECLARED_TOTAL_MISMATCH, BcpWarningCode.BALANCE_MISMATCH}
+)
 
 
 def _result(code: BcpInvariantCode, status: BcpCheckStatus) -> BcpInvariantResult:
@@ -173,6 +185,55 @@ def _validate_document_balance(
         )
 
     return _result(BcpInvariantCode.DOCUMENT_BALANCE, BcpCheckStatus.PASSED), ()
+
+
+def find_sparse_pages(page_metrics: Sequence[BcpPageReadMetrics]) -> tuple[int, ...]:
+    """Páginas intermedias con bastantes menos filas que las demás.
+
+    Entre la primera (lleva la cabecera) y la última (acaba donde acaba el mes),
+    todas las páginas de un estado de cuenta BCP vienen llenas. Una que trae
+    muchas menos filas suele tener huecos en blanco: movimientos que el PDF no
+    muestra. Se compara con la mediana, que no se mueve por unas pocas páginas
+    raras, y se cuentan filas visuales: una descripción en dos líneas no hace
+    parecer corta una página llena.
+    """
+
+    intermediate = sorted(page_metrics, key=lambda metric: metric.page)[1:-1]
+    if len(intermediate) < _MIN_INTERMEDIATE_PAGES:
+        return ()
+    usual = median_low(metric.row_count for metric in intermediate)
+    numerator, denominator = _SPARSE_PAGE_RATIO
+    return tuple(
+        metric.page for metric in intermediate if metric.row_count * denominator < usual * numerator
+    )
+
+
+def flag_incomplete_pages(
+    report: BcpValidationReport,
+    page_metrics: Sequence[BcpPageReadMetrics],
+) -> BcpValidationReport:
+    """Señala dónde mirar cuando los totales del banco no cuadran.
+
+    Solo se busca si ya falló la reconciliación: una página corta con los totales
+    cuadrando no pierde nada (el banco también corta páginas), y así este aviso
+    nunca cambia el estado de un documento que estaba bien.
+    """
+
+    if not _RECONCILIATION_FAILURES.intersection(report.warning_codes):
+        return report
+    pages = find_sparse_pages(page_metrics)
+    if not pages:
+        return report
+    return replace(
+        report,
+        warning_codes=_unique_warning_codes(
+            (*report.warning_codes, BcpWarningCode.PAGE_INCOMPLETE)
+        ),
+        warning_pages=(
+            *report.warning_pages,
+            *((BcpWarningCode.PAGE_INCOMPLETE, page) for page in pages),
+        ),
+    )
 
 
 def validate_bcp_rows(

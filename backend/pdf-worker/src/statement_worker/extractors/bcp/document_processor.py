@@ -15,7 +15,7 @@ from .metadata import extract_bcp_currency, extract_bcp_statement_year
 from .models import BcpPageReadMetrics, BcpParsedRow, BcpStatementHeader
 from .pdfplumber_adapter import probe_bcp_pdf_with_pdfplumber, read_bcp_pdf_with_pdfplumber
 from .pipeline import process_bcp_visual_rows
-from .validation import BcpValidationReport
+from .validation import BcpValidationReport, flag_incomplete_pages
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,7 +54,7 @@ def process_bcp_pdf(
     return BcpPdfProcessingResult(
         detection=detection,
         rows=core_result.rows,
-        validation=core_result.validation,
+        validation=flag_incomplete_pages(core_result.validation, read_result.page_metrics),
         page_metrics=read_result.page_metrics,
         currency=extract_bcp_currency(probe.first_page_text),
         header=read_bcp_header(read_result.header_words),

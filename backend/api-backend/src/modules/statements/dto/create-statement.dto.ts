@@ -80,6 +80,12 @@ export class ReplacedStatementDto {
   sourceFileName!: string | null;
 }
 
+/** Dónde mirar un aviso: solo el código y la página, nunca contenido. */
+export class WarningPageDto {
+  @ApiProperty() code!: string;
+  @ApiProperty({ minimum: 1 }) page!: number;
+}
+
 export class JobResponseDto {
   @ApiPropertyOptional({ nullable: true, description: 'Nombre del PDF visible solo a su dueño' })
   sourceFileName?: string | null;
@@ -96,6 +102,8 @@ export class JobResponseDto {
   @ApiProperty() movementCount!: number;
   @ApiProperty() pageCount!: number;
   @ApiProperty({ type: [String] }) warningCodes!: string[];
+  /** Los avisos que el worker pudo ubicar, como la página con huecos de un PDF. */
+  @ApiProperty({ type: [WarningPageDto] }) warningPages!: WarningPageDto[];
   @ApiProperty({ type: [StatementCheckDto] }) checks!: StatementCheckDto[];
   @ApiProperty({ type: [StatementArtifactDto] }) artifacts!: StatementArtifactDto[];
   @ApiProperty() reused!: boolean;

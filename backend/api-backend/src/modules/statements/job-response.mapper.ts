@@ -1,6 +1,6 @@
 import type { ArtifactKind, JobStatus, Prisma } from '@prisma/client';
 
-import type { JobResponseDto, StatementCheckDto } from './dto/create-statement.dto';
+import type { JobResponseDto, StatementCheckDto, WarningPageDto } from './dto/create-statement.dto';
 
 export interface AttemptWithRelations {
   attemptNumber: number;
@@ -10,7 +10,8 @@ export interface AttemptWithRelations {
   movementCount: number | null;
   pageCount: number | null;
   checks: Prisma.JsonValue | null;
-  warnings: { code: string }[];
+  /** Una fila por aviso; los que se pueden ubicar, una por página. */
+  warnings: { code: string; page?: number | null }[];
   artifacts: { id: string; kind: ArtifactKind; byteSize: number; objectKey: string }[];
 }
 
@@ -42,7 +43,9 @@ export function toJobResponse(input: JobResponseInput): JobResponseDto {
     rowCount: attempt.rowCount ?? 0,
     movementCount: attempt.movementCount ?? 0,
     pageCount: attempt.pageCount ?? 0,
-    warningCodes: attempt.warnings.map((warning) => warning.code),
+    // Un aviso ubicado en dos páginas son dos filas, pero un solo código.
+    warningCodes: [...new Set(attempt.warnings.map((warning) => warning.code))],
+    warningPages: readWarningPages(attempt.warnings),
     checks: readChecks(attempt.checks),
     artifacts: attempt.artifacts.map((artifact) => ({
       id: artifact.id,
@@ -63,6 +66,38 @@ export function toJobResponse(input: JobResponseInput): JobResponseDto {
 export function artifactName(objectKey: string): string {
   const segments = objectKey.split('/');
   return segments[segments.length - 1] ?? objectKey;
+}
+
+/** Los avisos con página, en el orden del documento. */
+export function readWarningPages(
+  warnings: readonly { code: string; page?: number | null }[],
+): WarningPageDto[] {
+  return warnings
+    .flatMap((warning) =>
+      typeof warning.page === 'number' && warning.page > 0
+        ? [{ code: warning.code, page: warning.page }]
+        : [],
+    )
+    .sort((a, b) => a.page - b.page || a.code.localeCompare(b.code));
+}
+
+/**
+ * Las filas de `job_warnings` de un resultado del worker: una por aviso, o una
+ * por página cuando el aviso se puede ubicar. Una página de un código que no se
+ * reportó se ignora: el código es lo que cambia el estado, la página solo ubica.
+ */
+export function warningRows(
+  codes: readonly string[],
+  pages: readonly { code: string; page: number }[] = [],
+): { code: string; page: number | null }[] {
+  const byCode = new Map<string, number[]>();
+  for (const { code, page } of pages) {
+    byCode.set(code, [...(byCode.get(code) ?? []), page]);
+  }
+  return [...new Set(codes)].flatMap<{ code: string; page: number | null }>((code) => {
+    const located = [...new Set(byCode.get(code) ?? [])];
+    return located.length > 0 ? located.map((page) => ({ code, page })) : [{ code, page: null }];
+  });
 }
 
 /** El `jsonb` se valida al leerlo: nunca se confía en su forma almacenada. */

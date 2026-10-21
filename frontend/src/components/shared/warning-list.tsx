@@ -2,46 +2,9 @@ import { AlertTriangle, CheckCircle2, MinusCircle, XCircle } from 'lucide-react'
 import type { ReactNode } from 'react';
 
 import { cn } from '@/lib/utils';
-import type { Check } from '@/types/job';
+import type { Check, WarningPage } from '@/types/job';
 
-/**
- * Los códigos se muestran con su explicación. No se traduce a un mensaje único
- * porque el operador necesita saber exactamente qué invariante falló.
- */
-const WARNING_LABELS: Record<string, string> = {
-  BCP_AMOUNT_UNPARSEABLE: 'Un importe no pudo interpretarse con certeza.',
-  BCP_NEGATIVE_COLUMN_AMOUNT: 'Se encontró un importe negativo en una columna que no lo admite.',
-  BCP_BOTH_DEBIT_AND_CREDIT: 'Una fila trae cargo y abono a la vez.',
-  BCP_INVALID_DATE: 'Una fila tiene fecha inválida y quedó sin clasificar.',
-  BCP_CONTINUATION_CONFLICT: 'Una continuación entraba en conflicto con el movimiento anterior.',
-  BCP_DECLARED_TOTAL_MISMATCH:
-    'Un total impreso en el documento no cuadra con la suma de sus movimientos.',
-  BCP_BALANCE_RECONCILIATION_INCOMPLETE: 'No se pudo reconciliar el saldo con los movimientos.',
-  BCP_UNCLASSIFIED_ROWS_PRESENT: 'Hay filas que el extractor no pudo clasificar.',
-  GENERIC_HEADER_NOT_RECOGNISED: 'No se reconocieron los nombres de las columnas de la tabla.',
-  GENERIC_ROW_WITHOUT_DATE: 'Alguna fila no tenía una fecha interpretable y se omitió.',
-  GENERIC_ROW_WITHOUT_AMOUNT: 'Alguna fila no tenía importes y se omitió.',
-  GENERIC_AMOUNT_UNPARSEABLE: 'Un importe no pudo interpretarse con certeza.',
-  GENERIC_BALANCE_COLUMN_MISSING:
-    'La tabla no trae columna de saldo, así que no se pudo verificar la aritmética.',
-  INTERBANK_ROW_UNCLASSIFIED: 'Una fila con importes no se pudo clasificar como movimiento.',
-  INTERBANK_AMOUNT_SIDE_UNKNOWN: 'Un importe sin signo no se pudo asignar a ingresos ni a gastos.',
-  INTERBANK_DUPLICATE_OPENING_BALANCE: 'El documento declara más de un saldo inicial.',
-  BANCO_NACION_HEADER_NOT_FOUND:
-    'No se encontró la cabecera de la tabla de movimientos, así que no se sabe qué importe es cargo, abono o saldo.',
-  BANCO_NACION_ROW_UNCLASSIFIED: 'Una fila con importes no se pudo clasificar como movimiento.',
-  BANCO_NACION_AMOUNT_SIDE_UNKNOWN: 'Un importe no se pudo asignar a cargos, abonos ni saldo.',
-  BANCO_NACION_DATE_WITHOUT_YEAR:
-    'Una fecha no trae año y el documento no declara su periodo; la fila se omitió.',
-  BBVA_HEADER_NOT_FOUND:
-    'No se encontró la cabecera de la tabla de movimientos, así que no se sabe qué importe es cargo, ITF o saldo.',
-  BBVA_ROW_UNCLASSIFIED: 'Una fila con importes no se pudo clasificar como movimiento.',
-  BBVA_AMOUNT_COLUMN_UNKNOWN:
-    'Los importes de una fila no se pudieron repartir entre cargo/abono, ITF y saldo.',
-  BBVA_DATE_WITHOUT_YEAR:
-    'Una fecha no trae año y el documento no trae fecha de emisión de la que deducirlo; escribe el año del periodo y vuelve a procesarlo.',
-  BBVA_DUPLICATE_OPENING_BALANCE: 'El documento declara más de un saldo anterior.',
-};
+import { describirAviso } from './warning-labels';
 
 const CHECK_LABELS: Record<string, string> = {
   BCP_ROWS_PRESENT: 'Se extrajeron filas del documento',
@@ -80,7 +43,18 @@ const CHECK_STATUS: Record<
   SKIPPED: { label: 'No aplica', className: 'text-muted-foreground', Icon: MinusCircle },
 };
 
-export function WarningList({ codes }: { codes: string[] }): ReactNode {
+/**
+ * Los códigos se muestran con su explicación. No se traduce a un mensaje único
+ * porque el operador necesita saber exactamente qué invariante falló.
+ */
+export function WarningList({
+  codes,
+  pages = [],
+}: {
+  codes: string[];
+  /** Dónde mirar los avisos que el extractor pudo ubicar. */
+  pages?: readonly WarningPage[];
+}): ReactNode {
   if (codes.length === 0) {
     return <p className="text-sm text-muted-foreground">Sin advertencias.</p>;
   }
@@ -94,7 +68,10 @@ export function WarningList({ codes }: { codes: string[] }): ReactNode {
           <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0 text-warning" />
           <div>
             <p className="font-medium text-warning-foreground">
-              {WARNING_LABELS[code] ?? 'Advertencia del extractor.'}
+              {describirAviso(
+                code,
+                pages.filter((page) => page.code === code).map((page) => page.page),
+              )}
             </p>
             <p className="mt-0.5 font-mono text-xs text-warning-foreground/70">{code}</p>
           </div>

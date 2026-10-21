@@ -174,6 +174,39 @@ describe('WorkerClientService', () => {
     ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 
+  it('acepta los avisos con página y rechaza los que tienen otra forma', async () => {
+    const located = {
+      ...PAYLOAD,
+      status: 'NEEDS_REVIEW',
+      warning_codes: ['BCP_PAGE_INCOMPLETE'],
+      warning_pages: [{ code: 'BCP_PAGE_INCOMPLETE', page: 424 }],
+    };
+    globalThis.fetch = jest
+      .fn()
+      .mockResolvedValue(jsonResponse(200, located)) as unknown as typeof fetch;
+    await expect(
+      buildService().processStatement({ content: Buffer.from('x'), fileName: 'e.pdf' }),
+    ).resolves.toMatchObject({ warning_pages: [{ code: 'BCP_PAGE_INCOMPLETE', page: 424 }] });
+
+    for (const warning_pages of [
+      'texto',
+      [{ code: 'BCP_PAGE_INCOMPLETE', page: 0 }],
+      [{ code: 'BCP_PAGE_INCOMPLETE', page: 1.5 }],
+      [{ code: '', page: 2 }],
+      [{ code: 'X'.repeat(65), page: 2 }],
+      [null],
+    ]) {
+      globalThis.fetch = jest
+        .fn()
+        .mockResolvedValue(
+          jsonResponse(200, { ...located, warning_pages }),
+        ) as unknown as typeof fetch;
+      await expect(
+        buildService().processStatement({ content: Buffer.from('x'), fileName: 'e.pdf' }),
+      ).rejects.toBeInstanceOf(BadGatewayException);
+    }
+  });
+
   it('convierte un worker caído o incoherente en 502', async () => {
     globalThis.fetch = jest
       .fn()

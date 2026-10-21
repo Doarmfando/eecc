@@ -115,7 +115,7 @@ describe('JobSummary', () => {
   });
 
   it('muestra advertencias aunque el estado sea reconciliado', () => {
-    renderWithProviders(<JobSummary job={job({ warningCodes: ['BCP_INVALID_DATE'] })} />);
+    renderWithProviders(<JobSummary job={job({ warningCodes: ['BCP_DATE_UNPARSEABLE'] })} />);
 
     expect(screen.getByRole('heading', { name: 'Advertencias' })).toBeInTheDocument();
     expect(

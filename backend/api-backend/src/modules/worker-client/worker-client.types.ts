@@ -10,6 +10,12 @@ export interface WorkerCheck {
   status: string;
 }
 
+/** Un aviso que se puede ubicar: dónde mirar, nunca qué dice el documento. */
+export interface WorkerWarningPage {
+  code: string;
+  page: number;
+}
+
 export interface WorkerJobPayload {
   job_id: string;
   extractor_id: string;
@@ -19,6 +25,8 @@ export interface WorkerJobPayload {
   movement_count: number;
   page_count: number;
   warning_codes: string[];
+  /** Ausente en un worker anterior a los avisos con página. */
+  warning_pages?: WorkerWarningPage[];
   checks: WorkerCheck[];
   artifacts: WorkerArtifact[];
   reused: boolean;

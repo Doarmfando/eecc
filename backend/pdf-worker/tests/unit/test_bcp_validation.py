@@ -6,9 +6,13 @@ from statement_worker.domain.models import ExtractionStatus
 from statement_worker.extractors.bcp import (
     BcpCheckStatus,
     BcpInvariantCode,
+    BcpPageReadMetrics,
     BcpParsedRow,
     BcpRowType,
+    BcpValidationReport,
     BcpWarningCode,
+    find_sparse_pages,
+    flag_incomplete_pages,
     validate_bcp_rows,
 )
 
@@ -316,3 +320,73 @@ class BcpDeclaredTotalsTests(TestCase):
 
         check = next(c for c in report.checks if c.code is BcpInvariantCode.DECLARED_TOTALS)
         self.assertEqual(check.status, BcpCheckStatus.PASSED)
+
+
+def page_metrics(*row_counts: int) -> tuple[BcpPageReadMetrics, ...]:
+    return tuple(
+        BcpPageReadMetrics(
+            page=page,
+            word_count=row_count * 6,
+            row_count=row_count,
+            table_top=Decimal("100"),
+            table_bottom=Decimal("700"),
+            header_detected=True,
+            footer_detected=True,
+        )
+        for page, row_count in enumerate(row_counts, start=1)
+    )
+
+
+def report_with(*codes: BcpWarningCode) -> BcpValidationReport:
+    return BcpValidationReport(
+        status=ExtractionStatus.NEEDS_REVIEW if codes else ExtractionStatus.SUCCEEDED,
+        checks=(),
+        warning_codes=codes,
+    )
+
+
+class BcpIncompletePageTests(TestCase):
+    """Dónde mirar cuando el banco declara más de lo que el PDF muestra."""
+
+    def test_finds_the_intermediate_page_with_blank_gaps(self) -> None:
+        # El caso real: 35 filas por página y una con 16 (huecos en blanco).
+        metrics = page_metrics(20, 36, 36, 17, 36, 36, 9)
+
+        self.assertEqual(find_sparse_pages(metrics), (4,))
+
+    def test_first_and_last_pages_are_short_by_nature(self) -> None:
+        # La primera lleva la cabecera y la última acaba con el mes.
+        self.assertEqual(find_sparse_pages(page_metrics(3, 36, 36, 36, 2)), ())
+
+    def test_a_slightly_shorter_page_is_not_incomplete(self) -> None:
+        # Unas pocas filas menos son descripciones largas o un salto de página del banco.
+        self.assertEqual(find_sparse_pages(page_metrics(20, 36, 30, 36, 36, 9)), ())
+
+    def test_needs_enough_pages_to_know_what_is_usual(self) -> None:
+        self.assertEqual(find_sparse_pages(page_metrics(20, 36, 10, 9)), ())
+        self.assertEqual(find_sparse_pages(()), ())
+
+    def test_flags_pages_only_when_the_bank_totals_do_not_reconcile(self) -> None:
+        metrics = page_metrics(20, 36, 36, 17, 36, 36, 9)
+        for code in (BcpWarningCode.DECLARED_TOTAL_MISMATCH, BcpWarningCode.BALANCE_MISMATCH):
+            with self.subTest(code=code):
+                flagged = flag_incomplete_pages(report_with(code), metrics)
+
+                self.assertEqual(flagged.warning_codes, (code, BcpWarningCode.PAGE_INCOMPLETE))
+                self.assertEqual(flagged.warning_pages, ((BcpWarningCode.PAGE_INCOMPLETE, 4),))
+                self.assertEqual(flagged.status, ExtractionStatus.NEEDS_REVIEW)
+
+    def test_a_short_page_that_reconciles_changes_nothing(self) -> None:
+        # Con los totales cuadrando no falta nada: un documento correcto sigue correcto.
+        metrics = page_metrics(20, 36, 36, 17, 36, 36, 9)
+        for report in (
+            report_with(),
+            report_with(BcpWarningCode.UNCLASSIFIED_ROWS_PRESENT),
+        ):
+            with self.subTest(codes=report.warning_codes):
+                self.assertIs(flag_incomplete_pages(report, metrics), report)
+
+    def test_a_mismatch_without_short_pages_adds_nothing(self) -> None:
+        report = report_with(BcpWarningCode.BALANCE_MISMATCH)
+
+        self.assertIs(flag_incomplete_pages(report, page_metrics(20, 36, 36, 36, 9)), report)

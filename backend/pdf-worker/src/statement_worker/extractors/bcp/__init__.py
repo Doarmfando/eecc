@@ -28,6 +28,8 @@ from .validation import (
     BcpInvariantCode,
     BcpInvariantResult,
     BcpValidationReport,
+    find_sparse_pages,
+    flag_incomplete_pages,
     validate_bcp_rows,
 )
 
@@ -51,6 +53,8 @@ __all__ = [
     "PdfWord",
     "classify_bcp_column",
     "detect_bcp_table_bounds",
+    "find_sparse_pages",
+    "flag_incomplete_pages",
     "group_words_by_row",
     "is_bcp_noise",
     "merge_bcp_continuations",

@@ -2,6 +2,7 @@ import { readCell, readCsvTable, type CsvTable } from '@/lib/csv';
 import type { Currency } from '@/lib/format';
 import { parseCents } from '@/lib/money';
 import { getMonthLabel } from '@/lib/month';
+import type { Artifact } from '@/types/job';
 
 import { bankFromExtractor } from './bank-accent';
 import type { AccountType, FinancialStatement, FinancialTransaction } from './types';
@@ -107,7 +108,7 @@ export function inferCategory(description: string): string {
   return 'Otros movimientos';
 }
 
-interface DeclaredSummary {
+export interface DeclaredSummary {
   moneda: Currency | null;
   tipoCuenta: AccountType | null;
   saldoInicial: number | null;
@@ -128,6 +129,18 @@ function readCurrency(raw: string): Currency | null {
 function readAccountType(raw: string): AccountType | null {
   const code = raw.trim().toUpperCase();
   return ACCOUNT_TYPES.has(code) ? (code as AccountType) : null;
+}
+
+/**
+ * El CSV de una hoja concreta del resultado.
+ *
+ * El nombre lo generó el sistema (`statement_Movimientos.csv`), nunca el archivo
+ * que subió la persona; es el mismo criterio que usa `describeArtifact`.
+ */
+export function findSheetCsv(artifacts: readonly Artifact[], sheet: string): Artifact | undefined {
+  return artifacts.find(
+    (artifact) => artifact.kind === 'RESULT_CSV' && artifact.name.endsWith(`_${sheet}.csv`),
+  );
 }
 
 /** Lee la hoja `Resumen`, que no todos los extractores llenan igual. */

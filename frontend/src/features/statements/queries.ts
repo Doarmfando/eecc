@@ -8,8 +8,14 @@ import {
 
 import { useSession } from '@/app/use-session';
 import {
+  findSheetCsv,
+  readSummary,
+  type DeclaredSummary,
+} from '@/features/financial-center/statement-from-csv';
+import {
   deleteStatements,
   downloadArtifact,
+  fetchArtifactText,
   fetchJob,
   fetchJobHistory,
   uploadStatement,
@@ -92,6 +98,36 @@ export function useDeleteStatements(): UseMutationResult<
     onSuccess: () => {
       void queryClient.invalidateQueries();
     },
+  });
+}
+
+/**
+ * Las cifras del `Resumen` de un trabajo, leídas de su CSV publicado.
+ *
+ * Para decir cuánto no cuadra sin que la API devuelva importes (ADR-0002). `null`
+ * si el trabajo no publicó esa hoja; solo se pide con `enabled`.
+ */
+export function useJobSummaryFigures(
+  job: Pick<Job, 'jobId' | 'artifacts'> | undefined,
+  enabled: boolean,
+): UseQueryResult<DeclaredSummary | null, ApiError> {
+  const options = useOpcionesDeApi();
+  const resumen = job ? findSheetCsv(job.artifacts, 'Resumen') : undefined;
+
+  return useQuery<DeclaredSummary | null, ApiError>({
+    queryKey: ['job-summary-figures', job?.jobId ?? '', resumen?.id ?? ''],
+    enabled: enabled && options !== null && job !== undefined,
+    // Un resultado publicado no cambia: no hace falta volver a leerlo.
+    staleTime: Infinity,
+    queryFn: async ({ signal }) => {
+      if (!options || !job) {
+        throw new ApiError('AUTHENTICATION_REQUIRED', 401);
+      }
+      return resumen
+        ? readSummary(await fetchArtifactText(options, job.jobId, resumen.id, signal))
+        : null;
+    },
+    retry: (attempt, error) => attempt < MAX_ATTEMPTS - 1 && isRetriable(error),
   });
 }
 

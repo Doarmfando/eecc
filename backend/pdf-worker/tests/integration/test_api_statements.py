@@ -195,6 +195,19 @@ class InternalApiTests(TestCase):
         self.assertEqual(list(self.settings.artifact_root.iterdir()), [])
         self.assertEqual(list((self.directory / "tmp").glob("eecc_upload_*")), [])
 
+    def test_an_incomplete_page_is_reported_with_its_number(self) -> None:
+        gaps = self.directory / "con-huecos.pdf"
+        create_synthetic_bcp_pdf(gaps, page_count=5, pages_with_gaps=(3,))
+
+        payload = self._upload(gaps.read_bytes()).json()
+
+        self.assertEqual(payload["status"], "NEEDS_REVIEW")
+        self.assertIn("BCP_PAGE_INCOMPLETE", payload["warning_codes"])
+        # Solo código y página: nada del contenido del documento.
+        self.assertEqual(payload["warning_pages"], [{"code": "BCP_PAGE_INCOMPLETE", "page": 3}])
+        clean = self._upload().json()
+        self.assertEqual(clean["warning_pages"], [])
+
     def test_the_page_limit_does_not_change_the_job_identity(self) -> None:
         # Idempotencia: el límite decide si se procesa, no qué se publica. El mismo
         # documento da el mismo trabajo con cualquier membresía que lo admita.

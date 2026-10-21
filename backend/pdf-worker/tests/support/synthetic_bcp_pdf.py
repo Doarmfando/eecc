@@ -58,6 +58,7 @@ def _draw_page(
     include_bank_marker: bool,
     currency_label: str,
     include_account_header: bool,
+    with_gap: bool = False,
 ) -> None:
     canvas.setFillColor(HexColor("#17365D"))
     canvas.rect(25, 704, width - 50, 60, fill=1, stroke=0)
@@ -115,13 +116,16 @@ def _draw_page(
         canvas.drawString(130, 570, "SALDO ANTERIOR")
         canvas.drawRightString(560, 570, "100.00")
 
-        canvas.drawString(35, 550, day)
-        canvas.drawString(82, 550, day)
-        canvas.drawString(130, 550, "OPERACION SINTETICA")
-        canvas.drawRightString(445, 550, "10.00")
+        # Una página «con huecos» deja en blanco el movimiento, como el PDF real
+        # que motivó `BCP_PAGE_INCOMPLETE`: el total impreso sigue contándolo.
+        if not with_gap:
+            canvas.drawString(35, 550, day)
+            canvas.drawString(82, 550, day)
+            canvas.drawString(130, 550, "OPERACION SINTETICA")
+            canvas.drawRightString(445, 550, "10.00")
 
-        canvas.setFont("Helvetica-Oblique", 8)
-        canvas.drawString(130, 535, "DETALLE SINTETICO")
+            canvas.setFont("Helvetica-Oblique", 8)
+            canvas.drawString(130, 535, "DETALLE SINTETICO")
 
         canvas.setFont("Helvetica-Bold", 9)
         canvas.drawString(130, 505, "TOTAL MOVIMIENTOS")
@@ -146,6 +150,7 @@ def create_synthetic_bcp_pdf(
     currency_label: str = "SOLES",
     password: str | None = None,
     include_account_header: bool = True,
+    pages_with_gaps: tuple[int, ...] = (),
 ) -> None:
     """Crea un documento ficticio sin datos derivados de clientes reales.
 
@@ -164,6 +169,10 @@ def create_synthetic_bcp_pdf(
 
     Con `password` el documento pide contraseña de apertura, como los que los
     bancos envían por correo.
+
+    Con `pages_with_gaps` esas páginas dejan en blanco su movimiento pero conservan
+    el total impreso: el documento no cuadra y la página queda más corta que las
+    demás, como un PDF con huecos.
     """
 
     if not 1 <= page_count <= _MAXIMUM_SYNTHETIC_PAGES:
@@ -189,6 +198,7 @@ def create_synthetic_bcp_pdf(
             include_bank_marker=include_bank_marker,
             currency_label=currency_label,
             include_account_header=include_account_header,
+            with_gap=page_number in pages_with_gaps,
         )
         canvas.showPage()
 

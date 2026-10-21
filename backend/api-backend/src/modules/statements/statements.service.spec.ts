@@ -322,6 +322,33 @@ describe('StatementsService', () => {
     expect(artifacts[1]?.checksum).toEqual('a'.repeat(64));
   });
 
+  it('guarda cada aviso ubicado con su página y el resto sin ella', async () => {
+    const recorder: TransactionRecorder = { created: [] };
+    const { prisma } = buildPrisma(null, recorder);
+    const service = buildService(prisma, {
+      processStatement: jest.fn().mockResolvedValue(
+        workerPayload({
+          status: 'NEEDS_REVIEW',
+          warning_codes: ['BCP_BALANCE_MISMATCH', 'BCP_PAGE_INCOMPLETE'],
+          warning_pages: [{ code: 'BCP_PAGE_INCOMPLETE', page: 424 }],
+        }),
+      ),
+    });
+
+    await service.process({
+      organizationId: ORGANIZATION_ID,
+      content: pdfBuffer(),
+      fileName: 'estado.pdf',
+      mimeType: 'application/pdf',
+    });
+
+    const warnings = recorder.created.find((entry) => entry.model === 'jobWarning')?.data;
+    expect(warnings).toEqual([
+      expect.objectContaining({ code: 'BCP_BALANCE_MISMATCH', page: null }),
+      expect.objectContaining({ code: 'BCP_PAGE_INCOMPLETE', page: 424 }),
+    ]);
+  });
+
   it('no vuelve a llamar al worker cuando la clave de idempotencia ya existe', async () => {
     const recorder: TransactionRecorder = { created: [] };
     const { prisma } = buildPrisma(

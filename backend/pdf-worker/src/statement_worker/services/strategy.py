@@ -25,10 +25,14 @@ class StatementOutcome:
     warning_codes: tuple[str, ...]
     check_codes: tuple[tuple[str, str], ...]
     plan: WorkbookPlan | None
+    # Dónde mirar: (código, página) para los avisos que se pueden ubicar.
+    warning_pages: tuple[tuple[str, int], ...] = ()
 
     def __post_init__(self) -> None:
         if min(self.row_count, self.movement_count, self.page_count) < 0:
             raise ValueError("outcome counters cannot be negative")
+        if any(page < 1 or code not in self.warning_codes for code, page in self.warning_pages):
+            raise ValueError("a located warning needs a positive page and a reported code")
         if self.movement_count > self.row_count:
             raise ValueError("movements cannot exceed extracted rows")
         if self.plan is not None and self.status is ExtractionStatus.FAILED:

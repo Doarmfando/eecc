@@ -8,7 +8,11 @@ import {
 import { ConfigService } from '@nestjs/config';
 
 import type { AppConfig } from '../../config/app-config';
-import type { WorkerJobPayload, WorkerProcessRequest } from './worker-client.types';
+import type {
+  WorkerJobPayload,
+  WorkerProcessRequest,
+  WorkerWarningPage,
+} from './worker-client.types';
 
 const WORKER_ERROR_CODES = new Set([
   'INVALID_PDF',
@@ -187,6 +191,26 @@ function readCode(body: unknown): string | null {
   return null;
 }
 
+/** Código corto y página positiva; cualquier otra forma hace incoherente la respuesta. */
+function isWarningPages(value: unknown): value is WorkerWarningPage[] {
+  return (
+    Array.isArray(value) &&
+    value.every((item: unknown) => {
+      if (typeof item !== 'object' || item === null) {
+        return false;
+      }
+      const { code, page } = item as Partial<WorkerWarningPage>;
+      return (
+        typeof code === 'string' &&
+        code.length > 0 &&
+        code.length <= 64 &&
+        Number.isSafeInteger(page) &&
+        (page ?? 0) > 0
+      );
+    })
+  );
+}
+
 function isWorkerPayload(body: unknown): body is WorkerJobPayload {
   if (typeof body !== 'object' || body === null) {
     return false;
@@ -201,6 +225,7 @@ function isWorkerPayload(body: unknown): body is WorkerJobPayload {
     typeof candidate.movement_count === 'number' &&
     typeof candidate.page_count === 'number' &&
     Array.isArray(candidate.warning_codes) &&
+    (candidate.warning_pages === undefined || isWarningPages(candidate.warning_pages)) &&
     Array.isArray(candidate.checks) &&
     Array.isArray(candidate.artifacts) &&
     typeof candidate.reused === 'boolean'

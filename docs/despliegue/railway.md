@@ -62,7 +62,7 @@ DATABASE_URL=${{Postgres.DATABASE_URL}}
 WORKER_BASE_URL=http://eecc-worker.railway.internal:8000
 FINGERPRINT_SECRET=<32+ caracteres, propios de esta instalación>
 SESSION_TTL_HOURS=12
-PROFILE_VERSION=statements-2026.10.18
+PROFILE_VERSION=statements-2026.10.21
 STORAGE_ROOT=/data/storage
 ```
 
@@ -108,6 +108,8 @@ node dist/cli/seed.js
 A partir de ahí, las demás cuentas se crean desde la propia aplicación, en **Usuarios**.
 
 Al desplegar la migración `20260912120000_administrador_y_usuario`, en cada organización solo queda como administradora la cuenta más antigua de rol más alto (la del arranque); las demás pasan a usuario. Ver [`ADR-0008`](../decisiones/ADR-0008-administrador-y-usuario.md).
+
+Avisos con página (BCP `0.5.1`, `statements-2026.10.21`): primero el worker, después la API con `PROFILE_VERSION=statements-2026.10.21` en la variable de Railway. No hay migración: la columna `job_warnings.page` ya existía. Un documento convertido antes no gana la página por sí solo; hay que volver a subirlo.
 
 ## Comprobar que quedó bien
 

@@ -17,6 +17,7 @@ import {
 } from '@/features/statements/bank-selector';
 import { JobSummary } from '@/features/statements/job-summary';
 import { ReplaceStatementDialog } from '@/features/statements/replace-statement-dialog';
+import { pideRevision } from '@/features/statements/review-result';
 import { replaceableStatements } from '@/features/statements/replaceable-statements';
 import { RetentionNotice } from '@/features/statements/retention-notice';
 import {
@@ -120,6 +121,15 @@ export function UploadPage(): ReactNode {
 
   /** Lo que pasó, dicho en pantalla: convertido, reutilizado y qué se reemplazó. */
   function avisarResultado(job: Job, fileName: string): void {
+    // Con discrepancias lo explica el aviso del resultado, con sus opciones: un
+    // «convertido» en verde al mismo tiempo diría lo contrario.
+    if (!pideRevision(job)) {
+      avisarConvertido(job, fileName);
+    }
+    avisarReemplazos(job);
+  }
+
+  function avisarConvertido(job: Job, fileName: string): void {
     notify({
       id: `subida:${job.jobId}`,
       variant: job.status === 'FAILED' ? 'warning' : 'success',
@@ -128,6 +138,9 @@ export function UploadPage(): ReactNode {
         ? 'Se reutilizó el resultado anterior: no se borró ningún documento.'
         : 'Revisa las validaciones y descarga el Excel o los CSV.',
     });
+  }
+
+  function avisarReemplazos(job: Job): void {
     const reemplazados = job.replacedStatements ?? [];
     if (reemplazados.length > 0) {
       notify({

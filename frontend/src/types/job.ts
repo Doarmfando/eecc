@@ -18,6 +18,12 @@ export const checkSchema = z.object({
   status: z.string(),
 });
 
+/** Dónde mirar un aviso: el código y la página del PDF, nunca contenido. */
+export const warningPageSchema = z.object({
+  code: z.string(),
+  page: z.number().int().positive(),
+});
+
 export const artifactSchema = z.object({
   id: z.string(),
   kind: z.string(),
@@ -42,6 +48,8 @@ export const jobSchema = z.object({
   movementCount: z.number().int().nonnegative(),
   pageCount: z.number().int().nonnegative(),
   warningCodes: z.array(z.string()),
+  // Opcional para no romper con una API anterior a los avisos con página.
+  warningPages: z.array(warningPageSchema).optional(),
   checks: z.array(checkSchema),
   artifacts: z.array(artifactSchema),
   reused: z.boolean(),
@@ -83,6 +91,7 @@ export const apiErrorSchema = z.object({
 
 export type JobStatus = z.infer<typeof jobStatusSchema>;
 export type Check = z.infer<typeof checkSchema>;
+export type WarningPage = z.infer<typeof warningPageSchema>;
 export type Artifact = z.infer<typeof artifactSchema>;
 export type Job = z.infer<typeof jobSchema>;
 export type JobListItem = z.infer<typeof jobListItemSchema>;

@@ -96,6 +96,12 @@ Cada línea es una frase del pedido y la tarea que la cubre (§ = sección de ab
 - «¿Qué pasó aquí en Juanito Alimaña? Compara, revisa y analiza la carpeta de muestras:
   qué tiene de malo ese archivo (BCP mayo, «Requiere revisión»)» → §13.
 
+**Mensaje 13**
+
+- «El sistema debería poder interpretar correctamente eso, pero dar un aviso para que el
+  usuario pueda continuar rápidamente con un Enter, o cancelar, o volver a intentar, o
+  proceder con la alerta» → §14.
+
 **Mensaje 10**
 
 - «Esta raya del sidebar que está encima de la animación, quítala» → §12.
@@ -277,7 +283,7 @@ Cada línea es una frase del pedido y la tarea que la cubre (§ = sección de ab
 ## 13. Análisis del BCP de mayo en «Requiere revisión» (mensaje 12)
 
 - [x] Reprocesado con el código actual: cargos cuadran al céntimo; abonos impresos y saldo
-  final superan a los movimientos en 4.540,00 exactos; la pág. 424 trae 16 movimientos
+  final superan a los movimientos; la pág. 424 trae 16 movimientos
   frente a 35 en todas las intermedias.
 - [x] La otra herramienta (`2026_MAYO_BCP.xlsx`) lee lo mismo (16.710 movimientos, mismos
   totales, 16 en la pág. 424) pero no avisa, y su «último saldo» es el saldo anterior.
@@ -286,3 +292,15 @@ Cada línea es una frase del pedido y la tarea que la cubre (§ = sección de ab
 - [x] Conclusión: **fallo del documento, no del extractor**; «Requiere revisión» es correcto.
   Acción: volver a descargar el estado de cuenta del banco. Mejora posible: un aviso que
   señale la página incompleta y un mensaje propio para `BCP_BALANCE_MISMATCH`.
+
+## 14. Aviso de resultado con discrepancias (mensaje 13)
+
+- [x] Worker: cuando los totales no cuadran, señalar las páginas intermedias con menos
+  movimientos que las demás (`BCP_PAGE_INCOMPLETE`, con página). Versión BCP nueva.
+- [x] API: guardar y devolver los avisos con su página (sin importes).
+- [x] Diálogo al terminar una conversión con discrepancias: qué pasó en palabras simples,
+  cuánto falta (calculado en el navegador desde el `Resumen` publicado) y tres salidas:
+  **Continuar** (Enter), **Volver a intentar** (otro PDF que reemplaza a este) y
+  **Cancelar** (borra esta conversión).
+- [x] Mensajes claros para `BCP_BALANCE_MISMATCH` y el aviso nuevo.
+- [ ] Pruebas, prueba real con el BCP de mayo, despliegue, bitácora, commit y push.

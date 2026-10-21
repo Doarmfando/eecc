@@ -22,6 +22,20 @@ describe('WarningList', () => {
     expect(screen.getByText('BCP_CODIGO_NUEVO')).toBeInTheDocument();
   });
 
+  it('dice en qué página mirar cuando el extractor lo sabe', () => {
+    render(
+      <WarningList
+        codes={['BCP_BALANCE_MISMATCH', 'BCP_PAGE_INCOMPLETE']}
+        pages={[{ code: 'BCP_PAGE_INCOMPLETE', page: 424 }]}
+      />,
+    );
+
+    expect(
+      screen.getByText(/^La página 424 trae bastantes menos movimientos que las demás/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/saldo final que imprime el banco no coincide/)).toBeInTheDocument();
+  });
+
   it('declara explícitamente la ausencia de advertencias', () => {
     render(<WarningList codes={[]} />);
 

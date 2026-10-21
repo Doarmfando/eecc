@@ -7,27 +7,15 @@ import { isConsolidable, useStatementSelection } from '@/features/statements/sta
 import { fetchArtifactText, fetchJob, type ApiClientOptions } from '@/lib/api-client';
 import { ApiError, isRetriable } from '@/lib/api-error';
 import { toMonthKey } from '@/lib/month';
-import type { Artifact, JobListItem } from '@/types/job';
+import type { JobListItem } from '@/types/job';
 
-import { buildFinancialStatement } from './statement-from-csv';
+import { buildFinancialStatement, findSheetCsv } from './statement-from-csv';
 import type { FinancialStatement } from './types';
 
 const MAX_ATTEMPTS = 3;
 
 export function financialStatementQueryKey(jobId: string): readonly unknown[] {
   return ['financial-statement', jobId];
-}
-
-/**
- * El CSV de una hoja concreta del resultado.
- *
- * El nombre lo generó el sistema (`statement_Movimientos.csv`), nunca el archivo
- * que subió la persona; es el mismo criterio que usa `describeArtifact`.
- */
-function findSheetCsv(artifacts: readonly Artifact[], sheet: string): Artifact | undefined {
-  return artifacts.find(
-    (artifact) => artifact.kind === 'RESULT_CSV' && artifact.name.endsWith(`_${sheet}.csv`),
-  );
 }
 
 /**

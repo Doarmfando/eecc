@@ -46,6 +46,9 @@ class BcpStatementStrategy:
             movement_count=sum(1 for row in result.rows if row.row_type is BcpRowType.MOVEMENT),
             page_count=len(result.page_metrics),
             warning_codes=tuple(code.value for code in result.validation.warning_codes),
+            warning_pages=tuple(
+                (code.value, page) for code, page in result.validation.warning_pages
+            ),
             check_codes=tuple(
                 (check.code.value, check.status.value) for check in result.validation.checks
             ),

@@ -186,7 +186,7 @@ export function JobSummary({ job }: { job: Job }): ReactNode {
               Cada código indica qué revisó el extractor y qué no pudo confirmar.
             </CardDescription>
           </CardHeader>
-          <WarningList codes={job.warningCodes} />
+          <WarningList codes={job.warningCodes} pages={job.warningPages ?? []} />
         </Card>
       ) : null}
 

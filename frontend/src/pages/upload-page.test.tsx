@@ -95,6 +95,23 @@ function uploadedForm(mock: ReturnType<typeof vi.fn>, index: number): FormData {
   return call[1].body;
 }
 
+/**
+ * El resultado de prueba requiere revisión: al llegar, el aviso pregunta qué hacer
+ * y un Enter continúa. `revisar` mira el aviso antes de cerrarlo.
+ */
+async function continuarTrasElAviso(
+  user: ReturnType<typeof userEvent.setup>,
+  revisar: (dialogo: HTMLElement) => void = () => undefined,
+): Promise<void> {
+  const dialogo = await screen.findByRole('dialog', { name: 'El resultado requiere revisión' });
+  expect(within(dialogo).getByRole('button', { name: 'Continuar' })).toHaveFocus();
+  revisar(dialogo);
+  await user.keyboard('{Enter}');
+  await waitFor(() => {
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
@@ -140,6 +157,9 @@ describe('UploadPage', () => {
     await esperarSesion();
     await user.upload(screen.getByLabelText('Estado de cuenta en PDF'), pdfFile(sourceFileName));
     await user.click(screen.getByRole('button', { name: 'Procesar estado de cuenta' }));
+    await continuarTrasElAviso(user, (dialogo) => {
+      expect(within(dialogo).getByText(sourceFileName)).toBeInTheDocument();
+    });
     await screen.findByRole('link', { name: 'Volver a cargar otro documento' });
     expect(await screen.findByText(sourceFileName)).toBeVisible();
     expect(uploadedForm(fetchMock, 0).get('sourceFileName')).toBe(sourceFileName);
@@ -280,6 +300,14 @@ describe('UploadPage', () => {
     const user = userEvent.setup();
     await user.upload(screen.getByLabelText('Estado de cuenta en PDF'), pdfFile());
     await user.click(screen.getByRole('button', { name: /Procesar estado de cuenta/ }));
+
+    // Requiere revisión: lo explica el aviso con sus opciones, no un «convertido» en verde.
+    await continuarTrasElAviso(user, (dialogo) => {
+      expect(
+        within(dialogo).getByText('Un importe no pudo interpretarse con certeza.'),
+      ).toBeInTheDocument();
+    });
+    expect(screen.queryByText('estado.pdf convertido')).not.toBeInTheDocument();
 
     // Al terminar se abre el detalle del trabajo. Antes de navegar, la página de
     // subida pinta un instante el mismo resumen: buscar el texto sin más lo

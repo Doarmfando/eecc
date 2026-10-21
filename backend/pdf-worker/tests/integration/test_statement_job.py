@@ -1,4 +1,5 @@
 import csv
+import json
 from decimal import Decimal
 from hashlib import sha256
 from pathlib import Path
@@ -242,12 +243,72 @@ class StatementJobTests(TestCase):
         self.assertIsNone(read_job_manifest(job_directory))
         self.assertIsNone(read_job_manifest(self.artifacts / "inexistente"))
 
+    def test_an_incomplete_page_travels_with_its_number_and_survives_reuse(self) -> None:
+        gaps = self.directory / "con-huecos.pdf"
+        create_synthetic_bcp_pdf(gaps, page_count=5, pages_with_gaps=(3,))
+
+        result = run_statement_job(
+            gaps,
+            strategy=self.strategy,
+            artifact_root=self.artifacts,
+            temporary_root=self.directory,
+        )
+
+        self.assertEqual(result.status, ExtractionStatus.NEEDS_REVIEW)
+        self.assertIn("BCP_PAGE_INCOMPLETE", result.warning_codes)
+        self.assertEqual(result.warning_pages, (("BCP_PAGE_INCOMPLETE", 3),))
+        self.assertEqual(
+            result.as_payload()["warning_pages"], [{"code": "BCP_PAGE_INCOMPLETE", "page": 3}]
+        )
+        # Se publica igual: la salida sirve, solo hay que saber dónde mirar.
+        self.assertNotEqual(result.artifacts, ())
+
+        reused = run_statement_job(
+            gaps,
+            strategy=self.strategy,
+            artifact_root=self.artifacts,
+            temporary_root=self.directory,
+        )
+        self.assertTrue(reused.reused)
+        self.assertEqual(reused.warning_pages, result.warning_pages)
+
+    def test_a_manifest_from_before_located_warnings_is_still_read(self) -> None:
+        result = run_statement_job(
+            self.pdf_path,
+            strategy=self.strategy,
+            artifact_root=self.artifacts,
+            temporary_root=self.directory,
+        )
+        manifest = self.artifacts / result.job_id / "result.json"
+        document = json.loads(manifest.read_text(encoding="utf-8"))
+        del document["result"]["warning_pages"]
+        manifest.write_text(json.dumps(document), encoding="utf-8")
+
+        previous = read_job_manifest(manifest.parent)
+
+        self.assertIsNotNone(previous)
+        assert previous is not None
+        self.assertEqual(previous.warning_pages, ())
+
     def test_outcome_invariants_reject_inconsistent_reports(self) -> None:
         detection = Detection(
             extractor_id="test",
             extractor_version="0.0.1",
             confidence=Decimal("1"),
         )
+        for warning_pages in ((("BCP_PAGE_INCOMPLETE", 0),), (("BCP_NOT_REPORTED", 2),)):
+            with self.subTest(warning_pages=warning_pages), self.assertRaises(ValueError):
+                StatementOutcome(
+                    detection=detection,
+                    status=ExtractionStatus.NEEDS_REVIEW,
+                    row_count=1,
+                    movement_count=1,
+                    page_count=3,
+                    warning_codes=("BCP_PAGE_INCOMPLETE",),
+                    check_codes=(),
+                    plan=None,
+                    warning_pages=warning_pages,
+                )
         with self.assertRaises(ValueError):
             StatementOutcome(
                 detection=detection,
