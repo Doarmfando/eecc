@@ -101,6 +101,24 @@ class InternalApiTests(TestCase):
         self.assertFalse(first["reused"])
         self.assertTrue(second["reused"])
 
+    def test_without_export_flags_both_formats_are_published(self) -> None:
+        # Regresión de producción: la API no envía las banderas y FastAPI 0.15x lee
+        # un `bool` de formulario ausente como `False`. Sin banderas, ambos formatos.
+        payload = self._upload().json()
+
+        self.assertEqual(
+            sorted({artifact["kind"] for artifact in payload["artifacts"]}), ["CSV", "XLSX"]
+        )
+
+    def test_export_flags_accept_usual_spellings_and_reject_the_rest(self) -> None:
+        for value in ("0", "off", "no", "False"):
+            with self.subTest(value=value):
+                payload = self._upload(export_csv=value).json()
+                self.assertEqual([artifact["kind"] for artifact in payload["artifacts"]], ["XLSX"])
+        rejected = self._upload(export_csv="tal vez")
+        self.assertEqual(rejected.status_code, 422)
+        self.assertEqual(rejected.json(), {"code": "INVALID_JOB_OPTIONS"})
+
     def test_only_requested_formats_are_published(self) -> None:
         payload = self._upload(export_csv="false").json()
 

@@ -75,6 +75,29 @@ _STATUS_BY_ERROR: dict[type[DomainError], int] = {
 }
 
 
+_TRUE_FLAGS = frozenset({"true", "1", "on", "yes"})
+_FALSE_FLAGS = frozenset({"false", "0", "off", "no"})
+
+
+def _form_flag(value: str | None, *, default: bool) -> bool:
+    """Bandera de formulario leída como texto, con el valor por defecto del código.
+
+    No se declara como `bool`: desde FastAPI 0.15x un `bool` de formulario ausente
+    vale `False` (semántica de casilla HTML sin marcar), sin importar su valor por
+    defecto. La API no envía `export_xlsx` ni `export_csv`, así que ambos llegaban
+    falsos y todo trabajo se rechazaba con `INVALID_JOB_OPTIONS`.
+    """
+
+    if value is None:
+        return default
+    normalized = value.strip().lower()
+    if normalized in _TRUE_FLAGS:
+        return True
+    if normalized in _FALSE_FLAGS:
+        return False
+    raise ValueError("form flag must be true or false")
+
+
 def _error_response(error: DomainError) -> JSONResponse:
     """Solo códigos de dominio y números públicos; nunca contenido ni trazas."""
 
@@ -172,8 +195,9 @@ def _build_router() -> APIRouter:
         document: Annotated[UploadFile, File(description="Estado de cuenta en PDF")],
         extractor_id: Annotated[str | None, Form()] = None,
         default_year: Annotated[int | None, Form()] = None,
-        export_xlsx: Annotated[bool, Form()] = True,
-        export_csv: Annotated[bool, Form()] = True,
+        # Texto y no `bool`: ver `_form_flag`. Sin valor, se publican ambos formatos.
+        export_xlsx: Annotated[str | None, Form()] = None,
+        export_csv: Annotated[str | None, Form()] = None,
         # Solo abre el documento en memoria de este proceso: no se guarda, no se
         # registra y no entra en la identidad del trabajo.
         pdf_password: Annotated[str | None, Form()] = None,
@@ -200,8 +224,8 @@ def _build_router() -> APIRouter:
         try:
             options = StatementJobOptions(
                 default_year=default_year,
-                export_xlsx=export_xlsx,
-                export_csv=export_csv,
+                export_xlsx=_form_flag(export_xlsx, default=True),
+                export_csv=_form_flag(export_csv, default=True),
                 max_bytes=settings.max_pdf_bytes,
                 source_file_name=(
                     normalize_source_file_name(source_file_name) if source_file_name else None
