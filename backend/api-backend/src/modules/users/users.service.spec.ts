@@ -1,10 +1,11 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
-import { MembershipRole, MembershipStatus, Prisma, UserStatus } from '@prisma/client';
+import { MembershipStatus, Prisma, UserStatus } from '@prisma/client';
 
 import type { ConfigService } from '@nestjs/config';
 
 import type { PrismaService } from '../../common/prisma/prisma.service';
 import type { AppConfig } from '../../config/app-config';
+import type { AccessService } from '../access/access.service';
 import { verifyPassword } from '../auth/password-hash';
 import type { StatementRetentionService } from '../statements/statement-retention.service';
 import { UsersService } from './users.service';
@@ -14,6 +15,8 @@ const OTRA_ORGANIZACION = '99999999-9999-4999-8999-999999999999';
 const ACTOR_ID = '22222222-2222-4222-8222-222222222222';
 const MIEMBRO_ID = '33333333-3333-4333-8333-333333333333';
 const CLAVE_ELEGIDA = 'una-clave-elegida-larga';
+/** Quien gestiona en casi todas las pruebas: un administrador. */
+const ACTOR = { userId: ACTOR_ID, rank: 50 };
 
 interface Dobles {
   service: UsersService;
@@ -29,7 +32,20 @@ interface Dobles {
   sesionesRevocadas: jest.Mock;
   auditoria: jest.Mock;
   documentosBorrados: jest.Mock;
+  rolComprobado: jest.Mock;
+  planResuelto: jest.Mock;
 }
+
+const ROLES: Record<string, { name: string; rank: number }> = {
+  SUPER_ADMIN: { name: 'Superadministrador', rank: 100 },
+  ADMIN: { name: 'Administrador', rank: 50 },
+  MEMBER: { name: 'Usuario', rank: 10 },
+};
+const PLANES: Record<string, { name: string; docs: number; pages: number | null }> = {
+  BASICA: { name: 'Básica', docs: 3, pages: 15 },
+  ATLAS: { name: 'Atlas', docs: 20, pages: null },
+};
+const DESDE = new Date('2026-01-01T00:00:00Z');
 
 function usuarioFila(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -43,15 +59,31 @@ function usuarioFila(overrides: Record<string, unknown> = {}): Record<string, un
   };
 }
 
+/** La fila con su rol y su plan resueltos, como los devuelve la consulta del servicio. */
 function membresiaFila(overrides: Record<string, unknown> = {}): Record<string, unknown> {
-  return {
+  const fila: Record<string, unknown> = {
     organizationId: ORGANIZATION_ID,
     userId: MIEMBRO_ID,
-    role: MembershipRole.MEMBER,
+    roleCode: 'MEMBER',
+    planCode: 'BASICA',
+    planChangedAt: DESDE,
     status: MembershipStatus.ACTIVE,
-    createdAt: new Date('2026-01-01T00:00:00Z'),
+    createdAt: DESDE,
     user: usuarioFila(),
     ...overrides,
+  };
+  const roleCode = String(fila.roleCode);
+  const planCode = String(fila.planCode);
+  const plan = PLANES[planCode] ?? { name: planCode, docs: 3, pages: null };
+  return {
+    ...fila,
+    role: { code: roleCode, ...(ROLES[roleCode] ?? { name: roleCode, rank: 0 }) },
+    plan: {
+      code: planCode,
+      name: plan.name,
+      maxRetainedStatements: plan.docs,
+      maxPagesPerDocument: plan.pages,
+    },
   };
 }
 
@@ -66,6 +98,8 @@ function construir(
     falloAlBorrarDocumentos?: Error;
     /** Valor de `ALLOWED_EMAIL_DOMAINS`. */
     dominios?: string;
+    /** Fallo del catálogo al validar el rol o el plan. */
+    falloDeCatalogo?: Error;
   } = {},
 ): Dobles {
   const usuarioBuscado = jest.fn().mockResolvedValue(opciones.usuarioExistente ?? null);
@@ -78,12 +112,28 @@ function construir(
   const usuarioBorrado = jest.fn().mockResolvedValue({});
   const membresiaCreada = jest.fn((args: { data: Record<string, unknown> }) =>
     Promise.resolve(
-      membresiaFila({ role: args.data.role, user: usuarioFila({ _count: { statements: 0 } }) }),
+      membresiaFila({
+        roleCode: args.data.roleCode,
+        planCode: args.data.planCode,
+        user: usuarioFila({ _count: { statements: 0 } }),
+      }),
     ),
   );
   const membresiaActualizada = jest.fn((args: { data: Record<string, unknown> }) =>
     Promise.resolve(membresiaFila({ ...args.data })),
   );
+  const rolComprobado = opciones.falloDeCatalogo
+    ? jest.fn().mockRejectedValue(opciones.falloDeCatalogo)
+    : jest.fn((codigo: string) =>
+        Promise.resolve({
+          code: codigo,
+          rank: ROLES[codigo]?.rank ?? 0,
+          defaultPlanCode: codigo === 'MEMBER' ? null : 'ATLAS',
+        }),
+      );
+  const planResuelto = opciones.falloDeCatalogo
+    ? jest.fn().mockRejectedValue(opciones.falloDeCatalogo)
+    : jest.fn((solicitado?: string) => Promise.resolve(solicitado ?? 'BASICA'));
   const membresiaBorrada = jest.fn().mockResolvedValue({});
   const membresiasContadas = jest.fn().mockResolvedValue(opciones.otrasMembresias ?? 0);
   const listado = jest.fn().mockResolvedValue([membresiaFila()]);
@@ -135,8 +185,13 @@ function construir(
     get: (): string => opciones.dominios ?? 'hotmail.com,empresa.pe,eecc.local',
   } as unknown as ConfigService<AppConfig, true>;
 
+  const access = {
+    findRole: rolComprobado,
+    resolvePlanCode: planResuelto,
+  } as unknown as AccessService;
+
   return {
-    service: new UsersService(prisma, retention, config),
+    service: new UsersService(prisma, retention, access, config),
     usuarioBuscado,
     usuarioCreado,
     usuarioActualizado,
@@ -149,6 +204,8 @@ function construir(
     sesionesRevocadas,
     auditoria,
     documentosBorrados,
+    rolComprobado,
+    planResuelto,
   };
 }
 
@@ -156,19 +213,34 @@ describe('UsersService.list', () => {
   it('describe a cada persona con sus documentos y sin exponer su contraseña', async () => {
     const { service } = construir();
 
-    const miembros = await service.list(ORGANIZATION_ID);
+    const miembros = await service.list(ORGANIZATION_ID, ACTOR);
 
     expect(miembros).toEqual([
       {
         userId: MIEMBRO_ID,
         email: 'persona@empresa.pe',
         displayName: 'Persona de prueba',
-        role: MembershipRole.MEMBER,
+        role: 'MEMBER',
+        roleName: 'Usuario',
+        roleRank: 10,
+        planCode: 'BASICA',
+        planName: 'Básica',
+        maxRetainedStatements: 3,
+        maxPagesPerDocument: 15,
+        planChangedAt: '2026-01-01T00:00:00.000Z',
         status: UserStatus.ACTIVE,
         membershipStatus: MembershipStatus.ACTIVE,
         documentCount: 2,
         lastLoginAt: null,
         createdAt: '2026-01-01T00:00:00.000Z',
+        actions: [
+          'EDIT_PROFILE',
+          'CHANGE_PLAN',
+          'CHANGE_ROLE',
+          'CHANGE_STATUS',
+          'RESET_PASSWORD',
+          'DELETE',
+        ],
       },
     ]);
     expect(JSON.stringify(miembros)).not.toContain('passwordHash');
@@ -179,7 +251,7 @@ describe('UsersService.list', () => {
     // subió en la otra: sería revelar actividad ajena.
     const { service, listado } = construir();
 
-    await service.list(ORGANIZATION_ID);
+    await service.list(ORGANIZATION_ID, ACTOR);
 
     const consulta = listado.mock.calls[0]?.[0] as {
       include: { user: { include: { _count: { select: { statements: { where: unknown } } } } } };
@@ -194,13 +266,13 @@ describe('UsersService.create', () => {
   const datos = {
     email: '  Persona@Empresa.PE ',
     displayName: '  Persona de prueba  ',
-    role: MembershipRole.MEMBER,
+    role: 'MEMBER',
   };
 
   it('genera una contraseña temporal que nunca se guarda en claro', async () => {
     const { service, usuarioCreado } = construir();
 
-    const resultado = await service.create(ORGANIZATION_ID, ACTOR_ID, datos);
+    const resultado = await service.create(ORGANIZATION_ID, ACTOR, datos);
 
     expect(resultado.temporaryPassword).toHaveLength(21);
     const guardado = usuarioCreado.mock.calls[0]?.[0] as { data: Record<string, string> };
@@ -215,7 +287,7 @@ describe('UsersService.create', () => {
   it('usa la contraseña que elige quien administra y no la devuelve', async () => {
     const { service, usuarioCreado } = construir();
 
-    const resultado = await service.create(ORGANIZATION_ID, ACTOR_ID, {
+    const resultado = await service.create(ORGANIZATION_ID, ACTOR, {
       ...datos,
       password: CLAVE_ELEGIDA,
     });
@@ -232,22 +304,22 @@ describe('UsersService.create', () => {
   it('crea administradores cuando se pide', async () => {
     const { service, membresiaCreada } = construir();
 
-    const resultado = await service.create(ORGANIZATION_ID, ACTOR_ID, {
+    const resultado = await service.create(ORGANIZATION_ID, ACTOR, {
       ...datos,
-      role: MembershipRole.ADMIN,
+      role: 'ADMIN',
     });
 
     expect(membresiaCreada).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ role: MembershipRole.ADMIN }) }),
+      expect.objectContaining({ data: expect.objectContaining({ roleCode: 'ADMIN' }) }),
     );
-    expect(resultado.member.role).toBe(MembershipRole.ADMIN);
+    expect(resultado.member.role).toBe('ADMIN');
     expect(resultado.member.documentCount).toBe(0);
   });
 
   it('normaliza el correo y recorta el nombre', async () => {
     const { service, usuarioCreado } = construir();
 
-    await service.create(ORGANIZATION_ID, ACTOR_ID, datos);
+    await service.create(ORGANIZATION_ID, ACTOR, datos);
 
     const guardado = usuarioCreado.mock.calls[0]?.[0] as { data: Record<string, string> };
     expect(guardado.data.emailNormalized).toBe('persona@empresa.pe');
@@ -258,7 +330,7 @@ describe('UsersService.create', () => {
     const { service, usuarioBuscado, usuarioCreado } = construir();
 
     await expect(
-      service.create(ORGANIZATION_ID, ACTOR_ID, { ...datos, email: 'diego@avax.pe' }),
+      service.create(ORGANIZATION_ID, ACTOR, { ...datos, email: 'diego@avax.pe' }),
     ).rejects.toMatchObject({ response: { code: 'EMAIL_DOMAIN_NOT_ALLOWED' } });
     expect(usuarioBuscado).not.toHaveBeenCalled();
     expect(usuarioCreado).not.toHaveBeenCalled();
@@ -267,7 +339,7 @@ describe('UsersService.create', () => {
   it('admite cualquier dominio si la lista está vacía', async () => {
     const { service, usuarioCreado } = construir({ dominios: '' });
 
-    await service.create(ORGANIZATION_ID, ACTOR_ID, { ...datos, email: 'ana@cualquiera.com' });
+    await service.create(ORGANIZATION_ID, ACTOR, { ...datos, email: 'ana@cualquiera.com' });
 
     expect(usuarioCreado).toHaveBeenCalled();
   });
@@ -277,7 +349,7 @@ describe('UsersService.create', () => {
       usuarioExistente: usuarioFila({ memberships: [membresiaFila()] }),
     });
 
-    await expect(service.create(ORGANIZATION_ID, ACTOR_ID, datos)).rejects.toBeInstanceOf(
+    await expect(service.create(ORGANIZATION_ID, ACTOR, datos)).rejects.toBeInstanceOf(
       ConflictException,
     );
   });
@@ -287,7 +359,7 @@ describe('UsersService.create', () => {
       usuarioExistente: usuarioFila({ memberships: [] }),
     });
 
-    const resultado = await service.create(ORGANIZATION_ID, ACTOR_ID, {
+    const resultado = await service.create(ORGANIZATION_ID, ACTOR, {
       ...datos,
       password: CLAVE_ELEGIDA,
     });
@@ -301,7 +373,7 @@ describe('UsersService.create', () => {
   it('deja constancia de quién hizo el alta', async () => {
     const { service, auditoria } = construir();
 
-    await service.create(ORGANIZATION_ID, ACTOR_ID, datos, 'req-123');
+    await service.create(ORGANIZATION_ID, ACTOR, datos, 'req-123');
 
     expect(auditoria).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -320,7 +392,7 @@ describe('UsersService.update', () => {
   it('cambia nombre y correo, normalizando el correo', async () => {
     const { service, usuarioActualizado } = construir();
 
-    await service.update(ORGANIZATION_ID, ACTOR_ID, MIEMBRO_ID, {
+    await service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, {
       displayName: '  Nombre nuevo ',
       email: ' Nuevo@Empresa.PE',
     });
@@ -334,10 +406,10 @@ describe('UsersService.update', () => {
   it('no escribe nada cuando lo enviado coincide con lo guardado', async () => {
     const { service, usuarioActualizado, membresiaActualizada, auditoria } = construir();
 
-    const resultado = await service.update(ORGANIZATION_ID, ACTOR_ID, MIEMBRO_ID, {
+    const resultado = await service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, {
       displayName: 'Persona de prueba',
       email: 'PERSONA@empresa.pe',
-      role: MembershipRole.MEMBER,
+      role: 'MEMBER',
       membershipStatus: MembershipStatus.ACTIVE,
     });
 
@@ -351,7 +423,7 @@ describe('UsersService.update', () => {
     const { service, usuarioActualizado } = construir();
 
     await expect(
-      service.update(ORGANIZATION_ID, ACTOR_ID, MIEMBRO_ID, { email: 'persona@gmail.com' }),
+      service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, { email: 'persona@gmail.com' }),
     ).rejects.toMatchObject({ response: { code: 'EMAIL_DOMAIN_NOT_ALLOWED' } });
     expect(usuarioActualizado).not.toHaveBeenCalled();
   });
@@ -364,7 +436,7 @@ describe('UsersService.update', () => {
       }),
     });
 
-    await service.update(ORGANIZATION_ID, ACTOR_ID, MIEMBRO_ID, {
+    await service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, {
       displayName: 'Nombre corregido',
       email: 'vieja@avax.pe',
     });
@@ -381,7 +453,7 @@ describe('UsersService.update', () => {
     });
 
     await expect(
-      service.update(ORGANIZATION_ID, ACTOR_ID, MIEMBRO_ID, { email: 'ocupado@empresa.pe' }),
+      service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, { email: 'ocupado@empresa.pe' }),
     ).rejects.toMatchObject({ response: { code: 'EMAIL_ALREADY_IN_USE' } });
     expect(usuarioActualizado).not.toHaveBeenCalled();
   });
@@ -395,7 +467,7 @@ describe('UsersService.update', () => {
     });
 
     await expect(
-      service.update(ORGANIZATION_ID, ACTOR_ID, MIEMBRO_ID, { email: 'libre@empresa.pe' }),
+      service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, { email: 'libre@empresa.pe' }),
     ).rejects.toMatchObject({ response: { code: 'EMAIL_ALREADY_IN_USE' } });
   });
 
@@ -403,7 +475,7 @@ describe('UsersService.update', () => {
     const { service } = construir({ falloAlActualizar: new Error('conexión perdida') });
 
     await expect(
-      service.update(ORGANIZATION_ID, ACTOR_ID, MIEMBRO_ID, { displayName: 'Otro nombre' }),
+      service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, { displayName: 'Otro nombre' }),
     ).rejects.toThrow('conexión perdida');
   });
 
@@ -413,7 +485,7 @@ describe('UsersService.update', () => {
     const { service, usuarioActualizado } = construir({ otrasMembresias: 1 });
 
     await expect(
-      service.update(ORGANIZATION_ID, ACTOR_ID, MIEMBRO_ID, { displayName: 'Otro nombre' }),
+      service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, { displayName: 'Otro nombre' }),
     ).rejects.toMatchObject({ response: { code: 'MEMBER_IN_OTHER_ORGANIZATION' } });
     expect(usuarioActualizado).not.toHaveBeenCalled();
   });
@@ -421,11 +493,11 @@ describe('UsersService.update', () => {
   it('nunca degrada a un administrador', async () => {
     // Si pudiera, eliminarlo quedaría a dos pasos: degradarlo y después eliminarlo.
     const { service, membresiaActualizada } = construir({
-      membresiaExistente: membresiaFila({ role: MembershipRole.ADMIN }),
+      membresiaExistente: membresiaFila({ roleCode: 'ADMIN' }),
     });
 
     await expect(
-      service.update(ORGANIZATION_ID, ACTOR_ID, MIEMBRO_ID, { role: MembershipRole.MEMBER }),
+      service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, { role: 'MEMBER' }),
     ).rejects.toMatchObject({ response: { code: 'ADMIN_CANNOT_BE_DEMOTED' } });
     expect(membresiaActualizada).not.toHaveBeenCalled();
   });
@@ -433,14 +505,14 @@ describe('UsersService.update', () => {
   it('asciende a un usuario a administrador', async () => {
     const { service, membresiaActualizada } = construir();
 
-    const resultado = await service.update(ORGANIZATION_ID, ACTOR_ID, MIEMBRO_ID, {
-      role: MembershipRole.ADMIN,
+    const resultado = await service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, {
+      role: 'ADMIN',
     });
 
     expect(membresiaActualizada).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { role: MembershipRole.ADMIN } }),
+      expect.objectContaining({ data: { roleCode: 'ADMIN' } }),
     );
-    expect(resultado.role).toBe(MembershipRole.ADMIN);
+    expect(resultado.role).toBe('ADMIN');
   });
 
   it('no deja a nadie quitarse el acceso ni cambiarse el rol', async () => {
@@ -449,7 +521,7 @@ describe('UsersService.update', () => {
     });
 
     await expect(
-      service.update(ORGANIZATION_ID, ACTOR_ID, ACTOR_ID, {
+      service.update(ORGANIZATION_ID, ACTOR, ACTOR_ID, {
         membershipStatus: MembershipStatus.REVOKED,
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
@@ -461,7 +533,7 @@ describe('UsersService.update', () => {
       membresiaExistente: membresiaFila({ userId: ACTOR_ID, user: usuarioFila({ id: ACTOR_ID }) }),
     });
 
-    await service.update(ORGANIZATION_ID, ACTOR_ID, ACTOR_ID, { displayName: 'Mi nombre' });
+    await service.update(ORGANIZATION_ID, ACTOR, ACTOR_ID, { displayName: 'Mi nombre' });
 
     expect(usuarioActualizado).toHaveBeenCalled();
   });
@@ -471,7 +543,7 @@ describe('UsersService.update', () => {
     // su cookie, que es justo lo que no debe pasar al retirar a alguien.
     const { service, sesionesRevocadas } = construir();
 
-    await service.update(ORGANIZATION_ID, ACTOR_ID, MIEMBRO_ID, {
+    await service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, {
       membershipStatus: MembershipStatus.REVOKED,
     });
 
@@ -485,7 +557,7 @@ describe('UsersService.update', () => {
   it('no toca sesiones cuando solo cambia el nombre', async () => {
     const { service, sesionesRevocadas } = construir();
 
-    await service.update(ORGANIZATION_ID, ACTOR_ID, MIEMBRO_ID, { displayName: 'Otro nombre' });
+    await service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, { displayName: 'Otro nombre' });
 
     expect(sesionesRevocadas).not.toHaveBeenCalled();
   });
@@ -493,7 +565,7 @@ describe('UsersService.update', () => {
   it('audita qué campos cambiaron sin guardar sus valores', async () => {
     const { service, auditoria } = construir();
 
-    await service.update(ORGANIZATION_ID, ACTOR_ID, MIEMBRO_ID, {
+    await service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, {
       email: 'nuevo@empresa.pe',
       membershipStatus: MembershipStatus.REVOKED,
     });
@@ -510,8 +582,202 @@ describe('UsersService.update', () => {
     const { service } = construir({ membresiaExistente: null });
 
     await expect(
-      service.update(ORGANIZATION_ID, ACTOR_ID, MIEMBRO_ID, { role: MembershipRole.ADMIN }),
+      service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, { role: 'ADMIN' }),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+describe('UsersService y la membresía', () => {
+  const datos = { email: 'nueva@empresa.pe', displayName: 'Persona nueva', role: 'MEMBER' };
+
+  it('sin membresía indicada asigna la predeterminada del catálogo', async () => {
+    const { service, membresiaCreada, planResuelto } = construir();
+
+    const resultado = await service.create(ORGANIZATION_ID, ACTOR, datos);
+
+    expect(planResuelto).toHaveBeenCalledWith(undefined, undefined, null);
+    expect(membresiaCreada).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ planCode: 'BASICA' }) }),
+    );
+    expect(resultado.member).toMatchObject({ planCode: 'BASICA', maxRetainedStatements: 3 });
+  });
+
+  it('da de alta con la membresía elegida y la audita', async () => {
+    const { service, membresiaCreada, auditoria } = construir();
+
+    const resultado = await service.create(ORGANIZATION_ID, ACTOR, {
+      ...datos,
+      planCode: 'ATLAS',
+    });
+
+    expect(membresiaCreada).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ planCode: 'ATLAS' }) }),
+    );
+    expect(resultado.member).toMatchObject({
+      planCode: 'ATLAS',
+      maxRetainedStatements: 20,
+      maxPagesPerDocument: null,
+    });
+    const evento = auditoria.mock.calls[0]?.[0] as { data: { metadata: unknown } };
+    expect(evento.data.metadata).toEqual({ role: 'MEMBER', planCode: 'ATLAS' });
+  });
+
+  it('rechaza un rol o un plan que no están en el catálogo sin crear nada', async () => {
+    const { service, usuarioCreado, membresiaCreada } = construir({
+      falloDeCatalogo: new BadRequestException({ code: 'ROLE_NOT_FOUND' }),
+    });
+
+    await expect(
+      service.create(ORGANIZATION_ID, ACTOR, { ...datos, role: 'AUDITOR' }),
+    ).rejects.toMatchObject({ response: { code: 'ROLE_NOT_FOUND' } });
+    expect(usuarioCreado).not.toHaveBeenCalled();
+    expect(membresiaCreada).not.toHaveBeenCalled();
+  });
+
+  it('cambia la membresía, guarda desde cuándo y lo audita sin más campos', async () => {
+    const { service, membresiaActualizada, auditoria, planResuelto } = construir();
+
+    const resultado = await service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, {
+      planCode: 'ATLAS',
+    });
+
+    expect(planResuelto).toHaveBeenCalledWith('ATLAS', 'BASICA');
+    const escrito = membresiaActualizada.mock.calls[0]?.[0] as { data: Record<string, unknown> };
+    expect(escrito.data.planCode).toBe('ATLAS');
+    expect(escrito.data.planChangedAt).toBeInstanceOf(Date);
+    expect(resultado.planCode).toBe('ATLAS');
+    const evento = auditoria.mock.calls[0]?.[0] as { data: { metadata: unknown } };
+    expect(evento.data.metadata).toEqual({ fields: ['planCode'], planCode: 'ATLAS' });
+  });
+
+  it('reenviar la misma membresía no escribe nada', async () => {
+    const { service, membresiaActualizada, planResuelto } = construir();
+
+    await service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, { planCode: 'BASICA' });
+
+    expect(planResuelto).not.toHaveBeenCalled();
+    expect(membresiaActualizada).not.toHaveBeenCalled();
+  });
+
+  it('un administrador puede cambiarse su propia membresía, no su rol', async () => {
+    const propia = membresiaFila({
+      userId: ACTOR_ID,
+      roleCode: 'ADMIN',
+      user: usuarioFila({ id: ACTOR_ID }),
+    });
+    const { service, membresiaActualizada } = construir({ membresiaExistente: propia });
+
+    await service.update(ORGANIZATION_ID, ACTOR, ACTOR_ID, { planCode: 'ATLAS' });
+    expect(membresiaActualizada).toHaveBeenCalledTimes(1);
+
+    await expect(
+      service.update(ORGANIZATION_ID, ACTOR, ACTOR_ID, { role: 'MEMBER' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('valida un rol nuevo contra el catálogo antes de escribir', async () => {
+    const { service, membresiaActualizada, rolComprobado } = construir();
+
+    await service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, { role: 'ADMIN' });
+
+    expect(rolComprobado).toHaveBeenCalledWith('ADMIN');
+    expect(membresiaActualizada).toHaveBeenCalled();
+  });
+});
+
+describe('UsersService y la jerarquía de roles', () => {
+  const SUPER = { userId: ACTOR_ID, rank: 100 };
+  const datos = { email: 'nueva@empresa.pe', displayName: 'Persona nueva' };
+
+  it('un administrador no da de alta a un superadministrador', async () => {
+    const { service, membresiaCreada } = construir();
+
+    await expect(
+      service.create(ORGANIZATION_ID, ACTOR, { ...datos, role: 'SUPER_ADMIN' }),
+    ).rejects.toMatchObject({ response: { code: 'ROLE_ABOVE_YOURS' } });
+    expect(membresiaCreada).not.toHaveBeenCalled();
+  });
+
+  it('el plan que propone el rol se usa si no se indica otro', async () => {
+    const { service, planResuelto } = construir();
+
+    await service.create(ORGANIZATION_ID, ACTOR, { ...datos, role: 'ADMIN' });
+
+    expect(planResuelto).toHaveBeenCalledWith(undefined, undefined, 'ATLAS');
+  });
+
+  it('un administrador no toca a un superadministrador, ni siquiera su nombre', async () => {
+    const { service, usuarioActualizado, membresiaActualizada } = construir({
+      membresiaExistente: membresiaFila({ roleCode: 'SUPER_ADMIN' }),
+    });
+
+    await expect(
+      service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, { displayName: 'Otro nombre' }),
+    ).rejects.toMatchObject({ response: { code: 'ROLE_ABOVE_YOURS' } });
+    await expect(service.setPassword(ORGANIZATION_ID, ACTOR, MIEMBRO_ID)).rejects.toMatchObject({
+      response: { code: 'ROLE_ABOVE_YOURS' },
+    });
+    await expect(service.remove(ORGANIZATION_ID, ACTOR, MIEMBRO_ID)).rejects.toMatchObject({
+      response: { code: 'ROLE_ABOVE_YOURS' },
+    });
+    expect(usuarioActualizado).not.toHaveBeenCalled();
+    expect(membresiaActualizada).not.toHaveBeenCalled();
+  });
+
+  it('entre administradores solo lo reversible: desactivar sí, eliminar no', async () => {
+    const { service, membresiaActualizada } = construir({
+      membresiaExistente: membresiaFila({ roleCode: 'ADMIN' }),
+    });
+
+    await service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, {
+      membershipStatus: MembershipStatus.REVOKED,
+    });
+    expect(membresiaActualizada).toHaveBeenCalled();
+
+    await expect(service.remove(ORGANIZATION_ID, ACTOR, MIEMBRO_ID)).rejects.toMatchObject({
+      response: { code: 'ADMIN_CANNOT_BE_DELETED' },
+    });
+  });
+
+  it('un superadministrador degrada y elimina a un administrador', async () => {
+    const { service, membresiaActualizada, documentosBorrados } = construir({
+      membresiaExistente: membresiaFila({ roleCode: 'ADMIN' }),
+    });
+
+    await service.update(ORGANIZATION_ID, SUPER, MIEMBRO_ID, { role: 'MEMBER' });
+    expect(membresiaActualizada).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { roleCode: 'MEMBER' } }),
+    );
+
+    await service.remove(ORGANIZATION_ID, SUPER, MIEMBRO_ID);
+    expect(documentosBorrados).toHaveBeenCalled();
+  });
+
+  it('nadie asciende a otro por encima de su propio rango', async () => {
+    const { service, membresiaActualizada } = construir();
+
+    await expect(
+      service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, { role: 'SUPER_ADMIN' }),
+    ).rejects.toMatchObject({ response: { code: 'ROLE_ABOVE_YOURS' } });
+    expect(membresiaActualizada).not.toHaveBeenCalled();
+  });
+
+  it('la lista dice qué puede hacer quien consulta con cada cuenta', async () => {
+    const { service, listado } = construir();
+    listado.mockResolvedValue([
+      membresiaFila({ roleCode: 'SUPER_ADMIN' }),
+      membresiaFila({ roleCode: 'ADMIN' }),
+    ]);
+
+    const [superior, par] = await service.list(ORGANIZATION_ID, ACTOR);
+
+    expect(superior?.actions).toEqual([]);
+    expect(par?.actions).toEqual([
+      'EDIT_PROFILE',
+      'CHANGE_PLAN',
+      'CHANGE_STATUS',
+      'RESET_PASSWORD',
+    ]);
   });
 });
 
@@ -519,7 +785,7 @@ describe('UsersService.setPassword', () => {
   it('genera una clave, cierra sus sesiones y desbloquea la cuenta', async () => {
     const { service, usuarioActualizado, sesionesRevocadas } = construir();
 
-    const clave = await service.setPassword(ORGANIZATION_ID, ACTOR_ID, MIEMBRO_ID);
+    const clave = await service.setPassword(ORGANIZATION_ID, ACTOR, MIEMBRO_ID);
 
     expect(clave).toMatch(/^eecc-/);
     const escrito = usuarioActualizado.mock.calls[0]?.[0] as { data: Record<string, unknown> };
@@ -536,12 +802,7 @@ describe('UsersService.setPassword', () => {
   it('fija la clave que elige quien administra', async () => {
     const { service, usuarioActualizado } = construir();
 
-    const devuelta = await service.setPassword(
-      ORGANIZATION_ID,
-      ACTOR_ID,
-      MIEMBRO_ID,
-      CLAVE_ELEGIDA,
-    );
+    const devuelta = await service.setPassword(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, CLAVE_ELEGIDA);
 
     expect(devuelta).toBeNull();
     const escrito = usuarioActualizado.mock.calls[0]?.[0] as { data: Record<string, unknown> };
@@ -555,7 +816,7 @@ describe('UsersService.setPassword', () => {
     const { service, usuarioActualizado } = construir();
 
     await expect(
-      service.setPassword(ORGANIZATION_ID, ACTOR_ID, ACTOR_ID, CLAVE_ELEGIDA),
+      service.setPassword(ORGANIZATION_ID, ACTOR, ACTOR_ID, CLAVE_ELEGIDA),
     ).rejects.toMatchObject({ response: { code: 'CANNOT_MODIFY_SELF' } });
     expect(usuarioActualizado).not.toHaveBeenCalled();
   });
@@ -563,7 +824,7 @@ describe('UsersService.setPassword', () => {
   it('no toca la contraseña de una cuenta que también usa otra organización', async () => {
     const { service, usuarioActualizado } = construir({ otrasMembresias: 1 });
 
-    await expect(service.setPassword(ORGANIZATION_ID, ACTOR_ID, MIEMBRO_ID)).rejects.toMatchObject({
+    await expect(service.setPassword(ORGANIZATION_ID, ACTOR, MIEMBRO_ID)).rejects.toMatchObject({
       response: { code: 'MEMBER_IN_OTHER_ORGANIZATION' },
     });
     expect(usuarioActualizado).not.toHaveBeenCalled();
@@ -572,9 +833,9 @@ describe('UsersService.setPassword', () => {
   it('no restablece la contraseña de alguien de otra organización', async () => {
     const { service, usuarioActualizado } = construir({ membresiaExistente: null });
 
-    await expect(
-      service.setPassword(OTRA_ORGANIZACION, ACTOR_ID, MIEMBRO_ID),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.setPassword(OTRA_ORGANIZACION, ACTOR, MIEMBRO_ID)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
     expect(usuarioActualizado).not.toHaveBeenCalled();
   });
 });
@@ -582,10 +843,10 @@ describe('UsersService.setPassword', () => {
 describe('UsersService.remove', () => {
   it('nunca elimina a un administrador', async () => {
     const { service, membresiaActualizada, documentosBorrados, membresiaBorrada } = construir({
-      membresiaExistente: membresiaFila({ role: MembershipRole.ADMIN }),
+      membresiaExistente: membresiaFila({ roleCode: 'ADMIN' }),
     });
 
-    await expect(service.remove(ORGANIZATION_ID, ACTOR_ID, MIEMBRO_ID)).rejects.toMatchObject({
+    await expect(service.remove(ORGANIZATION_ID, ACTOR, MIEMBRO_ID)).rejects.toMatchObject({
       response: { code: 'ADMIN_CANNOT_BE_DELETED' },
     });
     // Ni siquiera se le desactiva de camino: el rechazo no deja rastro.
@@ -604,7 +865,7 @@ describe('UsersService.remove', () => {
       usuarioBorrado,
     } = construir();
 
-    await expect(service.remove(ORGANIZATION_ID, ACTOR_ID, MIEMBRO_ID)).resolves.toBe(2);
+    await expect(service.remove(ORGANIZATION_ID, ACTOR, MIEMBRO_ID)).resolves.toBe(2);
 
     expect(membresiaActualizada).toHaveBeenCalledWith(
       expect.objectContaining({ data: { status: MembershipStatus.REVOKED } }),
@@ -620,7 +881,7 @@ describe('UsersService.remove', () => {
   it('conserva la cuenta si la persona pertenece a otra organización', async () => {
     const { service, membresiaBorrada, usuarioBorrado } = construir({ otrasMembresias: 1 });
 
-    await service.remove(ORGANIZATION_ID, ACTOR_ID, MIEMBRO_ID);
+    await service.remove(ORGANIZATION_ID, ACTOR, MIEMBRO_ID);
 
     expect(membresiaBorrada).toHaveBeenCalled();
     expect(usuarioBorrado).not.toHaveBeenCalled();
@@ -631,7 +892,7 @@ describe('UsersService.remove', () => {
       falloAlBorrarDocumentos: new Error('disco no disponible'),
     });
 
-    await expect(service.remove(ORGANIZATION_ID, ACTOR_ID, MIEMBRO_ID)).rejects.toThrow();
+    await expect(service.remove(ORGANIZATION_ID, ACTOR, MIEMBRO_ID)).rejects.toThrow();
     expect(membresiaActualizada).toHaveBeenCalled();
     expect(membresiaBorrada).not.toHaveBeenCalled();
   });
@@ -639,7 +900,7 @@ describe('UsersService.remove', () => {
   it('deja constancia de la eliminación y de cuántos documentos arrastró', async () => {
     const { service, auditoria } = construir();
 
-    await service.remove(ORGANIZATION_ID, ACTOR_ID, MIEMBRO_ID, 'req-9');
+    await service.remove(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, 'req-9');
 
     expect(auditoria).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -657,7 +918,7 @@ describe('UsersService.remove', () => {
   it('no encuentra a quien no pertenece a la organización', async () => {
     const { service } = construir({ membresiaExistente: null });
 
-    await expect(service.remove(ORGANIZATION_ID, ACTOR_ID, MIEMBRO_ID)).rejects.toBeInstanceOf(
+    await expect(service.remove(ORGANIZATION_ID, ACTOR, MIEMBRO_ID)).rejects.toBeInstanceOf(
       NotFoundException,
     );
   });

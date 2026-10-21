@@ -17,7 +17,9 @@ const correo = z
   .email('Ese correo no es válido')
   .max(320, 'Como mucho 320 caracteres');
 
-const rol = z.enum(['ADMIN', 'MEMBER']);
+// Los valores válidos son los del catálogo de la API; aquí solo se exige elegir.
+const rol = z.string().min(1, 'Elige el rol');
+const plan = z.string().min(1, 'Elige la membresía');
 
 /** `generar`: el servidor crea una temporal. `elegir`: la escribe quien administra. */
 const modoClave = z.enum(['generar', 'elegir']);
@@ -80,6 +82,7 @@ const nuevaCuentaBase = z.object({
   displayName: nombre,
   email: correo,
   role: rol,
+  planCode: plan,
   modoClave,
   password: z.string(),
 });
@@ -92,7 +95,7 @@ export function nuevaCuentaSchema(dominios: readonly string[]): z.ZodType<NuevaC
     .superRefine(validarClaveElegida);
 }
 
-const edicionBase = z.object({ displayName: nombre, email: correo, role: rol });
+const edicionBase = z.object({ displayName: nombre, email: correo, role: rol, planCode: plan });
 
 export type Edicion = z.infer<typeof edicionBase>;
 

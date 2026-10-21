@@ -6,6 +6,11 @@ class DomainError(Exception):
 
     code = "DOMAIN_ERROR"
 
+    def public_details(self) -> dict[str, int]:
+        """Números que explican el rechazo sin revelar el documento. Por defecto, ninguno."""
+
+        return {}
+
 
 class InvalidPdfError(DomainError):
     """El contenido no cumple las condiciones mínimas de un PDF."""
@@ -29,6 +34,22 @@ class PdfSizeLimitError(DomainError):
     """El documento supera el límite configurado."""
 
     code = "PDF_SIZE_LIMIT_EXCEEDED"
+
+
+class PdfPageLimitError(DomainError):
+    """El documento tiene más páginas de las que admite la membresía de quien sube."""
+
+    code = "PDF_PAGE_LIMIT_EXCEEDED"
+
+    def __init__(self, *, page_count: int, max_pages: int) -> None:
+        super().__init__("The document exceeds the page limit of the request")
+        self.page_count = page_count
+        self.max_pages = max_pages
+
+    def public_details(self) -> dict[str, int]:
+        # Cuántas páginas y cuántas se admiten: no dicen nada del contenido y son
+        # justo lo que la persona necesita para saber qué hacer.
+        return {"page_count": self.page_count, "max_pages": self.max_pages}
 
 
 class UnsupportedDocumentError(DomainError):

@@ -19,6 +19,8 @@ import { ApiError, isRetriable } from '@/lib/api-error';
 import { isTerminal, type Job, type JobList } from '@/types/job';
 
 const MAX_ATTEMPTS = 3;
+/** El máximo que sirve la API: cubre el cupo de cualquier membresía actual. */
+const HISTORY_PAGE_SIZE = 100;
 const BASE_POLL_MS = 2000;
 const MAX_POLL_MS = 30000;
 
@@ -78,7 +80,7 @@ export function useJobHistory(): UseQueryResult<JobList, ApiError> {
       if (!options) {
         throw new ApiError('AUTHENTICATION_REQUIRED', 401);
       }
-      return fetchJobHistory(options, {}, signal);
+      return fetchJobHistory(options, { limit: HISTORY_PAGE_SIZE }, signal);
     },
     retry: (attempt, error) => attempt < MAX_ATTEMPTS - 1 && isRetriable(error),
   });

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   FileText,
+  Gem,
   KeyRound,
   Pencil,
   Search,
@@ -15,6 +16,7 @@ import {
 import { useId, useMemo, useState, type ReactNode } from 'react';
 
 import { useSession } from '@/app/use-session';
+import { SupportDetails } from '@/components/shared/support-details';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -29,30 +31,29 @@ import {
   EliminarDialog,
   type Credencial,
 } from '@/features/users/member-dialogs';
-import { ETIQUETA_ROL } from '@/features/users/roles';
+import { accionesSobre, nombreDeRol } from '@/features/users/roles';
 import { fetchMembers, updateMember, type Member } from '@/lib/session-client';
 import { cn } from '@/lib/utils';
 
-type Filtro = 'todos' | 'admins' | 'usuarios' | 'desactivados';
+/** `todos`, `desactivados` o un rol concreto: los filtros salen de los roles presentes. */
+type Filtro = string;
 
-const FILTROS: { valor: Filtro; etiqueta: string }[] = [
-  { valor: 'todos', etiqueta: 'Todos' },
-  { valor: 'admins', etiqueta: 'Administradores' },
-  { valor: 'usuarios', etiqueta: 'Usuarios' },
-  { valor: 'desactivados', etiqueta: 'Desactivados' },
-];
+const TODOS = 'todos';
+const DESACTIVADOS = 'desactivados';
 
 function cumpleFiltro(miembro: Member, filtro: Filtro): boolean {
-  switch (filtro) {
-    case 'admins':
-      return miembro.role === 'ADMIN';
-    case 'usuarios':
-      return miembro.role === 'MEMBER';
-    case 'desactivados':
-      return miembro.membershipStatus === 'REVOKED';
-    case 'todos':
-      return true;
+  if (filtro === TODOS) {
+    return true;
   }
+  if (filtro === DESACTIVADOS) {
+    return miembro.membershipStatus === 'REVOKED';
+  }
+  return miembro.role === filtro;
+}
+
+/** Rango de una cuenta; con una API anterior, el de los dos roles de entonces. */
+function rangoDe(miembro: Member): number {
+  return miembro.roleRank ?? (miembro.role === 'MEMBER' ? 10 : 50);
 }
 
 function formatearFecha(iso: string | null): string {
@@ -100,17 +101,28 @@ function Indicador({
   );
 }
 
-function InsigniaRol({ miembro }: { miembro: Member }): ReactNode {
-  const admin = miembro.role === 'ADMIN';
+function InsigniaRol({ miembro, gestiona }: { miembro: Member; gestiona: boolean }): ReactNode {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium',
-        admin ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground',
+        'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap',
+        gestiona ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground',
       )}
     >
-      {admin ? <ShieldCheck aria-hidden className="size-3.5" /> : null}
-      {ETIQUETA_ROL[miembro.role]}
+      {gestiona ? <ShieldCheck aria-hidden className="size-3.5" /> : null}
+      {nombreDeRol(miembro.role, miembro.roleName)}
+    </span>
+  );
+}
+
+function InsigniaPlan({ miembro }: { miembro: Member }): ReactNode {
+  if (!miembro.planName) {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-xs font-medium whitespace-nowrap text-foreground">
+      <Gem aria-hidden className="size-3.5 text-primary" />
+      {miembro.planName}
     </span>
   );
 }
@@ -201,12 +213,12 @@ export function MembersPage(): ReactNode {
   const queryClient = useQueryClient();
   const busquedaId = useId();
   const [busqueda, setBusqueda] = useState('');
-  const [filtro, setFiltro] = useState<Filtro>('todos');
+  const [filtro, setFiltro] = useState<Filtro>(TODOS);
   const [dialogo, setDialogo] = useState<Dialogo | null>(null);
   const [credencial, setCredencial] = useState<Credencial | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
 
-  const limite = usuario?.retainedStatementsPerUser ?? 3;
+  const limite = usuario?.plan?.maxRetainedStatements ?? usuario?.retainedStatementsPerUser ?? 3;
 
   const miembros = useQuery({
     queryKey: CLAVE_MIEMBROS,
@@ -233,6 +245,26 @@ export function MembersPage(): ReactNode {
 
   const lista = useMemo(() => miembros.data ?? [], [miembros.data]);
 
+  // Los roles salen de quienes están en la lista, no de una lista fija: un rol
+  // nuevo aparece como filtro sin tocar esta página.
+  const filtros = useMemo(() => {
+    const roles = new Map<string, { etiqueta: string; rango: number }>();
+    for (const miembro of lista) {
+      roles.set(miembro.role, {
+        etiqueta: nombreDeRol(miembro.role, miembro.roleName),
+        rango: rangoDe(miembro),
+      });
+    }
+    return [
+      { valor: TODOS, etiqueta: 'Todos' },
+      ...[...roles.entries()]
+        .sort(([, a], [, b]) => b.rango - a.rango)
+        .map(([valor, { etiqueta }]) => ({ valor, etiqueta })),
+      { valor: DESACTIVADOS, etiqueta: 'Desactivados' },
+    ];
+  }, [lista]);
+  const rangoBase = lista.reduce((minimo, miembro) => Math.min(minimo, rangoDe(miembro)), Infinity);
+
   const visibles = useMemo(() => {
     const texto = busqueda.trim().toLowerCase();
     return lista.filter(
@@ -244,7 +276,8 @@ export function MembersPage(): ReactNode {
     );
   }, [lista, busqueda, filtro]);
 
-  const administradores = lista.filter((miembro) => miembro.role === 'ADMIN').length;
+  // Quien está por encima del rango más bajo gestiona cuentas: hoy, admins y superadmins.
+  const administradores = lista.filter((miembro) => rangoDe(miembro) > rangoBase).length;
   const activas = lista.filter((miembro) => miembro.membershipStatus === 'ACTIVE').length;
   const documentos = lista.reduce((total, miembro) => total + miembro.documentCount, 0);
 
@@ -287,9 +320,9 @@ export function MembersPage(): ReactNode {
         />
         <Indicador
           Icono={ShieldCheck}
-          etiqueta="Administradores"
+          etiqueta="Administración"
           valor={administradores}
-          detalle="No se pueden eliminar"
+          detalle="Gestionan las cuentas"
         />
         <Indicador
           Icono={UserCheck}
@@ -301,7 +334,7 @@ export function MembersPage(): ReactNode {
           Icono={FileText}
           etiqueta="Documentos cargados"
           valor={documentos}
-          detalle={`Hasta ${String(limite)} por persona`}
+          detalle="Según cada membresía"
         />
       </div>
 
@@ -309,6 +342,7 @@ export function MembersPage(): ReactNode {
       {acceso.isError ? (
         <Alert variant="destructive" title="No se pudo cambiar el acceso">
           {mensajeDeError(acceso.error)}
+          <SupportDetails error={acceso.error} />
         </Alert>
       ) : null}
 
@@ -338,7 +372,7 @@ export function MembersPage(): ReactNode {
             aria-label="Filtrar cuentas"
             className="inline-flex flex-wrap gap-1 rounded-lg bg-muted p-1"
           >
-            {FILTROS.map((opcion) => (
+            {filtros.map((opcion) => (
               <button
                 key={opcion.valor}
                 type="button"
@@ -366,6 +400,7 @@ export function MembersPage(): ReactNode {
           <div className="p-5">
             <Alert variant="destructive" title="No se pudo cargar la lista">
               {mensajeDeError(miembros.error)}
+              <SupportDetails error={miembros.error} />
             </Alert>
           </div>
         ) : null}
@@ -385,7 +420,7 @@ export function MembersPage(): ReactNode {
                 <thead>
                   <tr className="border-b border-border/70 text-left text-xs text-muted-foreground">
                     <th className="px-5 py-3 font-medium">Usuario</th>
-                    <th className="px-3 py-3 font-medium">Rol</th>
+                    <th className="px-3 py-3 font-medium">Rol y membresía</th>
                     <th className="px-3 py-3 font-medium">Estado</th>
                     <th className="px-3 py-3 font-medium">Documentos</th>
                     <th className="px-3 py-3 font-medium">Último acceso</th>
@@ -396,7 +431,12 @@ export function MembersPage(): ReactNode {
                   {visibles.map((miembro) => {
                     const esYo = miembro.userId === usuario?.userId;
                     const activa = miembro.membershipStatus === 'ACTIVE';
-                    const esAdmin = miembro.role === 'ADMIN';
+                    const gestiona = rangoDe(miembro) > rangoBase;
+                    const acciones = accionesSobre(miembro, esYo);
+                    const editable =
+                      acciones.has('EDIT_PROFILE') ||
+                      acciones.has('CHANGE_PLAN') ||
+                      acciones.has('CHANGE_ROLE');
                     const nombre = miembro.displayName;
                     return (
                       <tr
@@ -412,7 +452,7 @@ export function MembersPage(): ReactNode {
                               aria-hidden
                               className={cn(
                                 'flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold',
-                                esAdmin
+                                gestiona
                                   ? 'bg-primary text-primary-foreground'
                                   : 'bg-primary/10 text-primary',
                                 !activa && 'opacity-50',
@@ -434,22 +474,35 @@ export function MembersPage(): ReactNode {
                           </div>
                         </td>
                         <td className="px-3 py-3">
-                          <InsigniaRol miembro={miembro} />
+                          <div className="flex flex-col items-start gap-1">
+                            <InsigniaRol miembro={miembro} gestiona={gestiona} />
+                            <InsigniaPlan miembro={miembro} />
+                          </div>
                         </td>
                         <td className="px-3 py-3">
                           <InsigniaEstado activa={activa} />
                         </td>
                         <td className="px-3 py-3">
-                          <Documentos cantidad={miembro.documentCount} limite={limite} />
+                          <Documentos
+                            cantidad={miembro.documentCount}
+                            limite={miembro.maxRetainedStatements ?? limite}
+                          />
                         </td>
                         <td className="px-3 py-3 whitespace-nowrap text-muted-foreground">
                           {formatearFecha(miembro.lastLoginAt)}
                         </td>
                         <td className="px-5 py-3">
                           <div className="flex justify-end gap-0.5">
+                            {/* Cada botón según lo que la API dice que se puede hacer con esta
+                                cuenta (rangos); el servidor lo vuelve a comprobar igualmente. */}
                             <BotonAccion
-                              etiqueta={`Editar a ${nombre}`}
+                              etiqueta={
+                                editable
+                                  ? `Editar a ${nombre}`
+                                  : `${nombre} tiene un rol superior al tuyo`
+                              }
                               Icono={Pencil}
+                              disabled={!editable}
                               onClick={() => {
                                 abrir({ tipo: 'editar', miembro });
                               }}
@@ -458,7 +511,7 @@ export function MembersPage(): ReactNode {
                             <BotonAccion
                               etiqueta={`Cambiar la contraseña de ${nombre}`}
                               Icono={KeyRound}
-                              disabled={esYo}
+                              disabled={!acciones.has('RESET_PASSWORD')}
                               onClick={() => {
                                 abrir({ tipo: 'clave', miembro });
                               }}
@@ -466,7 +519,7 @@ export function MembersPage(): ReactNode {
                             <BotonAccion
                               etiqueta={activa ? `Desactivar a ${nombre}` : `Activar a ${nombre}`}
                               Icono={activa ? UserX : UserCheck}
-                              disabled={esYo || acceso.isPending}
+                              disabled={!acciones.has('CHANGE_STATUS') || acceso.isPending}
                               onClick={() => {
                                 setAviso(null);
                                 acceso.mutate(miembro);
@@ -474,13 +527,13 @@ export function MembersPage(): ReactNode {
                             />
                             <BotonAccion
                               etiqueta={
-                                esAdmin
-                                  ? `${nombre} es administrador y no se puede eliminar`
-                                  : `Eliminar a ${nombre}`
+                                acciones.has('DELETE')
+                                  ? `Eliminar a ${nombre}`
+                                  : `${nombre} no se puede eliminar desde tu cuenta`
                               }
                               Icono={Trash2}
                               peligro
-                              disabled={esAdmin}
+                              disabled={!acciones.has('DELETE')}
                               onClick={() => {
                                 abrir({ tipo: 'eliminar', miembro });
                               }}
@@ -498,8 +551,9 @@ export function MembersPage(): ReactNode {
       </Card>
 
       <p className="text-xs text-muted-foreground">
-        Los administradores no se pueden eliminar ni pasar a usuario; sí desactivar. Eliminar un
-        usuario borra también sus documentos y archivos.
+        Gestionas las cuentas de rango inferior al tuyo; con las de tu mismo rango, solo datos,
+        membresía, acceso y contraseña. Un administrador no elimina ni degrada a otro; un
+        superadministrador sí. Eliminar un usuario borra también sus documentos y archivos.
       </p>
 
       <CrearCuentaDialog

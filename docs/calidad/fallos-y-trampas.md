@@ -159,6 +159,10 @@ El extractor se escribió **sin muestra**, adivinando la plantilla, y se corrigi
 
 ## Base de datos
 
+- **`@updatedAt` de Prisma no lleva `DEFAULT` en la base.** Una migración escrita a mano con `DEFAULT CURRENT_TIMESTAMP` en esa columna deja deriva (`prisma migrate diff` la detecta). Crear la columna sin valor por defecto y pasar `CURRENT_TIMESTAMP` en los `INSERT` de la semilla. Comprobar siempre con `prisma migrate diff --from-url … --to-schema-datamodel …` tras aplicar una migración manual.
+- **`pg_restore --clean` solo borra lo que está en el respaldo.** Para volver a un respaldo tomado antes de una migración que creó tablas, `DROP SCHEMA public CASCADE; CREATE SCHEMA public;` y después restaurar; si no, las tablas nuevas sobreviven y la migración siguiente falla.
+- **Pasar de enum a catálogo sin perder datos:** añadir la columna de código como nula, copiarla con `"role"::text`, ponerla `NOT NULL`, borrar la columna y el tipo, y solo entonces la clave foránea. Todo en una transacción.
+
 - La paginación por desplazamiento repite o salta filas cuando llegan registros nuevos mientras se navega. Para historiales usar clave compuesta (fecha, id) y un cursor opaco.
 
 - No guardar PDF/XLSX en `bytea`; almacenar referencias opacas a objetos privados.
@@ -169,7 +173,18 @@ El extractor se escribió **sin muestra**, adivinando la plantilla, y se corrigi
 - No usar `prisma db push` en producción ni editar migraciones ya aplicadas.
 - No almacenar texto crudo, números de cuenta completos o movimientos individuales sin una necesidad y política de retención aprobadas.
 
+## Entorno Windows
+
+- **PowerShell 5.1 convierte en error cualquier línea de stderr de un ejecutable** cuando `$ErrorActionPreference = 'Stop'`, aunque termine bien. `pg_ctl` avisa en stderr de un PID huérfano tras un apagado brusco y arranca igual; `local-postgres.ps1` abortaba por ese aviso. Decidir por `$LASTEXITCODE`, no por stderr.
+- **PowerShell 5.1 lee como ANSI un `.ps1` en UTF-8 sin BOM**: `local-postgres.ps1` imprime «DespuÃ©s». Es cosmético y anterior; no se cambió la codificación del archivo.
+- **La consola de Windows usa cp1252**: un script de Python que imprime «≤» u otros símbolos falla con `UnicodeEncodeError`. Ejecutarlo con `python -X utf8` (con `-I`, `PYTHONIOENCODING` se ignora).
+- **`frontend/.env.local` apunta el proxy a producción.** Para probar contra la API local sin tocar el archivo: `VITE_API_PROXY_TARGET=http://127.0.0.1:3000 npx vite` (las variables del proceso ganan a `.env.local` en `loadEnv`).
+
 ## Frontend
+
+- **Un texto con prefijo para lectores de pantalla no empieza por lo que se ve.** Los avisos llevan `<span class="sr-only">Atención: </span>` antes del título: en Playwright, `getByText(/^Se reemplazó/)` no coincide; usar la expresión sin ancla o el rol.
+- **Al probar el reemplazo por cupo con documentos reales, repetir un PDF que sigue guardado lo reutiliza** y no reemplaza nada, que es lo correcto. Una prueba repetible prepara antes la cuenta en un estado conocido.
+- **`eslint-plugin-react-refresh` no admite exportar componentes y funciones del mismo archivo**: las funciones auxiliares van a un `.ts` aparte (`lib/support-report.ts`).
 
 - **Cada exportador rotula sus CSV a su manera, y un rótulo desconocido no falla: da cero.** El Centro Financiero y el Calendario buscaban `Cargo`/`Abono` y `Fecha proceso`/`Fecha`; el BBVA publica `Cargo/Abono` con signo y `Fecha oper.`, así que un estado de cuenta del BBVA se veía **sin un solo movimiento** y sin error. Al añadir un exportador, añadir sus cabeceras reales a `statement-from-csv.test.ts`.
 - **El ITF del BBVA ya está dentro de los totales de su `Resumen`.** El banco no imprime totales de cargos y abonos; los calcula el worker con el ITF de cada fila restado (abonos netos, cargos con su impuesto). La interfaz muestra el ITF como movimiento aparte, así que suma entradas y salidas desde las filas: sumar además el `Total ITF` lo contaba dos veces y el periodo no cuadraba (5.75 en el documento real). Las pruebas no lo vieron porque el CSV de ejemplo suponía totales sin ITF: **los fixtures del frontend se copian de lo que publica el worker, no de lo que uno espera**.

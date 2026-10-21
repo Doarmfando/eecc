@@ -1,6 +1,7 @@
-import { MembershipRole, PrismaClient, UserStatus } from '@prisma/client';
+import { PrismaClient, UserStatus } from '@prisma/client';
 import { createHash, randomBytes } from 'node:crypto';
 
+import { PLAN, SYSTEM_ROLE } from '../modules/access/access-catalog';
 import { hashPassword, normalizeEmail } from '../modules/auth/password-hash';
 
 /**
@@ -48,8 +49,15 @@ async function main(): Promise<void> {
   if (existente) {
     await prisma.organizationMembership.upsert({
       where: { organizationId_userId: { organizationId: organization.id, userId: existente.id } },
-      create: { organizationId: organization.id, userId: existente.id, role: MembershipRole.ADMIN },
-      update: { role: MembershipRole.ADMIN, status: 'ACTIVE' },
+      create: {
+        organizationId: organization.id,
+        userId: existente.id,
+        roleCode: SYSTEM_ROLE.ADMIN,
+        planCode: PLAN.ATLAS,
+      },
+      // La membresía no se toca: sembrar de nuevo no debe deshacer lo que se le
+      // haya asignado desde la gestión de usuarios.
+      update: { roleCode: SYSTEM_ROLE.ADMIN, status: 'ACTIVE' },
     });
 
     if (passwordIndicada === undefined) {
@@ -85,7 +93,11 @@ async function main(): Promise<void> {
         passwordSetAt: new Date(),
         status: UserStatus.ACTIVE,
         memberships: {
-          create: { organizationId: organization.id, role: MembershipRole.ADMIN },
+          create: {
+            organizationId: organization.id,
+            roleCode: SYSTEM_ROLE.ADMIN,
+            planCode: PLAN.ATLAS,
+          },
         },
       },
     });

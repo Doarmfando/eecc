@@ -6,7 +6,11 @@ import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-route
 import excelIcon from '@/assets/files/excel.svg';
 import pdfIcon from '@/assets/files/pdf.svg';
 import logo from '@/assets/logo.svg';
+import { NotificationRegion } from '@/components/notifications/notification-region';
+import { NotificationsProvider } from '@/components/notifications/notifications-provider';
 import { Alert } from '@/components/ui/alert';
+import { FEATURE, type FeatureCode } from '@/features/access/access';
+import { FuncionNoIncluida, PlanBadge } from '@/features/access/plan-gate';
 import { AccountMenu } from '@/features/auth/account-menu';
 import { cn } from '@/lib/utils';
 import { FinancialCalendarPage } from '@/pages/financial-calendar-page';
@@ -51,14 +55,35 @@ interface Enlace {
   etiqueta: string;
   Icono: LucideIcon;
   end?: boolean;
+  /** Función de la membresía que la habilita. Sin ella, la tienen todas. */
+  funcion?: FeatureCode;
 }
 
 const ENLACES: Enlace[] = [
   { to: '/', etiqueta: 'Nuevo documento', Icono: Home, end: true },
-  { to: '/historial', etiqueta: 'Historial', Icono: FileClock },
-  { to: '/centro-financiero', etiqueta: 'Centro Financiero', Icono: ChartColumn },
-  { to: '/calendario-financiero', etiqueta: 'Calendario', Icono: CalendarDays },
+  { to: '/historial', etiqueta: 'Historial', Icono: FileClock, funcion: FEATURE.HISTORY },
+  {
+    to: '/centro-financiero',
+    etiqueta: 'Centro Financiero',
+    Icono: ChartColumn,
+    funcion: FEATURE.FINANCIAL_CENTER,
+  },
+  {
+    to: '/calendario-financiero',
+    etiqueta: 'Calendario',
+    Icono: CalendarDays,
+    funcion: FEATURE.FINANCIAL_CALENDAR,
+  },
 ];
+
+/**
+ * Solo se ofrece lo que incluye su membresía: un enlace a una vista bloqueada no
+ * informa, entorpece. Quien llegue por URL ve qué membresía la incluye.
+ */
+function useEnlacesVisibles(): Enlace[] {
+  const { tieneFuncion } = useSession();
+  return ENLACES.filter((enlace) => !enlace.funcion || tieneFuncion(enlace.funcion));
+}
 
 const ENLACES_ADMINISTRACION: Enlace[] = [{ to: '/usuarios', etiqueta: 'Usuarios', Icono: Users }];
 
@@ -106,6 +131,7 @@ function SidebarConversionArt(): ReactNode {
 
 function Sidebar(): ReactNode {
   const { puedeAdministrar } = useSession();
+  const enlaces = useEnlacesVisibles();
 
   return (
     <aside
@@ -115,7 +141,7 @@ function Sidebar(): ReactNode {
       <div>
         <p className={seccionClass}>Menú</p>
         <nav className="flex flex-col gap-1">
-          {ENLACES.map(({ to, etiqueta, Icono, end }) => (
+          {enlaces.map(({ to, etiqueta, Icono, end }) => (
             <NavLink
               key={to}
               to={to}
@@ -152,6 +178,8 @@ function Sidebar(): ReactNode {
         </div>
       ) : null}
 
+      <PlanBadge />
+
       <SidebarConversionArt />
     </aside>
   );
@@ -160,7 +188,8 @@ function Sidebar(): ReactNode {
 /** En pantallas estrechas la barra lateral no cabe; sin esto no habría forma de navegar. */
 function NavegacionMovil(): ReactNode {
   const { puedeAdministrar } = useSession();
-  const enlaces = puedeAdministrar ? [...ENLACES, ...ENLACES_ADMINISTRACION] : ENLACES;
+  const visibles = useEnlacesVisibles();
+  const enlaces = puedeAdministrar ? [...visibles, ...ENLACES_ADMINISTRACION] : visibles;
 
   return (
     <nav
@@ -228,11 +257,13 @@ function Layout({ children }: { children: ReactNode }): ReactNode {
 function RutaProtegida({
   children,
   soloAdmin,
+  funcion,
 }: {
   children: ReactNode;
   soloAdmin?: boolean;
+  funcion?: FeatureCode | undefined;
 }): ReactNode {
-  const { estado, puedeAdministrar } = useSession();
+  const { estado, puedeAdministrar, tieneFuncion } = useSession();
   const location = useLocation();
 
   if (estado === 'cargando') {
@@ -248,6 +279,9 @@ function RutaProtegida({
         Solo un administrador puede gestionar usuarios.
       </Alert>
     );
+  }
+  if (funcion && !tieneFuncion(funcion)) {
+    return <FuncionNoIncluida funcion={funcion} />;
   }
   return children;
 }
@@ -268,13 +302,17 @@ function NotFoundPage(): ReactNode {
 function Protegida({
   children,
   soloAdmin,
+  funcion,
 }: {
   children: ReactNode;
   soloAdmin?: boolean;
+  funcion?: FeatureCode;
 }): ReactNode {
   return (
     <Layout>
-      <RutaProtegida soloAdmin={soloAdmin}>{children}</RutaProtegida>
+      <RutaProtegida soloAdmin={soloAdmin} funcion={funcion}>
+        {children}
+      </RutaProtegida>
     </Layout>
   );
 }
@@ -295,7 +333,7 @@ function Contenido(): ReactNode {
       <Route
         path="/historial"
         element={
-          <Protegida>
+          <Protegida funcion={FEATURE.HISTORY}>
             <HistoryPage />
           </Protegida>
         }
@@ -303,7 +341,7 @@ function Contenido(): ReactNode {
       <Route
         path="/centro-financiero"
         element={
-          <Protegida>
+          <Protegida funcion={FEATURE.FINANCIAL_CENTER}>
             <FinancialCenterPage />
           </Protegida>
         }
@@ -311,7 +349,7 @@ function Contenido(): ReactNode {
       <Route
         path="/calendario-financiero"
         element={
-          <Protegida>
+          <Protegida funcion={FEATURE.FINANCIAL_CALENDAR}>
             <FinancialCalendarPage />
           </Protegida>
         }
@@ -352,7 +390,11 @@ export function App({ queryClient }: { queryClient?: QueryClient }): ReactNode {
   return (
     <QueryClientProvider client={client}>
       <SessionProvider>
-        <Contenido />
+        {/* Por encima de las rutas: un aviso sobrevive al cambio de página. */}
+        <NotificationsProvider>
+          <Contenido />
+          <NotificationRegion />
+        </NotificationsProvider>
       </SessionProvider>
     </QueryClientProvider>
   );

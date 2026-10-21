@@ -6,6 +6,22 @@ import type { AppConfig } from '../../config/app-config';
 import { ObjectStorageService } from '../storage/object-storage.service';
 import { WorkerClientService } from '../worker-client/worker-client.service';
 
+/** Documento que retiró el cupo, para decírselo a su dueño. */
+export interface RemovedStatement {
+  statementId: string;
+  sourceFileName: string | null;
+}
+
+export interface EnforceOptions {
+  /**
+   * Documentos que conserva quien sube: el cupo de su membresía. Sin valor, el de
+   * las credenciales de servicio (`RETAINED_STATEMENTS_PER_USER`).
+   */
+  limit?: number;
+  keepStatementId?: string;
+  preferredStatementId?: string;
+}
+
 /** `worker/<organización>/<trabajoDelWorker>/[intento/]<nombre>` */
 const CLAVE_DEL_WORKER =
   /^worker\/[0-9a-f-]{36}\/([0-9a-f]{32})\/(?:[0-9a-f-]{36}\/)?[A-Za-z0-9._-]{1,120}$/;
@@ -34,11 +50,14 @@ export class StatementRetentionService {
   ) {}
 
   /**
-   * Deja como mucho `RETAINED_STATEMENTS_PER_USER` documentos de esa persona.
+   * Deja como mucho `limit` documentos de esa persona: el cupo de su membresía.
    *
    * El cupo es por persona y no por organización para que la actividad de alguien
    * no borre el trabajo reciente de otro. `uploadedById` nulo —una credencial de
-   * servicio— forma su propio grupo.
+   * servicio— forma su propio grupo, con `RETAINED_STATEMENTS_PER_USER`.
+   *
+   * Tras bajar de membresía puede sobrar más de uno: se retiran todos los que
+   * excedan el cupo nuevo, empezando por el elegido.
    *
    * Por defecto sobran los más antiguos. Si la persona eligió cuál reemplazar
    * (`preferredStatementId`), ese sale primero, siempre que sea suyo: la búsqueda
@@ -49,18 +68,19 @@ export class StatementRetentionService {
   async enforceForUploader(
     organizationId: string,
     uploadedById: string | null,
-    options: { keepStatementId?: string; preferredStatementId?: string } = {},
-  ): Promise<number> {
-    const limite = this.config.get('RETAINED_STATEMENTS_PER_USER', { infer: true });
+    options: EnforceOptions = {},
+  ): Promise<RemovedStatement[]> {
+    const cupoDeServicio: number = this.config.get('RETAINED_STATEMENTS_PER_USER', { infer: true });
+    const limite = options.limit ?? cupoDeServicio;
 
     const documentos = await this.prisma.statement.findMany({
       where: { organizationId, uploadedById },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      select: { id: true },
+      select: { id: true, sourceFileName: true },
     });
     const cuantosSobran = documentos.length - limite;
     if (cuantosSobran <= 0) {
-      return 0;
+      return [];
     }
     const candidatos = documentos.filter(({ id }) => id !== options.keepStatementId).reverse();
     const elegido = candidatos.find(({ id }) => id === options.preferredStatementId);
@@ -68,13 +88,13 @@ export class StatementRetentionService {
       elegido ? [elegido, ...candidatos.filter((documento) => documento !== elegido)] : candidatos
     ).slice(0, cuantosSobran);
 
-    let borrados = 0;
+    const borrados: RemovedStatement[] = [];
     for (const sobrante of sobrantes) {
       // Uno a uno y sin cortar ante un fallo: que un documento se resista no debe
       // dejar sin limpiar a los demás, y la próxima subida volverá a intentarlo.
       try {
         await this.deleteStatement(organizationId, sobrante.id);
-        borrados += 1;
+        borrados.push({ statementId: sobrante.id, sourceFileName: sobrante.sourceFileName });
       } catch (error) {
         this.logger.warn(
           `No se pudo retirar un documento caducado: ${error instanceof Error ? error.name : 'error desconocido'}`,
@@ -82,10 +102,28 @@ export class StatementRetentionService {
       }
     }
 
-    if (borrados > 0) {
-      this.logger.log(`Documentos retirados por el cupo de ${String(limite)}: ${String(borrados)}`);
+    if (borrados.length > 0) {
+      this.logger.log(
+        `Documentos retirados por el cupo de ${String(limite)}: ${String(borrados.length)}`,
+      );
     }
     return borrados;
+  }
+
+  /**
+   * Descarta lo que publicó el worker para un trabajo que no llegó a registrarse,
+   * salvo que otro documento ya lo referencie: el identificador del worker se
+   * deriva del contenido y lo comparten quienes subieron el mismo PDF.
+   */
+  async discardUnregisteredWorkerJob(workerJobId: string): Promise<void> {
+    const referenciado = await this.prisma.artifact.findFirst({
+      where: { objectKey: { contains: `/${workerJobId}/` } },
+      select: { id: true },
+    });
+    if (referenciado) {
+      return;
+    }
+    await this.worker.discardJob(workerJobId);
   }
 
   /**

@@ -12,14 +12,14 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { MembershipRole } from '@prisma/client';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser, type RequestWithContext } from '../../common/http/request-context';
-import { Roles } from '../../common/security/roles.decorator';
-import { RolesGuard } from '../../common/security/roles.guard';
+import { PermissionsGuard, RequirePermissions } from '../../common/security/permissions.guard';
 import { SessionGuard } from '../../common/security/session.guard';
+import { PERMISSION } from '../access/access-catalog';
 import type { AuthenticatedUser } from '../auth/auth.service';
+import type { MemberActor } from './users.service';
 import {
   CreateMemberDto,
   CreatedMemberDto,
@@ -31,15 +31,16 @@ import {
 import { UsersService } from './users.service';
 
 /**
- * Gestión de las cuentas de una organización. Solo para administradores.
+ * Gestión de las cuentas de una organización. Solo para quien tenga
+ * `USERS_MANAGE`: hoy, los administradores.
  *
  * `SessionGuard` y no `AuthGuard`: estas rutas no aceptan credencial de servicio,
  * porque crear, cambiar o eliminar cuentas debe quedar atribuido a alguien concreto.
  */
 @ApiTags('users')
 @Controller('users')
-@UseGuards(SessionGuard, RolesGuard)
-@Roles(MembershipRole.ADMIN)
+@UseGuards(SessionGuard, PermissionsGuard)
+@RequirePermissions(PERMISSION.USERS_MANAGE)
 export class UsersController {
   constructor(private readonly users: UsersService) {}
 
@@ -47,7 +48,7 @@ export class UsersController {
   @ApiOperation({ summary: 'Cuentas de la organización, con cuántos documentos conserva cada una' })
   @ApiResponse({ status: 200, type: [MemberDto] })
   async list(@CurrentUser() actor: AuthenticatedUser): Promise<MemberDto[]> {
-    return this.users.list(actor.organizationId);
+    return this.users.list(actor.organizationId, quienGestiona(actor));
   }
 
   @Post()
@@ -60,11 +61,12 @@ export class UsersController {
   ): Promise<CreatedMemberDto> {
     return this.users.create(
       actor.organizationId,
-      actor.userId,
+      quienGestiona(actor),
       {
         email: body.email,
         displayName: body.displayName,
         role: body.role,
+        ...(body.planCode !== undefined ? { planCode: body.planCode } : {}),
         ...(body.password !== undefined ? { password: body.password } : {}),
       },
       request.requestId,
@@ -72,7 +74,7 @@ export class UsersController {
   }
 
   @Patch(':userId')
-  @ApiOperation({ summary: 'Cambia nombre, correo, rol o acceso de una cuenta' })
+  @ApiOperation({ summary: 'Cambia nombre, correo, rol, membresía o acceso de una cuenta' })
   @ApiResponse({ status: 200, type: MemberDto })
   async update(
     @CurrentUser() actor: AuthenticatedUser,
@@ -82,12 +84,13 @@ export class UsersController {
   ): Promise<MemberDto> {
     return this.users.update(
       actor.organizationId,
-      actor.userId,
+      quienGestiona(actor),
       userId,
       {
         ...(body.displayName !== undefined ? { displayName: body.displayName } : {}),
         ...(body.email !== undefined ? { email: body.email } : {}),
         ...(body.role !== undefined ? { role: body.role } : {}),
+        ...(body.planCode !== undefined ? { planCode: body.planCode } : {}),
         ...(body.membershipStatus !== undefined ? { membershipStatus: body.membershipStatus } : {}),
       },
       request.requestId,
@@ -105,7 +108,7 @@ export class UsersController {
   ): Promise<TemporaryPasswordDto> {
     const temporaryPassword = await this.users.setPassword(
       actor.organizationId,
-      actor.userId,
+      quienGestiona(actor),
       userId,
       body.password,
       request.requestId,
@@ -121,6 +124,11 @@ export class UsersController {
     @Param('userId', new ParseUUIDPipe({ version: '4' })) userId: string,
     @Req() request: RequestWithContext,
   ): Promise<void> {
-    await this.users.remove(actor.organizationId, actor.userId, userId, request.requestId);
+    await this.users.remove(actor.organizationId, quienGestiona(actor), userId, request.requestId);
   }
+}
+
+/** La cuenta y el rango con que se decide qué puede hacer sobre las demás. */
+function quienGestiona(actor: AuthenticatedUser): MemberActor {
+  return { userId: actor.userId, rank: actor.roleRank };
 }

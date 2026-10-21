@@ -15,6 +15,8 @@ import { ApiConsumes, ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nes
 
 import { API_KEY_HEADER } from '../../common/security/api-key.guard';
 import { AuthGuard } from '../../common/security/auth.guard';
+import { PermissionsGuard, RequirePermissions } from '../../common/security/permissions.guard';
+import { PERMISSION } from '../access/access-catalog';
 import { CurrentOrganization, type OrganizationContext } from '../../common/http/request-context';
 import { CreateStatementDto, JobResponseDto } from './dto/create-statement.dto';
 import { StatementsService } from './statements.service';
@@ -32,11 +34,12 @@ interface UploadedPdf {
   description: 'Credencial de servicio; alternativa a la cookie de sesión',
 })
 @Controller('statements')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, PermissionsGuard)
 export class StatementsController {
   constructor(private readonly statements: StatementsService) {}
 
   @Post()
+  @RequirePermissions(PERMISSION.STATEMENTS_CONVERT)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Registra un estado de cuenta y ejecuta su procesamiento' })
   @ApiConsumes('multipart/form-data')
@@ -68,6 +71,15 @@ export class StatementsController {
       ...(body.pdfPassword ? { pdfPassword: body.pdfPassword } : {}),
       ...(body.replaceStatementId !== undefined
         ? { replaceStatementId: body.replaceStatementId }
+        : {}),
+      // La membresía fija el cupo y las páginas. Una credencial de servicio no
+      // tiene: conserva el cupo de `RETAINED_STATEMENTS_PER_USER` y no tiene límite
+      // de páginas.
+      ...(organization.plan
+        ? {
+            retainedStatements: organization.plan.maxRetainedStatements,
+            maxPagesPerDocument: organization.plan.maxPagesPerDocument,
+          }
         : {}),
       ...(requestId !== undefined ? { requestId } : {}),
     });

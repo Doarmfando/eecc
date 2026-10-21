@@ -18,6 +18,7 @@ from statement_worker.domain.errors import (
     ArtifactNotFoundError,
     DomainError,
     InvalidPdfError,
+    PdfPageLimitError,
     PdfPasswordIncorrectError,
     PdfPasswordRequiredError,
     PdfSizeLimitError,
@@ -29,6 +30,7 @@ from statement_worker.extractors.registry import (
     resolve_strategy,
     specialised_strategy_ids,
 )
+from statement_worker.services.page_limit import MAX_PAGE_LIMIT, enforce_page_limit
 from statement_worker.services.pdf_unlock import unlock_pdf
 from statement_worker.services.source_file_name import normalize_source_file_name
 from statement_worker.services.statement_job import (
@@ -66,6 +68,7 @@ _STATUS_BY_ERROR: dict[type[DomainError], int] = {
     PdfPasswordRequiredError: HTTP_UNPROCESSABLE_CONTENT,
     PdfPasswordIncorrectError: HTTP_UNPROCESSABLE_CONTENT,
     PdfSizeLimitError: HTTP_CONTENT_TOO_LARGE,
+    PdfPageLimitError: HTTP_UNPROCESSABLE_CONTENT,
     UnsupportedDocumentError: HTTP_UNPROCESSABLE_CONTENT,
     ArtifactAlreadyExistsError: HTTP_CONFLICT,
     ArtifactNotFoundError: HTTP_NOT_FOUND,
@@ -73,10 +76,13 @@ _STATUS_BY_ERROR: dict[type[DomainError], int] = {
 
 
 def _error_response(error: DomainError) -> JSONResponse:
-    """Solo códigos de dominio; nunca contenido del documento ni trazas."""
+    """Solo códigos de dominio y números públicos; nunca contenido ni trazas."""
 
     http_status = _STATUS_BY_ERROR.get(type(error), HTTP_BAD_REQUEST)
-    return JSONResponse(status_code=http_status, content={"code": error.code})
+    return JSONResponse(
+        status_code=http_status,
+        content={"code": error.code, **error.public_details()},
+    )
 
 
 async def _store_upload(upload: UploadFile, destination: Path, *, max_bytes: int) -> None:
@@ -101,11 +107,14 @@ def _process_document(
     settings: WorkerSettings,
     options: StatementJobOptions,
     password: str | None,
+    max_pages: int | None = None,
 ) -> StatementJobResult:
     """Todo el trabajo bloqueante de un documento, aislado del bucle de eventos."""
 
     # La copia descifrada queda junto a la subida, así que se borra con ella.
     readable = unlock_pdf(stored, stored.with_name("unlocked.pdf"), password=password)
+    # Antes de detectar y extraer: rechazar 400 páginas no debe costar leerlas.
+    enforce_page_limit(readable, max_pages)
 
     # Sin estrategia pedida, el documento decide: primero las plantillas
     # conocidas y solo después el respaldo genérico.
@@ -171,10 +180,18 @@ def _build_router() -> APIRouter:
         # Campo de texto y no el `filename` del multipart, que puede llegar leído
         # como Latin-1. Solo se escribe en la columna `Archivo` del Excel.
         source_file_name: Annotated[str | None, Form()] = None,
+        # Páginas que admite la membresía de quien sube. Lo decide la API; el worker
+        # solo cuenta y rechaza. Sin valor, no hay límite.
+        max_pages: Annotated[int | None, Form()] = None,
     ) -> JSONResponse:
         settings: WorkerSettings = request.app.state.settings
-        if (pdf_password is not None and len(pdf_password) > _MAX_PDF_PASSWORD_LENGTH) or (
-            source_file_name is not None and len(source_file_name) > _MAX_SOURCE_FILE_NAME_LENGTH
+        if (
+            (pdf_password is not None and len(pdf_password) > _MAX_PDF_PASSWORD_LENGTH)
+            or (
+                source_file_name is not None
+                and len(source_file_name) > _MAX_SOURCE_FILE_NAME_LENGTH
+            )
+            or (max_pages is not None and not 1 <= max_pages <= MAX_PAGE_LIMIT)
         ):
             return JSONResponse(
                 status_code=HTTP_UNPROCESSABLE_CONTENT,
@@ -212,6 +229,7 @@ def _build_router() -> APIRouter:
                     settings=settings,
                     options=options,
                     password=pdf_password or None,
+                    max_pages=max_pages,
                 )
         finally:
             rmtree(upload_directory, ignore_errors=True)

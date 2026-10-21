@@ -30,23 +30,51 @@ export class ChangePasswordDto {
   newPassword!: string;
 }
 
+/** La membresía de quien tiene la sesión: lo que la interfaz necesita para decidir. */
+export class SessionPlanDto {
+  @ApiProperty({ example: 'BASICA' }) code!: string;
+  @ApiProperty({ example: 'Básica' }) name!: string;
+  @ApiProperty() maxRetainedStatements!: number;
+  @ApiProperty({ nullable: true, type: Number, description: 'Páginas por PDF; nulo es sin límite' })
+  maxPagesPerDocument!: number | null;
+  @ApiProperty({ type: [String], example: ['HISTORY'] }) features!: string[];
+}
+
 export class SessionUserDto {
   @ApiProperty() userId!: string;
   @ApiProperty() email!: string;
   @ApiProperty() displayName!: string;
   @ApiProperty() organizationId!: string;
   @ApiProperty() organizationName!: string;
-  @ApiProperty({ enum: ['ADMIN', 'MEMBER'] }) role!: string;
+  @ApiProperty({ example: 'MEMBER', description: 'Código del rol en el catálogo' })
+  role!: string;
+  @ApiProperty({ example: 'Usuario' }) roleName!: string;
+  @ApiProperty({ description: 'Rango del rol en la jerarquía' }) roleRank!: number;
+
+  /** Lo que el rol permite administrar. La interfaz decide con esto, no con el rol. */
+  @ApiProperty({ type: [String], example: ['STATEMENTS_CONVERT'] })
+  permissions!: string[];
+
+  /** Membresía: vistas habilitadas y límites de documentos y páginas. */
+  @ApiProperty({ type: () => SessionPlanDto })
+  plan!: SessionPlanDto;
 
   /**
-   * Documentos que conserva cada persona. Va aquí, y no en una ruta aparte, para
-   * que la interfaz pueda advertirlo sin una petición más: si no lo supiera,
-   * alguien perdería su documento más antiguo sin haber sido avisado.
+   * Documentos que conserva esta persona: el cupo de su membresía. Va aquí, y no
+   * en una ruta aparte, para que la interfaz pueda advertirlo sin una petición más:
+   * si no lo supiera, alguien perdería un documento sin haber sido avisado.
    */
   @ApiProperty({
-    description: 'Documentos que conserva cada persona antes de borrar el más antiguo',
+    description:
+      'Documentos que conserva antes de reemplazar uno (igual a plan.maxRetainedStatements)',
   })
   retainedStatementsPerUser!: number;
+
+  /**
+   * Teléfono de soporte para los avisos de error. Va en la sesión para no pedirlo
+   * aparte; sin sesión está en `GET /v1/support`.
+   */
+  @ApiProperty({ nullable: true, type: String }) supportPhone!: string | null;
 
   /** Dominios de correo admitidos en las altas. Vacío: cualquiera. */
   @ApiProperty({ type: [String], example: ['hotmail.com', 'empresa.pe', 'eecc.local'] })

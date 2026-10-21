@@ -6,7 +6,9 @@
 // - no existe tabla de movimientos bancarios: el MVP aplica minimización de datos;
 // - los importes persistidos usan `Decimal`, nunca coma flotante;
 // - de una contraseña solo se guarda su derivación, nunca el valor en claro;
-// - la sesión es un token opaco con fila propia, para poder revocarla al instante.
+// - la sesión es un token opaco con fila propia, para poder revocarla al instante;
+// - roles, permisos, membresías y sus funciones son catálogos, no enums: crecer es
+//   insertar filas (ADR-0016).
 
 generator client {
   provider = "prisma-client-js"
@@ -27,14 +29,6 @@ enum UserStatus {
   ACTIVE
   INVITED
   DISABLED
-}
-
-/// Dos roles, porque solo hay dos comportamientos: quien administra las cuentas
-/// de la organización y quien procesa documentos. Un administrador no se puede
-/// eliminar ni degradar; ver ADR-0008.
-enum MembershipRole {
-  ADMIN
-  MEMBER
 }
 
 enum MembershipStatus {
@@ -152,21 +146,128 @@ model Session {
   @@map("sessions")
 }
 
+/// Pertenencia de una persona a una organización: con qué rol y con qué membresía.
+///
+/// El rol dice qué puede **administrar**; la membresía (plan), qué parte del
+/// producto **usa** y con qué límites. Son independientes: un administrador puede
+/// tener cualquier membresía. Ver ADR-0016.
 model OrganizationMembership {
   id             String           @id @default(uuid()) @db.Uuid
   organizationId String           @map("organization_id") @db.Uuid
   userId         String           @map("user_id") @db.Uuid
-  role           MembershipRole   @default(MEMBER)
+  roleCode       String           @map("role_code") @db.VarChar(32)
+  planCode       String           @map("plan_code") @db.VarChar(32)
+  /// Desde cuándo tiene la membresía actual. Los cambios quedan en `audit_events`.
+  planChangedAt  DateTime         @default(now()) @map("plan_changed_at") @db.Timestamptz(6)
   status         MembershipStatus @default(ACTIVE)
   createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // `Restrict`: un rol o un plan en uso no se borra del catálogo; se retira.
+  role         Role           @relation(fields: [roleCode], references: [code], onDelete: Restrict)
+  plan         MembershipPlan @relation(fields: [planCode], references: [code], onDelete: Restrict)
 
   @@unique([organizationId, userId])
   @@index([userId, status])
+  @@index([planCode])
   @@map("organization_memberships")
+}
+
+/// Rol dentro de una organización. Es un catálogo y no un enum para que añadir un
+/// rol sea insertar filas, no migrar un tipo. El código pregunta por **permisos**
+/// (`role_permissions`) y por **rango**, nunca por el nombre de un rol (ADR-0016).
+model Role {
+  code            String   @id @db.VarChar(32)
+  name            String   @db.VarChar(80)
+  description     String   @db.VarChar(255)
+  /// Jerarquía: solo se gestionan cuentas de rango inferior; con el mismo rango,
+  /// solo cambios reversibles. Nadie asigna un rol de rango superior al suyo.
+  rank            Int      @default(0)
+  /// Plan que se propone al dar de alta con este rol. Nulo: hay que elegirlo.
+  defaultPlanCode String?  @map("default_plan_code") @db.VarChar(32)
+  /// Los roles sembrados por migración no se borran del catálogo.
+  isSystem        Boolean  @default(false) @map("is_system")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  defaultPlan MembershipPlan?          @relation("RoleDefaultPlan", fields: [defaultPlanCode], references: [code], onDelete: SetNull)
+  permissions RolePermission[]
+  memberships OrganizationMembership[]
+
+  @@map("roles")
+}
+
+/// Acción administrable que un rol concede. Solo existen las que el código aplica:
+/// un permiso sin efecto haría creer que hay una restricción que no hay.
+model Permission {
+  code        String   @id @db.VarChar(64)
+  description String   @db.VarChar(255)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleCode       String @map("role_code") @db.VarChar(32)
+  permissionCode String @map("permission_code") @db.VarChar(64)
+
+  role       Role       @relation(fields: [roleCode], references: [code], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionCode], references: [code], onDelete: Cascade)
+
+  @@id([roleCode, permissionCode])
+  @@map("role_permissions")
+}
+
+/// Tipo de membresía: qué vistas usa una persona y con qué límites. Los límites son
+/// columnas y no constantes del código para que un plan nuevo, o un cambio de cupo,
+/// sea una fila y no un despliegue.
+model MembershipPlan {
+  code                  String   @id @db.VarChar(32)
+  name                  String   @db.VarChar(80)
+  description           String   @db.VarChar(255)
+  /// Documentos que conserva cada persona; al superarlo elige cuál reemplazar
+  /// (ADR-0007, ADR-0014).
+  maxRetainedStatements Int      @map("max_retained_statements")
+  /// Páginas admitidas por PDF. Nulo: sin límite.
+  maxPagesPerDocument   Int?     @map("max_pages_per_document")
+  /// Plan de las cuentas nuevas cuando no se indica otro.
+  isDefault             Boolean  @default(false) @map("is_default")
+  /// Un plan retirado no se ofrece en altas ni cambios; quien lo tiene lo conserva.
+  isActive              Boolean  @default(true) @map("is_active")
+  sortOrder             Int      @default(0) @map("sort_order")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  features        PlanFeature[]
+  memberships     OrganizationMembership[]
+  defaultForRoles Role[]                   @relation("RoleDefaultPlan")
+
+  @@map("membership_plans")
+}
+
+/// Parte del producto que un plan habilita, además de convertir, que tienen todos.
+model Feature {
+  code        String   @id @db.VarChar(64)
+  description String   @db.VarChar(255)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  plans PlanFeature[]
+
+  @@map("features")
+}
+
+model PlanFeature {
+  planCode    String @map("plan_code") @db.VarChar(32)
+  featureCode String @map("feature_code") @db.VarChar(64)
+
+  plan    MembershipPlan @relation(fields: [planCode], references: [code], onDelete: Cascade)
+  feature Feature        @relation(fields: [featureCode], references: [code], onDelete: Cascade)
+
+  @@id([planCode, featureCode])
+  @@map("plan_features")
 }
 
 /// Credencial de servicio con alcance de organización.

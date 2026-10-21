@@ -11,7 +11,8 @@ import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { FieldError, PasswordInput } from '@/features/users/form-fields';
 import { clavePropiaSchema, type ClavePropia } from '@/features/users/member-schemas';
-import { ETIQUETA_ROL } from '@/features/users/roles';
+import { resumenDePlan } from '@/features/access/access';
+import { nombreDeRol } from '@/features/users/roles';
 import { ApiError } from '@/lib/api-error';
 import { changePassword } from '@/lib/session-client';
 import { cn } from '@/lib/utils';
@@ -196,9 +197,18 @@ export function AccountMenu(): ReactNode {
                   {usuario.organizationName}
                 </span>
                 <span className="inline-flex shrink-0 items-center rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-primary">
-                  {ETIQUETA_ROL[usuario.role]}
+                  {nombreDeRol(usuario.role, usuario.roleName)}
                 </span>
               </div>
+
+              {usuario.plan ? (
+                <div className="border-b border-border/60 px-4 py-3">
+                  <p className="text-xs font-medium text-foreground">
+                    Membresía {usuario.plan.name}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{resumenDePlan(usuario.plan)}</p>
+                </div>
+              ) : null}
 
               <div className="p-2">
                 <button

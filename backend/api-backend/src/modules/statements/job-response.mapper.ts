@@ -23,6 +23,8 @@ export interface JobResponseInput {
   status: JobStatus;
   attempt: AttemptWithRelations;
   reused: boolean;
+  /** Documentos que el cupo retiró para guardar este. Vacío si no hizo falta. */
+  replacedStatements?: { statementId: string; sourceFileName: string | null }[];
 }
 
 /** Traduce filas de PostgreSQL al contrato público, sin exponer claves de objeto. */
@@ -49,6 +51,7 @@ export function toJobResponse(input: JobResponseInput): JobResponseDto {
       name: artifactName(artifact.objectKey),
     })),
     reused: input.reused,
+    replacedStatements: input.replacedStatements ?? [],
   };
 }
 

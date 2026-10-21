@@ -165,7 +165,8 @@ La imagen de la API sirve también la página, así que el dominio de Railway ya
 
 Esto queda pendiente y conviene decidirlo:
 
-- **Los documentos se borran al superar el cupo.** Cada persona conserva sus 3 más recientes (`RETAINED_STATEMENTS_PER_USER`) y al subir el cuarto pierde el primero. La interfaz lo advierte antes de subir y en el historial, pero el borrado no se puede deshacer. Ver [`ADR-0007`](../decisiones/ADR-0007-cupo-de-documentos-por-persona.md).
+- **Los documentos se borran al superar el cupo.** Cada persona conserva los de su membresía (Básica 3, Atlas 20) y al superarlo se reemplaza el que elija —por defecto, el más antiguo—. La interfaz lo pregunta antes de subir y avisa después, pero el borrado no se puede deshacer. Ver [`ADR-0007`](../decisiones/ADR-0007-cupo-de-documentos-por-persona.md) y [`ADR-0016`](../decisiones/ADR-0016-roles-y-membresias-como-catalogo.md).
+- **Roles y membresías (ADR-0016).** Al desplegar, la migración `roles_y_membresias` pasa los administradores a Atlas y los usuarios a Básica. Los superadministradores se crean desde la consola del servicio de la API, una vez: `node dist/cli/super-admins.js brando@hotmail.com fabio@hotmail.com` (imprime las contraseñas generadas; repetirlo no cambia nada). Pon el teléfono de soporte en `SUPPORT_PHONE` para que los avisos de error lo muestren. Despliega primero el worker (entiende `max_pages`) y después la API; si la API llega antes, el límite de páginas se aplica igual, pero tras procesar.
 - **No hay caducidad por tiempo.** Un documento dentro del cupo se conserva indefinidamente si esa persona no sube más.
 - **No hay copias de seguridad configuradas** más allá de lo que ofrezca el plugin de PostgreSQL.
 - **No hay límite de peticiones** en el inicio de sesión más allá del bloqueo por cinco intentos fallidos, que es por cuenta y no por origen.

@@ -10,11 +10,17 @@ const MENSAJES: Record<string, string> = {
   EMAIL_DOMAIN_NOT_ALLOWED: 'Ese dominio de correo no está admitido en la organización.',
   MEMBER_IN_OTHER_ORGANIZATION:
     'Esta cuenta también pertenece a otra organización: su nombre, correo y contraseña no se pueden cambiar desde aquí.',
-  ADMIN_CANNOT_BE_DELETED: 'Un administrador no se puede eliminar. Puedes desactivarlo.',
-  ADMIN_CANNOT_BE_DEMOTED: 'Un administrador no puede pasar a ser usuario.',
+  ADMIN_CANNOT_BE_DELETED:
+    'No puedes eliminar una cuenta de tu mismo rango. Puedes desactivarla, o pedírselo a alguien de rango superior.',
+  ADMIN_CANNOT_BE_DEMOTED:
+    'No puedes cambiar el rol de una cuenta de tu mismo rango. Pídeselo a alguien de rango superior.',
   CANNOT_MODIFY_SELF: 'Ese cambio no se puede hacer sobre tu propia cuenta.',
   MEMBER_NOT_FOUND: 'Esa cuenta ya no existe. Recarga la lista.',
   INSUFFICIENT_ROLE: 'Solo un administrador puede gestionar cuentas.',
+  ROLE_ABOVE_YOURS:
+    'Esa cuenta, o el rol que quieres darle, está por encima del tuyo. Pídeselo a un superadministrador.',
+  ROLE_NOT_FOUND: 'Ese rol ya no existe. Recarga la página.',
+  PLAN_NOT_FOUND: 'Esa membresía ya no está disponible. Recarga la página y elige otra.',
   VALIDATION_FAILED: 'Algún dato no tiene un formato válido. Revísalos.',
   NETWORK_ERROR: 'No se pudo contactar con el servidor.',
 };

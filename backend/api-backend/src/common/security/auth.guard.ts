@@ -7,7 +7,7 @@ import {
 
 import { AuthService } from '../../modules/auth/auth.service';
 import { SESSION_COOKIE, readCookie } from '../../modules/auth/session-cookie';
-import type { RequestWithContext } from '../http/request-context';
+import { organizationContextOf, type RequestWithContext } from '../http/request-context';
 import { ApiKeyGuard } from './api-key.guard';
 
 /**
@@ -37,12 +37,7 @@ export class AuthGuard implements CanActivate {
       const usuario = await this.auth.resolveSession(token);
       if (usuario) {
         request.user = usuario;
-        request.organization = {
-          organizationId: usuario.organizationId,
-          apiKeyId: null,
-          userId: usuario.userId,
-          role: usuario.role,
-        };
+        request.organization = organizationContextOf(usuario);
         return true;
       }
       // Una cookie presente pero inválida no cae a la credencial de servicio: es

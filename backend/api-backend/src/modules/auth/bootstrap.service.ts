@@ -1,9 +1,10 @@
 import { Injectable, Logger, type OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { MembershipRole, UserStatus } from '@prisma/client';
+import { UserStatus } from '@prisma/client';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AppConfig } from '../../config/app-config';
+import { PLAN, SYSTEM_ROLE } from '../access/access-catalog';
 import { hashPassword, normalizeEmail } from './password-hash';
 
 const ORGANIZACION_INICIAL = 'Organización';
@@ -64,7 +65,12 @@ export class BootstrapService implements OnApplicationBootstrap {
           passwordSetAt: new Date(),
           status: UserStatus.ACTIVE,
           memberships: {
-            create: { organizationId: organization.id, role: MembershipRole.ADMIN },
+            // Quien administra usa también todo el producto.
+            create: {
+              organizationId: organization.id,
+              roleCode: SYSTEM_ROLE.ADMIN,
+              planCode: PLAN.ATLAS,
+            },
           },
         },
       });

@@ -160,6 +160,49 @@ class InternalApiTests(TestCase):
         self.assertEqual(with_password["status"], "SUCCEEDED")
         self.assertEqual(without_password["job_id"], with_password["job_id"])
 
+    def test_a_statement_over_the_page_limit_is_rejected_before_extraction(self) -> None:
+        long_statement = self.directory / "tres-paginas.pdf"
+        create_synthetic_bcp_pdf(long_statement, page_count=3)
+
+        with patch("statement_worker.api.app.run_statement_job") as run:
+            response = self._upload(long_statement.read_bytes(), max_pages="2")
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(
+            response.json(),
+            {"code": "PDF_PAGE_LIMIT_EXCEEDED", "page_count": 3, "max_pages": 2},
+        )
+        # No se lee ni una página: rechazar un documento largo no cuesta extraerlo.
+        run.assert_not_called()
+        self.assertEqual(list(self.settings.artifact_root.iterdir()), [])
+        self.assertEqual(list((self.directory / "tmp").glob("eecc_upload_*")), [])
+
+    def test_the_page_limit_does_not_change_the_job_identity(self) -> None:
+        # Idempotencia: el límite decide si se procesa, no qué se publica. El mismo
+        # documento da el mismo trabajo con cualquier membresía que lo admita.
+        limited = self._upload(max_pages="15").json()
+        unlimited = self._upload().json()
+
+        self.assertEqual(limited["status"], "SUCCEEDED")
+        self.assertEqual(unlimited["job_id"], limited["job_id"])
+        self.assertTrue(unlimited["reused"])
+
+    def test_counts_the_pages_of_a_protected_statement_after_opening_it(self) -> None:
+        protected = self.directory / "protegido-largo.pdf"
+        create_synthetic_bcp_pdf(protected, password="12345678", page_count=2)
+
+        response = self._upload(protected.read_bytes(), pdf_password="12345678", max_pages="1")
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json()["page_count"], 2)
+
+    def test_rejects_an_implausible_page_limit(self) -> None:
+        for value in ("0", "-3", "100001"):
+            with self.subTest(value=value):
+                response = self._upload(max_pages=value)
+                self.assertEqual(response.status_code, 422)
+                self.assertEqual(response.json(), {"code": "INVALID_JOB_OPTIONS"})
+
     def test_rejects_an_implausibly_long_password(self) -> None:
         response = self._upload(pdf_password="x" * 129)
 

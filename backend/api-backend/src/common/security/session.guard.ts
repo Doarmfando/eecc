@@ -7,7 +7,7 @@ import {
 
 import { AuthService } from '../../modules/auth/auth.service';
 import { SESSION_COOKIE, readCookie } from '../../modules/auth/session-cookie';
-import type { RequestWithContext } from '../http/request-context';
+import { organizationContextOf, type RequestWithContext } from '../http/request-context';
 
 /**
  * Exige una persona, no un servicio.
@@ -32,12 +32,7 @@ export class SessionGuard implements CanActivate {
     }
 
     request.user = usuario;
-    request.organization = {
-      organizationId: usuario.organizationId,
-      apiKeyId: null,
-      userId: usuario.userId,
-      role: usuario.role,
-    };
+    request.organization = organizationContextOf(usuario);
     return true;
   }
 }

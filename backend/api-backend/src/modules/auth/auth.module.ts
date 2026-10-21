@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { ApiKeyGuard } from '../../common/security/api-key.guard';
 import { AuthGuard } from '../../common/security/auth.guard';
-import { RolesGuard } from '../../common/security/roles.guard';
+import { PermissionsGuard } from '../../common/security/permissions.guard';
 import { SessionGuard } from '../../common/security/session.guard';
 import { AuthController } from './auth.controller';
 import { BootstrapService } from './bootstrap.service';
@@ -14,7 +14,14 @@ import { AuthService } from './auth.service';
  */
 @Module({
   controllers: [AuthController],
-  providers: [AuthService, BootstrapService, ApiKeyGuard, AuthGuard, SessionGuard, RolesGuard],
-  exports: [AuthService, ApiKeyGuard, AuthGuard, SessionGuard, RolesGuard],
+  providers: [
+    AuthService,
+    BootstrapService,
+    ApiKeyGuard,
+    AuthGuard,
+    SessionGuard,
+    PermissionsGuard,
+  ],
+  exports: [AuthService, ApiKeyGuard, AuthGuard, SessionGuard, PermissionsGuard],
 })
 export class AuthModule {}

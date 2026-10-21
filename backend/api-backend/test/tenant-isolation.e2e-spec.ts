@@ -234,7 +234,12 @@ describeDatabase('Aislamiento multi-tenant (base real)', () => {
         },
       });
       await prisma.organizationMembership.create({
-        data: { organizationId: alpha.organizationId, userId: user.id, role },
+        data: {
+          organizationId: alpha.organizationId,
+          userId: user.id,
+          roleCode: role,
+          planCode: role === 'ADMIN' ? 'ATLAS' : 'BASICA',
+        },
       });
       const token = randomBytes(32).toString('base64url');
       await prisma.session.create({

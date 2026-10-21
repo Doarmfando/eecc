@@ -118,4 +118,53 @@ describe('SanitizedExceptionFilter', () => {
 
     expect(json).toHaveBeenCalledWith({ code: 'REQUEST_FAILED', requestId: 'req-3' });
   });
+
+  it('adjunta solo números de `meta`, con nombres de formato controlado', () => {
+    const { host, json } = hostFor('req-4');
+
+    new SanitizedExceptionFilter().catch(
+      new HttpException(
+        {
+          code: 'PDF_PAGE_LIMIT_EXCEEDED',
+          meta: {
+            pageCount: 42,
+            maxPages: 15,
+            texto: 'contenido del documento',
+            decimal: 1.5,
+            'clave rara': 3,
+          },
+        },
+        422,
+      ),
+      host,
+    );
+
+    expect(json).toHaveBeenCalledWith({
+      code: 'PDF_PAGE_LIMIT_EXCEEDED',
+      requestId: 'req-4',
+      meta: { pageCount: 42, maxPages: 15 },
+    });
+  });
+
+  it('omite `meta` si no queda ningún dato publicable', () => {
+    const { host, json } = hostFor('req-5');
+
+    new SanitizedExceptionFilter().catch(
+      new HttpException({ code: 'PDF_PAGE_LIMIT_EXCEEDED', meta: ['no', 'es', 'objeto'] }, 422),
+      host,
+    );
+    new SanitizedExceptionFilter().catch(
+      new HttpException({ code: 'PDF_PAGE_LIMIT_EXCEEDED', meta: { texto: 'x' } }, 422),
+      host,
+    );
+
+    expect(json).toHaveBeenNthCalledWith(1, {
+      code: 'PDF_PAGE_LIMIT_EXCEEDED',
+      requestId: 'req-5',
+    });
+    expect(json).toHaveBeenNthCalledWith(2, {
+      code: 'PDF_PAGE_LIMIT_EXCEEDED',
+      requestId: 'req-5',
+    });
+  });
 });

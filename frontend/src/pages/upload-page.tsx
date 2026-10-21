@@ -4,8 +4,9 @@ import { useNavigate } from 'react-router-dom';
 
 import { useSession } from '@/app/use-session';
 
-import { Alert } from '@/components/ui/alert';
+import { useNotifications, useNotifyError } from '@/components/notifications/notifications-context';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { cupoDe } from '@/features/access/access';
 import {
   AVAILABLE_BANKS,
   AVAILABLE_BANKS_LABEL,
@@ -23,8 +24,9 @@ import {
   type UploadFormValues,
 } from '@/features/statements/upload-form';
 import { useJobHistory, useUploadStatement } from '@/features/statements/queries';
-import { describeError, type ApiError } from '@/lib/api-error';
+import type { ApiError } from '@/lib/api-error';
 import { cn } from '@/lib/utils';
+import type { Job } from '@/types/job';
 
 const FLOW_STEPS: ReadonlyArray<{ label: string; Icon: ComponentType<{ className?: string }> }> = [
   { label: 'Subir', Icon: CloudUpload },
@@ -94,24 +96,65 @@ function passwordProblemOf(error: ApiError | null): PasswordProblem | null {
   return null;
 }
 
+/** «Junio.pdf» o, si el documento no tiene nombre guardado, uno genérico. */
+function nombreDe(nombre: string | null | undefined): string {
+  return nombre ? `«${nombre}»` : 'un documento sin nombre';
+}
+
 export function UploadPage(): ReactNode {
   const navigate = useNavigate();
   const upload = useUploadStatement();
   const { usuario } = useSession();
+  const { notify } = useNotifications();
+  const notifyError = useNotifyError();
   const history = useJobHistory();
   const [selectedBank, setSelectedBank] = useState<BankId>('bcp');
   // Envío en espera de que la persona elija qué documento reemplazar.
   const [awaitingChoice, setAwaitingChoice] = useState<UploadFormValues | null>(null);
 
-  const cupo = usuario?.retainedStatementsPerUser ?? 0;
+  const cupo = cupoDe(usuario);
   const replaceable = replaceableStatements(history.data?.items ?? []);
+
+  /** Lo que pasó, dicho en pantalla: convertido, reutilizado y qué se reemplazó. */
+  function avisarResultado(job: Job, fileName: string): void {
+    notify({
+      id: `subida:${job.jobId}`,
+      variant: job.status === 'FAILED' ? 'warning' : 'success',
+      title: job.reused ? `${fileName} ya estaba convertido` : `${fileName} convertido`,
+      description: job.reused
+        ? 'Se reutilizó el resultado anterior: no se borró ningún documento.'
+        : 'Revisa las validaciones y descarga el Excel o los CSV.',
+    });
+    const reemplazados = job.replacedStatements ?? [];
+    if (reemplazados.length > 0) {
+      notify({
+        id: `reemplazo:${job.jobId}`,
+        variant: 'warning',
+        title:
+          reemplazados.length === 1
+            ? `Se reemplazó ${nombreDe(reemplazados[0]?.sourceFileName)}`
+            : `Se reemplazaron ${String(reemplazados.length)} documentos`,
+        description: `Tu membresía guarda ${String(cupo)} documentos: ${reemplazados
+          .map((documento) => nombreDe(documento.sourceFileName))
+          .join(', ')} ${
+          reemplazados.length === 1 ? 'se borró' : 'se borraron'
+        } con sus archivos para guardar el nuevo.`,
+      });
+    }
+  }
 
   function send(values: UploadFormValues, replaceStatementId?: string): void {
     upload.mutate(
       { ...values, ...(replaceStatementId ? { replaceStatementId } : {}) },
       {
         onSuccess: (job) => {
+          avisarResultado(job, values.file.name);
           void navigate(`/jobs/${job.jobId}`, { state: { job } });
+        },
+        onError: (error) => {
+          // Siempre un aviso con el porqué y los datos para soporte; si es la
+          // contraseña, además se marca su campo.
+          notifyError(error, `No se pudo procesar «${values.file.name}»`);
         },
       },
     );
@@ -187,20 +230,13 @@ export function UploadPage(): ReactNode {
         </div>
       </Card>
 
-      {upload.isError ? (
-        <Alert variant="destructive" title={describeError(upload.error)}>
-          {upload.error.requestId ? (
-            <p className="font-mono text-xs">Referencia: {upload.error.requestId}</p>
-          ) : null}
-        </Alert>
-      ) : null}
-
       {upload.isSuccess ? <JobSummary job={upload.data} /> : null}
 
       <ReplaceStatementDialog
         open={awaitingChoice !== null}
         fileName={awaitingChoice?.file.name ?? ''}
         cupo={cupo}
+        planName={usuario?.plan?.name}
         documents={replaceable}
         onConfirm={(statementId) => {
           if (awaitingChoice) {

@@ -5,11 +5,13 @@ import { useId, useMemo, useState, type ReactNode } from 'react';
 import { Controller, useForm, useWatch, type UseFormRegisterReturn } from 'react-hook-form';
 
 import { useSession } from '@/app/use-session';
+import { SupportDetails } from '@/components/shared/support-details';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { usePlans, useRoles } from '@/features/access/queries';
 import {
   createMember,
   deleteMember,
@@ -17,10 +19,13 @@ import {
   updateMember,
   type Member,
   type MemberChanges,
+  type PlanOption,
+  type RoleOption,
 } from '@/lib/session-client';
 
 import { mensajeDeError } from './error-messages';
-import { ChoiceCard, FieldError, PasswordInput, RoleChoice } from './form-fields';
+import { ChoiceCard, FieldError, PasswordInput, PlanChoice, RoleChoice } from './form-fields';
+import { accionesSobre, nombreDeRol } from './roles';
 import {
   claveSchema,
   describirDominios,
@@ -67,6 +72,50 @@ function Encabezado({
       <DialogTitle>{titulo}</DialogTitle>
       <DialogDescription>{descripcion}</DialogDescription>
     </div>
+  );
+}
+
+/** Error de un diálogo: el porqué y los datos para soporte. */
+function ErrorDeDialogo({ titulo, error }: { titulo: string; error: unknown }): ReactNode {
+  return (
+    <Alert variant="destructive" title={titulo}>
+      {mensajeDeError(error)}
+      <SupportDetails error={error} />
+    </Alert>
+  );
+}
+
+/** Catálogos de rol y membresía: el formulario no se puede enviar sin ellos. */
+function EstadoDelCatalogo({ cargando, error }: { cargando: boolean; error: unknown }): ReactNode {
+  if (error) {
+    return (
+      <ErrorDeDialogo titulo="No se pudieron cargar los roles y las membresías" error={error} />
+    );
+  }
+  return cargando ? (
+    <p className="text-sm text-muted-foreground">Cargando roles y membresías…</p>
+  ) : null;
+}
+
+/**
+ * Si la membresía nueva guarda menos documentos de los que ya tiene, lo dice: el
+ * exceso no se borra al cambiarla, sino al subir el siguiente documento.
+ */
+function AvisoDeCupo({
+  plan,
+  documentos,
+}: {
+  plan: PlanOption | undefined;
+  documentos: number;
+}): ReactNode {
+  if (!plan || documentos <= plan.maxRetainedStatements) {
+    return null;
+  }
+  return (
+    <p className="mt-2 text-xs text-warning-foreground">
+      Tiene {documentos} documentos y {plan.name} guarda {plan.maxRetainedStatements}: al subir el
+      próximo se borrarán los más antiguos que sobren.
+    </p>
   );
 }
 
@@ -120,13 +169,18 @@ function ModoDeClave({
   );
 }
 
+// Sin rol ni membresía elegidos: el alta los pide siempre (el rol propone un plan).
 const NUEVA_CUENTA: NuevaCuenta = {
   displayName: '',
   email: '',
-  role: 'MEMBER',
+  role: '',
+  planCode: '',
   modoClave: 'generar',
   password: '',
 };
+
+const SIN_ROLES: readonly RoleOption[] = [];
+const SIN_PLANES: readonly PlanOption[] = [];
 
 export function CrearCuentaDialog({
   open,
@@ -144,6 +198,8 @@ export function CrearCuentaDialog({
   const claveId = useId();
   const dominios = usuario?.allowedEmailDomains ?? SIN_DOMINIOS;
   const schema = useMemo(() => nuevaCuentaSchema(dominios), [dominios]);
+  const roles = useRoles();
+  const planes = usePlans();
 
   const form = useForm<NuevaCuenta>({
     resolver: zodResolver(schema),
@@ -158,6 +214,7 @@ export function CrearCuentaDialog({
         displayName: valores.displayName,
         email: valores.email,
         role: valores.role,
+        planCode: valores.planCode,
         ...(valores.modoClave === 'elegir' ? { password: valores.password } : {}),
       }),
     onSuccess: (resultado) => {
@@ -220,15 +277,50 @@ export function CrearCuentaDialog({
             </div>
           </div>
 
+          <EstadoDelCatalogo
+            cargando={roles.isPending || planes.isPending}
+            error={roles.error ?? planes.error}
+          />
+
           <fieldset>
             <legend className="mb-2 text-sm font-medium">Rol</legend>
             <Controller
               control={form.control}
               name="role"
               render={({ field }) => (
-                <RoleChoice name={field.name} value={field.value} onChange={field.onChange} />
+                <RoleChoice
+                  name={field.name}
+                  roles={roles.data ?? SIN_ROLES}
+                  value={field.value}
+                  onChange={(rol) => {
+                    field.onChange(rol.code);
+                    // Un administrador usa todo el producto: su rol propone la
+                    // membresía. Para un usuario no hay propuesta y se elige.
+                    if (rol.defaultPlanCode) {
+                      form.setValue('planCode', rol.defaultPlanCode, { shouldValidate: true });
+                    }
+                  }}
+                />
               )}
             />
+            <FieldError message={errores.role?.message} />
+          </fieldset>
+
+          <fieldset>
+            <legend className="mb-2 text-sm font-medium">Membresía</legend>
+            <Controller
+              control={form.control}
+              name="planCode"
+              render={({ field }) => (
+                <PlanChoice
+                  name={field.name}
+                  plans={planes.data ?? SIN_PLANES}
+                  value={field.value}
+                  onChange={field.onChange}
+                />
+              )}
+            />
+            <FieldError message={errores.planCode?.message} />
           </fieldset>
 
           <ModoDeClave
@@ -241,9 +333,7 @@ export function CrearCuentaDialog({
           />
 
           {alta.isError ? (
-            <Alert variant="destructive" title="No se pudo crear la cuenta">
-              {mensajeDeError(alta.error)}
-            </Alert>
+            <ErrorDeDialogo titulo="No se pudo crear la cuenta" error={alta.error} />
           ) : null}
 
           <Acciones>
@@ -278,7 +368,31 @@ function cambiosDe(miembro: Member, valores: Edicion): MemberChanges {
   if (valores.role !== miembro.role) {
     cambios.role = valores.role;
   }
+  if (valores.planCode !== (miembro.planCode ?? '')) {
+    cambios.planCode = valores.planCode;
+  }
   return cambios;
+}
+
+/**
+ * Los roles que se ofrecen al editar: los asignables más el actual, aunque esté
+ * por encima (no se puede cambiar, pero tiene que verse cuál es).
+ */
+function rolesParaEditar(asignables: readonly RoleOption[], miembro: Member): RoleOption[] {
+  if (asignables.some((rol) => rol.code === miembro.role)) {
+    return [...asignables];
+  }
+  return [
+    ...asignables,
+    {
+      code: miembro.role,
+      name: nombreDeRol(miembro.role, miembro.roleName),
+      description: 'Rol actual.',
+      rank: miembro.roleRank ?? 0,
+      defaultPlanCode: null,
+      permissions: [],
+    },
+  ];
 }
 
 function EditarCuentaContenido({
@@ -299,11 +413,21 @@ function EditarCuentaContenido({
   const dominios = usuario?.allowedEmailDomains ?? SIN_DOMINIOS;
   const schema = useMemo(() => edicionSchema(dominios, miembro.email), [dominios, miembro.email]);
 
+  const roles = useRoles();
+  const planes = usePlans();
+  const acciones = accionesSobre(miembro, esYo);
+
   const form = useForm<Edicion>({
     resolver: zodResolver(schema),
-    defaultValues: { displayName: miembro.displayName, email: miembro.email, role: miembro.role },
+    defaultValues: {
+      displayName: miembro.displayName,
+      email: miembro.email,
+      role: miembro.role,
+      planCode: miembro.planCode ?? '',
+    },
   });
   const errores = form.formState.errors;
+  const planElegido = useWatch({ control: form.control, name: 'planCode' });
 
   const edicion = useMutation({
     mutationFn: (cambios: MemberChanges) => updateMember(baseUrl, miembro.userId, cambios),
@@ -313,7 +437,9 @@ function EditarCuentaContenido({
     },
   });
 
-  const rolBloqueado = esYo || miembro.role === 'ADMIN';
+  const rolBloqueado = !acciones.has('CHANGE_ROLE');
+  const planBloqueado = !acciones.has('CHANGE_PLAN');
+  const datosBloqueados = !acciones.has('EDIT_PROFILE');
 
   return (
     <DialogContent className={contenidoClass}>
@@ -347,6 +473,7 @@ function EditarCuentaContenido({
             <Input
               id={nombreId}
               autoComplete="off"
+              readOnly={datosBloqueados}
               aria-invalid={errores.displayName ? true : undefined}
               {...form.register('displayName')}
             />
@@ -358,6 +485,7 @@ function EditarCuentaContenido({
               id={correoId}
               type="email"
               autoComplete="off"
+              readOnly={datosBloqueados}
               aria-invalid={errores.email ? true : undefined}
               {...form.register('email')}
             />
@@ -369,6 +497,11 @@ function EditarCuentaContenido({
           </div>
         </div>
 
+        <EstadoDelCatalogo
+          cargando={roles.isPending || planes.isPending}
+          error={roles.error ?? planes.error}
+        />
+
         <fieldset>
           <legend className="mb-2 text-sm font-medium">Rol</legend>
           <Controller
@@ -377,8 +510,11 @@ function EditarCuentaContenido({
             render={({ field }) => (
               <RoleChoice
                 name={field.name}
+                roles={rolesParaEditar(roles.data ?? SIN_ROLES, miembro)}
                 value={field.value}
-                onChange={field.onChange}
+                onChange={(rol) => {
+                  field.onChange(rol.code);
+                }}
                 disabled={rolBloqueado}
               />
             )}
@@ -387,15 +523,35 @@ function EditarCuentaContenido({
             <p className="mt-2 text-xs text-muted-foreground">
               {esYo
                 ? 'No puedes cambiar tu propio rol.'
-                : 'Un administrador no puede pasar a ser usuario.'}
+                : 'Solo alguien de rango superior puede cambiar el rol de esta cuenta.'}
             </p>
           ) : null}
         </fieldset>
 
+        <fieldset>
+          <legend className="mb-2 text-sm font-medium">Membresía</legend>
+          <Controller
+            control={form.control}
+            name="planCode"
+            render={({ field }) => (
+              <PlanChoice
+                name={field.name}
+                plans={planes.data ?? SIN_PLANES}
+                value={field.value}
+                onChange={field.onChange}
+                disabled={planBloqueado}
+              />
+            )}
+          />
+          <FieldError message={errores.planCode?.message} />
+          <AvisoDeCupo
+            plan={planes.data?.find((plan) => plan.code === planElegido)}
+            documentos={miembro.documentCount}
+          />
+        </fieldset>
+
         {edicion.isError ? (
-          <Alert variant="destructive" title="No se pudieron guardar los cambios">
-            {mensajeDeError(edicion.error)}
-          </Alert>
+          <ErrorDeDialogo titulo="No se pudieron guardar los cambios" error={edicion.error} />
         ) : null}
 
         <Acciones>
@@ -509,9 +665,7 @@ function ClaveContenido({
         />
 
         {cambio.isError ? (
-          <Alert variant="destructive" title="No se pudo cambiar la contraseña">
-            {mensajeDeError(cambio.error)}
-          </Alert>
+          <ErrorDeDialogo titulo="No se pudo cambiar la contraseña" error={cambio.error} />
         ) : null}
 
         <Acciones>
@@ -600,9 +754,7 @@ function EliminarContenido({
       </p>
 
       {borrado.isError ? (
-        <Alert variant="destructive" title="No se pudo eliminar">
-          {mensajeDeError(borrado.error)}
-        </Alert>
+        <ErrorDeDialogo titulo="No se pudo eliminar" error={borrado.error} />
       ) : null}
 
       <Acciones>

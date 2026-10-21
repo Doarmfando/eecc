@@ -2,6 +2,9 @@
 
 - Estado: Aceptada
 - Fecha: 2026-09-12
+- Ampliada por: [ADR-0016](ADR-0016-roles-y-membresias-como-catalogo.md). Los roles pasan a ser
+  un catálogo con jerarquía y nace `SUPER_ADMIN`, que sí elimina y degrada administradores.
+  Entre administradores siguen valiendo las protecciones de esta decisión.
 
 ## Contexto
 

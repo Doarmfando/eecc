@@ -53,13 +53,16 @@ export class ApiKeyGuard implements CanActivate {
       throw new UnauthorizedException({ code: 'API_KEY_INVALID' });
     }
 
-    // Una credencial de servicio no representa a nadie: sin usuario y sin rol,
-    // por lo que `RolesGuard` la rechaza en las rutas de gestión de personas.
+    // Una credencial de servicio no representa a nadie: sin usuario, sin rol, sin
+    // permisos y sin plan. Las rutas de gestión de personas exigen `SessionGuard`,
+    // así que nunca llega a ellas.
     request.organization = {
       organizationId: apiKey.organizationId,
       apiKeyId: apiKey.id,
       userId: null,
       role: null,
+      permissions: [],
+      plan: null,
     };
     return true;
   }

@@ -1,19 +1,26 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { MembershipRole } from '@prisma/client';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AppConfig } from '../../config/app-config';
+import {
+  MEMBERSHIP_ACCESS_INCLUDE,
+  toMembershipAccess,
+  type MembershipAccess,
+} from '../access/access-catalog';
 import { hashPassword, normalizeEmail, verifyPassword } from './password-hash';
 import { createSessionToken, hashSessionToken } from './session-cookie';
 
-export interface AuthenticatedUser {
+/**
+ * Persona con sesión: quién es, en qué organización entra y, por su membresía de
+ * organización, qué rol y permisos tiene y con qué plan trabaja (ADR-0016).
+ */
+export interface AuthenticatedUser extends MembershipAccess {
   userId: string;
   email: string;
   displayName: string;
   organizationId: string;
   organizationName: string;
-  role: MembershipRole;
 }
 
 export interface LoginResult {
@@ -57,7 +64,10 @@ export class AuthService {
       include: {
         memberships: {
           where: { status: 'ACTIVE', organization: { status: 'ACTIVE' } },
-          include: { organization: { select: { id: true, displayName: true } } },
+          include: {
+            organization: { select: { id: true, displayName: true } },
+            ...MEMBERSHIP_ACCESS_INCLUDE,
+          },
           orderBy: { createdAt: 'asc' },
           take: 1,
         },
@@ -134,7 +144,7 @@ export class AuthService {
         displayName: user.displayName,
         organizationId: membership.organizationId,
         organizationName: membership.organization.displayName,
-        role: membership.role,
+        ...toMembershipAccess(membership),
       },
     };
   }
@@ -151,7 +161,10 @@ export class AuthService {
           include: {
             memberships: {
               where: { status: 'ACTIVE' },
-              include: { organization: { select: { id: true, displayName: true, status: true } } },
+              include: {
+                organization: { select: { id: true, displayName: true, status: true } },
+                ...MEMBERSHIP_ACCESS_INCLUDE,
+              },
             },
           },
         },
@@ -166,8 +179,8 @@ export class AuthService {
     }
 
     // La membresía se vuelve a comprobar en cada petición y no se copia en la
-    // sesión: si a alguien le revocan el acceso o le cambian el rol, surte efecto
-    // en la petición siguiente y no cuando caduque la cookie.
+    // sesión: si a alguien le revocan el acceso o le cambian el rol o el plan,
+    // surte efecto en la petición siguiente y no cuando caduque la cookie.
     const membership = registro.user.memberships.find(
       (candidata) =>
         candidata.organizationId === registro.organizationId &&
@@ -188,7 +201,7 @@ export class AuthService {
       displayName: registro.user.displayName,
       organizationId: registro.organizationId,
       organizationName: membership.organization.displayName,
-      role: membership.role,
+      ...toMembershipAccess(membership),
     };
   }
 

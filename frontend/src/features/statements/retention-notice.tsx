@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 
 import { useSession } from '@/app/use-session';
+import { cupoDe, paginasPorDocumento } from '@/features/access/access';
 
 import { useJobHistory } from './queries';
 
@@ -14,7 +15,9 @@ import { useJobHistory } from './queries';
 export function RetentionNotice(): ReactNode {
   const { usuario } = useSession();
   const history = useJobHistory();
-  const cupo = usuario?.retainedStatementsPerUser ?? 0;
+  const cupo = cupoDe(usuario);
+  const paginas = paginasPorDocumento(usuario);
+  const plan = usuario?.plan?.name;
 
   if (cupo <= 0 || !history.data) {
     return null;
@@ -27,6 +30,14 @@ export function RetentionNotice(): ReactNode {
 
   return (
     <p className="text-xs text-muted-foreground">
+      {plan ? (
+        <>
+          Membresía <strong>{plan}</strong>
+          {paginas === null
+            ? ': sin límite de páginas. '
+            : `: hasta ${String(paginas)} páginas por PDF. `}
+        </>
+      ) : null}
       Se conservan tus <strong>{cupo}</strong> documentos más recientes
       {enElTope ? (
         <>

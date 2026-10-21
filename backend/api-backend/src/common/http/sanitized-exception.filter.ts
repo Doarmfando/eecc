@@ -16,7 +16,12 @@ interface ErrorBody {
   code: string;
   requestId?: string;
   details?: string[];
+  meta?: Record<string, number>;
 }
+
+/** Nombres cortos en camelCase: nunca texto libre que pueda llevar contenido. */
+const META_KEY = /^[a-z][A-Za-z]{0,31}$/;
+const MAX_META_ENTRIES = 8;
 
 /**
  * El cliente recibe códigos, nunca trazas, rutas ni contenido de documentos.
@@ -38,6 +43,10 @@ export class SanitizedExceptionFilter implements ExceptionFilter {
     const details = resolveValidationDetails(exception, status);
     if (details.length > 0) {
       body.details = details;
+    }
+    const meta = resolveErrorMeta(exception);
+    if (meta) {
+      body.meta = meta;
     }
 
     // Nunca pasar la excepción al logger: Prisma y los lectores pueden incluir
@@ -64,6 +73,32 @@ export function resolveErrorCode(exception: unknown): string {
     return payload.code;
   }
   return exception.getStatus() === HTTP_BAD_REQUEST ? 'VALIDATION_FAILED' : 'REQUEST_FAILED';
+}
+
+/**
+ * Datos numéricos que explican un rechazo, como las páginas de un PDF frente al
+ * límite de la membresía. Solo enteros con claves de formato controlado: un número
+ * de páginas o un límite no revela nada del documento, un texto podría.
+ */
+export function resolveErrorMeta(exception: unknown): Record<string, number> | null {
+  if (!(exception instanceof HttpException)) {
+    return null;
+  }
+  const payload = exception.getResponse();
+  if (typeof payload !== 'object' || !('meta' in payload)) {
+    return null;
+  }
+  const raw: unknown = payload.meta;
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    return null;
+  }
+  const meta: Record<string, number> = {};
+  for (const [key, value] of Object.entries(raw).slice(0, MAX_META_ENTRIES)) {
+    if (META_KEY.test(key) && Number.isSafeInteger(value)) {
+      meta[key] = value as number;
+    }
+  }
+  return Object.keys(meta).length > 0 ? meta : null;
 }
 
 /** Los mensajes de validación describen campos del contrato, nunca su contenido. */

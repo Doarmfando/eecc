@@ -42,7 +42,18 @@ function Invoke-Pg {
     if (-not (Test-Path -LiteralPath $path)) {
         throw "Falta $Executable. Ejecuta primero: .\scripts\local-postgres.ps1 -Action start"
     }
-    & $path @Arguments
+    # En Windows PowerShell 5.1, con `Stop`, cualquier línea que un ejecutable
+    # escriba en stderr se vuelve un error terminante aunque el programa termine
+    # bien. `pg_ctl` avisa ahí de un PID huérfano tras un apagado brusco y arranca
+    # igual: el éxito lo dice el código de salida, que comprueba quien llama.
+    $previa = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        & $path @Arguments
+    }
+    finally {
+        $ErrorActionPreference = $previa
+    }
 }
 
 function Install-Binaries {
@@ -102,6 +113,9 @@ switch ($Action) {
         }
         else {
             Invoke-Pg 'pg_ctl.exe' @('-D', $dataDir, '-l', $logFile, '-o', "-p $Port -h 127.0.0.1", '-w', 'start')
+            if ($LASTEXITCODE -ne 0) {
+                throw "PostgreSQL no arrancó. Mira el registro: $logFile"
+            }
         }
 
         # `-w` evita que psql/createdb abran un prompt de contraseña y cuelguen el script.

@@ -1,35 +1,53 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
+  type HttpException,
 } from '@nestjs/common';
-import {
-  MembershipRole,
-  MembershipStatus,
-  Prisma,
-  StatementStatus,
-  UserStatus,
-} from '@prisma/client';
+import { MembershipStatus, Prisma, StatementStatus, UserStatus } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'node:crypto';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { isEmailDomainAllowed, parseEmailDomains, type AppConfig } from '../../config/app-config';
+import { AccessService } from '../access/access.service';
 import { hashPassword, normalizeEmail } from '../auth/password-hash';
 import { StatementRetentionService } from '../statements/statement-retention.service';
+import {
+  allowedMemberActions,
+  canAssignRole,
+  memberActionDenial,
+  type MemberAction,
+  type RankedAccount,
+} from './member-rules';
+
+/** Quien gestiona: su cuenta y el rango de su rol. */
+export type MemberActor = RankedAccount;
 
 export interface MemberSummary {
   userId: string;
   email: string;
   displayName: string;
-  role: MembershipRole;
+  /** Código del rol en el catálogo `roles`. */
+  role: string;
+  roleName: string;
+  roleRank: number;
+  /** Membresía: qué vistas usa y con qué límites (ADR-0016). */
+  planCode: string;
+  planName: string;
+  maxRetainedStatements: number;
+  maxPagesPerDocument: number | null;
+  planChangedAt: string;
   status: UserStatus;
   membershipStatus: MembershipStatus;
-  /** Documentos que conserva en esta organización. El cupo los limita a unos pocos. */
+  /** Documentos que conserva en esta organización. El cupo de su membresía los limita. */
   documentCount: number;
   lastLoginAt: string | null;
   createdAt: string;
+  /** Lo que quien consulta puede hacer con esta cuenta, según los rangos. */
+  actions: MemberAction[];
 }
 
 export interface CreatedMember {
@@ -44,7 +62,8 @@ export interface CreatedMember {
 export interface MemberChanges {
   displayName?: string;
   email?: string;
-  role?: MembershipRole;
+  role?: string;
+  planCode?: string;
   membershipStatus?: MembershipStatus;
 }
 
@@ -53,13 +72,12 @@ const ALFABETO = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const LONGITUD_TEMPORAL = 16;
 
 /**
- * Gestión de las cuentas de una organización. Solo la alcanza un administrador:
- * lo impone `RolesGuard` en el controlador.
+ * Gestión de las cuentas de una organización. Solo la alcanza quien tiene
+ * `USERS_MANAGE`: lo impone `PermissionsGuard` en el controlador.
  *
- * Las reglas que protegen a los administradores viven aquí y no en la interfaz:
- * un administrador no se puede eliminar ni degradar, y nadie puede quitarse el
- * acceso a sí mismo. Si solo las aplicara la página, bastaría una petición a mano
- * para saltárselas.
+ * Quién puede hacer qué sobre cada cuenta lo decide el rango de los roles
+ * (`member-rules.ts`) y se aplica aquí, no en la interfaz: si solo lo aplicara la
+ * página, bastaría una petición a mano para saltárselo.
  */
 @Injectable()
 export class UsersService {
@@ -68,6 +86,7 @@ export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly retention: StatementRetentionService,
+    private readonly access: AccessService,
     config: ConfigService<AppConfig, true>,
   ) {
     this.dominiosPermitidos = parseEmailDomains(
@@ -82,13 +101,13 @@ export class UsersService {
     }
   }
 
-  async list(organizationId: string): Promise<MemberSummary[]> {
+  async list(organizationId: string, actor: MemberActor): Promise<MemberSummary[]> {
     const memberships = await this.prisma.organizationMembership.findMany({
       where: { organizationId },
-      include: incluirUsuario(organizationId),
+      include: incluirMiembro(organizationId),
       orderBy: { createdAt: 'asc' },
     });
-    return memberships.map(toMemberSummary);
+    return memberships.map((membership) => toMemberSummary(membership, actor));
   }
 
   /**
@@ -96,15 +115,32 @@ export class UsersService {
    *
    * Si no se indica contraseña se genera una temporal, que se devuelve una sola
    * vez: así la definitiva puede no pasar nunca por manos de quien administra.
+   * Sin membresía indicada recibe la que propone su rol o, si no propone ninguna,
+   * la predeterminada del catálogo. Nadie da de alta un rol por encima del suyo.
    */
   async create(
     organizationId: string,
-    actorUserId: string,
-    datos: { email: string; displayName: string; role: MembershipRole; password?: string },
+    actor: MemberActor,
+    datos: {
+      email: string;
+      displayName: string;
+      role: string;
+      planCode?: string;
+      password?: string;
+    },
     requestId?: string,
   ): Promise<CreatedMember> {
     const email = normalizeEmail(datos.email);
     this.exigirDominioPermitido(email);
+    const rol = await this.access.findRole(datos.role);
+    if (!canAssignRole(actor.rank, rol.rank)) {
+      throw new ForbiddenException({ code: 'ROLE_ABOVE_YOURS' });
+    }
+    const planCode = await this.access.resolvePlanCode(
+      datos.planCode,
+      undefined,
+      rol.defaultPlanCode,
+    );
 
     const existente = await this.prisma.user.findUnique({
       where: { emailNormalized: email },
@@ -133,19 +169,19 @@ export class UsersService {
         }));
 
       const creada = await tx.organizationMembership.create({
-        data: { organizationId, userId: user.id, role: datos.role },
-        include: incluirUsuario(organizationId),
+        data: { organizationId, userId: user.id, roleCode: datos.role, planCode },
+        include: incluirMiembro(organizationId),
       });
 
       await tx.auditEvent.create({
         data: {
           organizationId,
-          actorUserId,
+          actorUserId: actor.userId,
           action: 'member.created',
           entityType: 'user',
           entityId: user.id,
           ...(requestId !== undefined ? { requestId } : {}),
-          metadata: { role: datos.role },
+          metadata: { role: datos.role, planCode },
         },
       });
 
@@ -153,20 +189,20 @@ export class UsersService {
     });
 
     return {
-      member: toMemberSummary(membership),
+      member: toMemberSummary(membership, actor),
       temporaryPassword: existente || datos.password !== undefined ? null : password,
     };
   }
 
   /**
-   * Cambia nombre, correo, rol o acceso de una persona.
+   * Cambia nombre, correo, rol, membresía o acceso de una persona.
    *
    * Solo se escribe lo que de verdad cambia, y las reglas se evalúan sobre eso:
    * reenviar el rol que ya tiene un administrador no es degradarlo.
    */
   async update(
     organizationId: string,
-    actorUserId: string,
+    actor: MemberActor,
     userId: string,
     cambios: MemberChanges,
     requestId?: string,
@@ -183,29 +219,43 @@ export class UsersService {
       datosUsuario.emailNormalized = email;
     }
 
-    const datosMembresia: Prisma.OrganizationMembershipUpdateInput = {};
-    if (cambios.role !== undefined && cambios.role !== membership.role) {
-      datosMembresia.role = cambios.role;
+    const datosMembresia: Prisma.OrganizationMembershipUncheckedUpdateInput = {};
+    if (cambios.role !== undefined && cambios.role !== membership.roleCode) {
+      datosMembresia.roleCode = cambios.role;
     }
     if (cambios.membershipStatus !== undefined && cambios.membershipStatus !== membership.status) {
       datosMembresia.status = cambios.membershipStatus;
     }
+    const cambiaPlan = cambios.planCode !== undefined && cambios.planCode !== membership.planCode;
 
     const camposUsuario = Object.keys(datosUsuario);
     const camposMembresia = Object.keys(datosMembresia);
-    if (camposUsuario.length === 0 && camposMembresia.length === 0) {
-      return toMemberSummary(membership);
+    if (camposUsuario.length === 0 && camposMembresia.length === 0 && !cambiaPlan) {
+      return toMemberSummary(membership, actor);
     }
 
-    // Cambiarse el rol o quitarse el acceso a uno mismo es la forma más corta de
-    // dejar una organización sin nadie que la administre.
-    if (userId === actorUserId && camposMembresia.length > 0) {
-      throw new BadRequestException({ code: 'CANNOT_MODIFY_SELF' });
+    // Cada cambio exige su acción: quitarse el acceso o el rol a uno mismo, tocar
+    // una cuenta de rango superior o degradar a alguien del mismo rango se
+    // rechazan antes de escribir nada.
+    const acciones: MemberAction[] = [];
+    if (camposUsuario.length > 0) acciones.push('EDIT_PROFILE');
+    if (datosMembresia.roleCode !== undefined) acciones.push('CHANGE_ROLE');
+    if (datosMembresia.status !== undefined) acciones.push('CHANGE_STATUS');
+    if (cambiaPlan) acciones.push('CHANGE_PLAN');
+    exigirAcciones(actor, { userId, rank: membership.role.rank }, acciones);
+
+    if (typeof datosMembresia.roleCode === 'string') {
+      const nuevo = await this.access.findRole(datosMembresia.roleCode);
+      if (!canAssignRole(actor.rank, nuevo.rank)) {
+        throw new ForbiddenException({ code: 'ROLE_ABOVE_YOURS' });
+      }
     }
-    // Si un administrador pudiera degradarse, "no se elimina a un administrador"
-    // quedaría a dos clics: degradarlo y después eliminarlo.
-    if (datosMembresia.role !== undefined && membership.role === MembershipRole.ADMIN) {
-      throw new ConflictException({ code: 'ADMIN_CANNOT_BE_DEMOTED' });
+    if (cambiaPlan) {
+      datosMembresia.planCode = await this.access.resolvePlanCode(
+        cambios.planCode,
+        membership.planCode,
+      );
+      datosMembresia.planChangedAt = new Date();
     }
     if (camposUsuario.length > 0) {
       await this.exigirCuentaExclusiva(organizationId, userId);
@@ -229,7 +279,7 @@ export class UsersService {
         const resultado = await tx.organizationMembership.update({
           where: { organizationId_userId: { organizationId, userId } },
           data: datosMembresia,
-          include: incluirUsuario(organizationId),
+          include: incluirMiembro(organizationId),
         });
 
         // Desactivar cierra las sesiones abiertas en el acto. Sin esto, quien ya
@@ -244,7 +294,7 @@ export class UsersService {
         await tx.auditEvent.create({
           data: {
             organizationId,
-            actorUserId,
+            actorUserId: actor.userId,
             action: 'member.updated',
             entityType: 'user',
             entityId: userId,
@@ -252,8 +302,9 @@ export class UsersService {
             // Qué campos cambiaron, no sus valores: el correo es un dato personal
             // y la auditoría no necesita guardarlo para ser útil.
             metadata: {
-              fields: [...camposUsuario, ...camposMembresia],
+              fields: [...camposUsuario, ...camposMembresia, ...(cambiaPlan ? ['planCode'] : [])],
               ...(cambios.role !== undefined ? { role: cambios.role } : {}),
+              ...(cambiaPlan ? { planCode: cambios.planCode } : {}),
               ...(cambios.membershipStatus !== undefined
                 ? { membershipStatus: cambios.membershipStatus }
                 : {}),
@@ -264,7 +315,7 @@ export class UsersService {
         return resultado;
       });
 
-      return toMemberSummary(actualizada);
+      return toMemberSummary(actualizada, actor);
     } catch (error) {
       // La comprobación previa no cubre la carrera de dos altas simultáneas con el
       // mismo correo; la restricción única de la base sí.
@@ -284,16 +335,15 @@ export class UsersService {
    */
   async setPassword(
     organizationId: string,
-    actorUserId: string,
+    actor: MemberActor,
     userId: string,
     nueva?: string,
     requestId?: string,
   ): Promise<string | null> {
-    await this.buscarMiembro(organizationId, userId);
-    // La propia contraseña se cambia desde la cuenta, que exige la actual.
-    if (userId === actorUserId) {
-      throw new BadRequestException({ code: 'CANNOT_MODIFY_SELF' });
-    }
+    const membership = await this.buscarMiembro(organizationId, userId);
+    // La propia contraseña se cambia desde la cuenta, que exige la actual; la de
+    // un rango superior, no se cambia.
+    exigirAcciones(actor, { userId, rank: membership.role.rank }, ['RESET_PASSWORD']);
     await this.exigirCuentaExclusiva(organizationId, userId);
 
     const password = nueva ?? generarContrasenaTemporal();
@@ -311,7 +361,7 @@ export class UsersService {
       this.prisma.auditEvent.create({
         data: {
           organizationId,
-          actorUserId,
+          actorUserId: actor.userId,
           action: 'member.password_reset',
           entityType: 'user',
           entityId: userId,
@@ -327,20 +377,18 @@ export class UsersService {
   /**
    * Elimina a una persona de la organización junto con sus documentos.
    *
-   * Devuelve cuántos documentos se borraron. Un administrador nunca se elimina:
-   * se puede desactivar, que es reversible.
+   * Devuelve cuántos documentos se borraron. Solo se elimina una cuenta de rango
+   * inferior: un administrador no elimina a otro —lo puede desactivar, que es
+   * reversible— y un superadministrador sí elimina a un administrador.
    */
   async remove(
     organizationId: string,
-    actorUserId: string,
+    actor: MemberActor,
     userId: string,
     requestId?: string,
   ): Promise<number> {
     const membership = await this.buscarMiembro(organizationId, userId);
-    // Cubre también eliminarse a uno mismo: solo un administrador llega aquí.
-    if (membership.role === MembershipRole.ADMIN) {
-      throw new ConflictException({ code: 'ADMIN_CANNOT_BE_DELETED' });
-    }
+    exigirAcciones(actor, { userId, rank: membership.role.rank }, ['DELETE']);
 
     // Primero se le cierra el paso. Si el borrado de archivos falla a medias, la
     // cuenta queda desactivada —un estado seguro— y se puede reintentar.
@@ -371,7 +419,7 @@ export class UsersService {
       await tx.auditEvent.create({
         data: {
           organizationId,
-          actorUserId,
+          actorUserId: actor.userId,
           action: 'member.deleted',
           entityType: 'user',
           entityId: userId,
@@ -390,7 +438,7 @@ export class UsersService {
   ): Promise<MembershipConUsuario> {
     const membership = await this.prisma.organizationMembership.findUnique({
       where: { organizationId_userId: { organizationId, userId } },
-      include: incluirUsuario(organizationId),
+      include: incluirMiembro(organizationId),
     });
     if (!membership) {
       throw new NotFoundException({ code: 'MEMBER_NOT_FOUND' });
@@ -413,6 +461,30 @@ export class UsersService {
   }
 }
 
+/** Lanza el rechazo de la primera acción que el rango no permite. */
+function exigirAcciones(
+  actor: MemberActor,
+  objetivo: RankedAccount,
+  acciones: readonly MemberAction[],
+): void {
+  for (const accion of acciones) {
+    const codigo = memberActionDenial(actor, objetivo, accion);
+    if (codigo) {
+      throw rechazo(codigo);
+    }
+  }
+}
+
+function rechazo(codigo: string): HttpException {
+  if (codigo === 'CANNOT_MODIFY_SELF') {
+    return new BadRequestException({ code: codigo });
+  }
+  if (codigo === 'ROLE_ABOVE_YOURS') {
+    return new ForbiddenException({ code: codigo });
+  }
+  return new ConflictException({ code: codigo });
+}
+
 function generarContrasenaTemporal(): string {
   const bytes = randomBytes(LONGITUD_TEMPORAL);
   const cuerpo = Array.from(bytes, (byte) => ALFABETO[byte % ALFABETO.length]).join('');
@@ -420,14 +492,26 @@ function generarContrasenaTemporal(): string {
   return `eecc-${cuerpo}`;
 }
 
-interface IncluirUsuario {
+const ROL_Y_PLAN = {
+  role: { select: { code: true, name: true, rank: true } },
+  plan: {
+    select: { code: true, name: true, maxRetainedStatements: true, maxPagesPerDocument: true },
+  },
+} as const;
+
+interface IncluirMiembro {
   user: {
     include: { _count: { select: { statements: { where: Prisma.StatementWhereInput } } } };
   };
+  role: (typeof ROL_Y_PLAN)['role'];
+  plan: (typeof ROL_Y_PLAN)['plan'];
 }
 
-/** La persona y cuántos documentos conserva en esta organización, en la misma consulta. */
-function incluirUsuario(organizationId: string): IncluirUsuario {
+/**
+ * La persona, su rol, su membresía y cuántos documentos conserva en esta
+ * organización, en la misma consulta.
+ */
+function incluirMiembro(organizationId: string): IncluirMiembro {
   return {
     user: {
       include: {
@@ -440,13 +524,23 @@ function incluirUsuario(organizationId: string): IncluirUsuario {
         },
       },
     },
+    ...ROL_Y_PLAN,
   };
 }
 
 interface MembershipConUsuario {
-  role: MembershipRole;
+  roleCode: string;
+  planCode: string;
+  planChangedAt: Date;
   status: MembershipStatus;
   createdAt: Date;
+  role: { code: string; name: string; rank: number };
+  plan: {
+    code: string;
+    name: string;
+    maxRetainedStatements: number;
+    maxPagesPerDocument: number | null;
+  };
   user: {
     id: string;
     emailNormalized: string;
@@ -457,16 +551,27 @@ interface MembershipConUsuario {
   };
 }
 
-function toMemberSummary(membership: MembershipConUsuario): MemberSummary {
+function toMemberSummary(membership: MembershipConUsuario, actor: MemberActor): MemberSummary {
   return {
     userId: membership.user.id,
     email: membership.user.emailNormalized,
     displayName: membership.user.displayName,
-    role: membership.role,
+    role: membership.role.code,
+    roleName: membership.role.name,
+    roleRank: membership.role.rank,
+    planCode: membership.plan.code,
+    planName: membership.plan.name,
+    maxRetainedStatements: membership.plan.maxRetainedStatements,
+    maxPagesPerDocument: membership.plan.maxPagesPerDocument,
+    planChangedAt: membership.planChangedAt.toISOString(),
     status: membership.user.status,
     membershipStatus: membership.status,
     documentCount: membership.user._count.statements,
     lastLoginAt: membership.user.lastLoginAt?.toISOString() ?? null,
     createdAt: membership.createdAt.toISOString(),
+    actions: allowedMemberActions(actor, {
+      userId: membership.user.id,
+      rank: membership.role.rank,
+    }),
   };
 }

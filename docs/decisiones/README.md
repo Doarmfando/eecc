@@ -41,3 +41,4 @@ Los Architecture Decision Records (ADR) explican decisiones duraderas y sus cons
 - [`ADR-0013-formato-comun-del-excel.md`](ADR-0013-formato-comun-del-excel.md)
 - [`ADR-0014-elegir-que-documento-reemplazar.md`](ADR-0014-elegir-que-documento-reemplazar.md)
 - [`ADR-0015-mismas-hojas-en-todos-los-bancos.md`](ADR-0015-mismas-hojas-en-todos-los-bancos.md)
+- [`ADR-0016-roles-y-membresias-como-catalogo.md`](ADR-0016-roles-y-membresias-como-catalogo.md)

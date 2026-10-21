@@ -49,14 +49,24 @@ El frontend habla solo con la API; la API es lo único que habla con el worker.
 
 ## Acceso
 
-Cada persona entra con **su propio usuario y contraseña**. No hay registro abierto: las cuentas las crea un administrador, desde la sección *Usuarios*.
+Cada persona entra con **su propio usuario y contraseña**. No hay registro abierto: las cuentas las crea un administrador, desde la sección *Usuarios*, eligiendo siempre **rol** y **membresía**.
 
-| Rol | Qué puede hacer |
-| --- | --- |
-| `ADMIN` (Administrador) | Crea cuentas —también de otros administradores—, cambia nombre, correo y contraseña, desactiva y elimina usuarios, y ve cuántos documentos tiene cada uno. Además procesa documentos |
-| `MEMBER` (Usuario) | Procesa documentos y consulta el historial |
+| Rol | Rango | Qué puede hacer |
+| --- | --- | --- |
+| `SUPER_ADMIN` (Superadministrador) | 100 | Todo lo del administrador, y además eliminar o degradar administradores |
+| `ADMIN` (Administrador) | 50 | Crea cuentas de usuario y de administrador, cambia nombre, correo, contraseña y membresía, desactiva y elimina usuarios. Además procesa documentos |
+| `MEMBER` (Usuario) | 10 | Procesa documentos con las vistas y límites de su membresía |
 
-Un administrador **nunca se elimina ni pasa a usuario**; sí se puede desactivar. Eliminar un usuario borra también sus documentos. Detalles en [`ADR-0008`](docs/decisiones/ADR-0008-administrador-y-usuario.md).
+Solo se gestionan cuentas de rango inferior; entre iguales, solo lo reversible (datos, membresía, acceso, contraseña). Un administrador no elimina ni degrada a otro; un superadministrador sí. Eliminar un usuario borra también sus documentos.
+
+| Membresía | Vistas | Documentos guardados | Páginas por PDF |
+| --- | --- | --- | --- |
+| **Básica** | Solo conversión | 3 | 15 |
+| **Atlas** | Conversión, Historial, Centro Financiero, Calendario | 20 | Sin límite |
+
+Roles, permisos, membresías y sus límites son **catálogos en la base**: crear o mejorar uno es una migración de datos, sin cambiar código. Detalles en [`ADR-0016`](docs/decisiones/ADR-0016-roles-y-membresias-como-catalogo.md) (que amplía [`ADR-0008`](docs/decisiones/ADR-0008-administrador-y-usuario.md)).
+
+Cuando algo pasa, la pantalla lo avisa: qué pasó, por qué, qué hacer y, si es un error, su tipo, código, referencia y hora, con el teléfono de soporte (`SUPPORT_PHONE`) para dictarlos.
 
 La sesión vive en una cookie `httpOnly`, así que ningún script de la página puede leerla. El token es opaco y tiene fila propia en la base: revocar el acceso o cerrar sesión surte efecto en la petición siguiente, sin esperar a que caduque nada. Detalles en [`ADR-0005`](docs/decisiones/ADR-0005-identidad-de-usuarios-y-sesiones.md).
 
@@ -68,7 +78,7 @@ Existió un modo sin base de datos que no guardaba nada. Se retiró al añadir i
 
 El esquema aplica minimización: **no existe tabla de movimientos bancarios**. Se guardan identificadores, estados, conteos y códigos, nunca los importes ni las descripciones extraídas ([`ADR-0002`](docs/decisiones/ADR-0002-postgresql-prisma-y-minimizacion-financiera.md)).
 
-Y los archivos no se acumulan: **cada persona conserva sus 3 documentos más recientes** y los anteriores se borran enteros —PDF de origen, resultados y fila—. El número se ajusta con `RETAINED_STATEMENTS_PER_USER`. Ver [`ADR-0007`](docs/decisiones/ADR-0007-cupo-de-documentos-por-persona.md).
+Y los archivos no se acumulan: **cada persona conserva los documentos que permite su membresía** (Básica 3, Atlas 20); al superarlo elige cuál se reemplaza —por defecto, el más antiguo— y se borra entero: PDF de origen, resultados y fila. Ver [`ADR-0007`](docs/decisiones/ADR-0007-cupo-de-documentos-por-persona.md) y [`ADR-0016`](docs/decisiones/ADR-0016-roles-y-membresias-como-catalogo.md).
 
 ## Estructura
 

@@ -45,6 +45,10 @@ export const jobSchema = z.object({
   checks: z.array(checkSchema),
   artifacts: z.array(artifactSchema),
   reused: z.boolean(),
+  // Lo que el cupo retiró para guardar este documento. Opcional con una API anterior.
+  replacedStatements: z
+    .array(z.object({ statementId: z.string(), sourceFileName: z.string().nullish() }))
+    .optional(),
 });
 
 export const jobListItemSchema = z.object({
@@ -73,6 +77,8 @@ export const apiErrorSchema = z.object({
   code: z.string(),
   requestId: z.string().optional(),
   details: z.array(z.string()).optional(),
+  // Solo enteros: la API no publica texto en `meta`, y aquí tampoco se acepta.
+  meta: z.record(z.number().int()).optional(),
 });
 
 export type JobStatus = z.infer<typeof jobStatusSchema>;

@@ -1,7 +1,7 @@
 import { createParamDecorator, type ExecutionContext } from '@nestjs/common';
-import type { MembershipRole } from '@prisma/client';
 import type { Request } from 'express';
 
+import type { PlanSummary } from '../../modules/access/access-catalog';
 import type { AuthenticatedUser } from '../../modules/auth/auth.service';
 
 export interface OrganizationContext {
@@ -10,8 +10,24 @@ export interface OrganizationContext {
   apiKeyId: string | null;
   /** Nulo cuando entra un servicio por credencial: no hay persona detrás. */
   userId: string | null;
-  /** Nulo para una credencial de servicio, que no pertenece a ningún rol. */
-  role: MembershipRole | null;
+  /** Código del rol. Nulo para una credencial de servicio, que no tiene rol. */
+  role: string | null;
+  /** Permisos del rol. Vacío para una credencial de servicio. */
+  permissions: readonly string[];
+  /** Membresía de la persona. Nula para una credencial de servicio. */
+  plan: PlanSummary | null;
+}
+
+/** El contexto de una persona con sesión, el mismo en todos los guards. */
+export function organizationContextOf(usuario: AuthenticatedUser): OrganizationContext {
+  return {
+    organizationId: usuario.organizationId,
+    apiKeyId: null,
+    userId: usuario.userId,
+    role: usuario.role,
+    permissions: usuario.permissions,
+    plan: usuario.plan,
+  };
 }
 
 export interface RequestWithContext extends Request {

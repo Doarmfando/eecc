@@ -97,7 +97,12 @@ export class AuthController {
       organizationId: user.organizationId,
       organizationName: user.organizationName,
       role: user.role,
-      retainedStatementsPerUser: this.config.get('RETAINED_STATEMENTS_PER_USER', { infer: true }),
+      roleName: user.roleName,
+      roleRank: user.roleRank,
+      permissions: user.permissions,
+      plan: user.plan,
+      retainedStatementsPerUser: user.plan.maxRetainedStatements,
+      supportPhone: this.config.get('SUPPORT_PHONE', { infer: true }).trim() || null,
       allowedEmailDomains: parseEmailDomains(
         this.config.get('ALLOWED_EMAIL_DOMAINS', { infer: true }),
       ),

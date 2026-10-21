@@ -13,11 +13,39 @@ function jsonResponse(status: number, body: unknown): Response {
   });
 }
 
+const TODAS = [
+  'EDIT_PROFILE',
+  'CHANGE_PLAN',
+  'CHANGE_ROLE',
+  'CHANGE_STATUS',
+  'RESET_PASSWORD',
+  'DELETE',
+];
+
+const ATLAS = {
+  planCode: 'ATLAS',
+  planName: 'Atlas',
+  maxRetainedStatements: 20,
+  maxPagesPerDocument: null,
+};
+
+const BASICA = {
+  planCode: 'BASICA',
+  planName: 'Básica',
+  maxRetainedStatements: 3,
+  maxPagesPerDocument: 15,
+};
+
+/** Lo que la API manda a un administrador: las acciones ya vienen calculadas por rango. */
 const YO = {
   userId: TEST_USER.userId,
   email: TEST_USER.email,
   displayName: TEST_USER.displayName,
   role: 'ADMIN',
+  roleName: 'Administrador',
+  roleRank: 50,
+  ...ATLAS,
+  actions: ['EDIT_PROFILE', 'CHANGE_PLAN'],
   status: 'ACTIVE',
   membershipStatus: 'ACTIVE',
   documentCount: 0,
@@ -30,6 +58,10 @@ const OTRA = {
   email: 'otra@empresa.pe',
   displayName: 'Otra persona',
   role: 'MEMBER',
+  roleName: 'Usuario',
+  roleRank: 10,
+  ...BASICA,
+  actions: TODAS,
   status: 'ACTIVE',
   membershipStatus: 'ACTIVE',
   documentCount: 2,
@@ -43,8 +75,65 @@ const JEFA = {
   email: 'jefa@empresa.pe',
   displayName: 'Jefa de área',
   role: 'ADMIN',
+  roleName: 'Administrador',
+  roleRank: 50,
+  ...ATLAS,
+  actions: ['EDIT_PROFILE', 'CHANGE_PLAN', 'CHANGE_STATUS', 'RESET_PASSWORD'],
   documentCount: 3,
 };
+
+const DUENO = {
+  ...OTRA,
+  userId: '66666666-6666-4666-8666-666666666666',
+  email: 'brando@hotmail.com',
+  displayName: 'Brando',
+  role: 'SUPER_ADMIN',
+  roleName: 'Superadministrador',
+  roleRank: 100,
+  ...ATLAS,
+  actions: [],
+};
+
+/** Roles que un administrador puede asignar: el suyo y los de rango inferior. */
+const ROLES = [
+  {
+    code: 'MEMBER',
+    name: 'Usuario',
+    description: 'Convierte estados de cuenta.',
+    rank: 10,
+    defaultPlanCode: null,
+    permissions: ['STATEMENTS_CONVERT'],
+  },
+  {
+    code: 'ADMIN',
+    name: 'Administrador',
+    description: 'Gestiona cuentas.',
+    rank: 50,
+    defaultPlanCode: 'ATLAS',
+    permissions: ['STATEMENTS_CONVERT', 'USERS_MANAGE'],
+  },
+];
+
+const PLANES = [
+  {
+    code: 'BASICA',
+    name: 'Básica',
+    description: 'Solo conversión',
+    maxRetainedStatements: 3,
+    maxPagesPerDocument: 15,
+    features: [],
+    isDefault: true,
+  },
+  {
+    code: 'ATLAS',
+    name: 'Atlas',
+    description: 'Todo',
+    maxRetainedStatements: 20,
+    maxPagesPerDocument: null,
+    features: ['FINANCIAL_CALENDAR', 'FINANCIAL_CENTER', 'HISTORY'],
+    isDefault: false,
+  },
+];
 
 type Respuestas = Partial<{
   lista: () => Response;
@@ -58,6 +147,12 @@ type Respuestas = Partial<{
 function apiFalsa(respuestas: Respuestas = {}): ReturnType<typeof vi.fn> {
   return vi.fn().mockImplementation((url: string, init?: RequestInit) => {
     const metodo = (init?.method ?? 'GET').toUpperCase();
+    if (metodo === 'GET' && url.includes('/v1/roles')) {
+      return Promise.resolve(jsonResponse(200, ROLES));
+    }
+    if (metodo === 'GET' && url.includes('/v1/plans')) {
+      return Promise.resolve(jsonResponse(200, PLANES));
+    }
     if (metodo === 'GET') {
       return Promise.resolve(respuestas.lista?.() ?? jsonResponse(200, [YO, OTRA, JEFA]));
     }
@@ -129,7 +224,7 @@ describe('MembersPage: listado', () => {
     const indicador = (etiqueta: string): HTMLElement =>
       screen.getByText(etiqueta, { selector: 'p' }).parentElement as HTMLElement;
     expect(indicador('Cuentas')).toHaveTextContent('31 usuario');
-    expect(indicador('Administradores')).toHaveTextContent('2');
+    expect(indicador('Administración')).toHaveTextContent('2');
     expect(indicador('Documentos cargados')).toHaveTextContent('5');
   });
 
@@ -153,7 +248,7 @@ describe('MembersPage: listado', () => {
 
     expect(
       within(filaDe('Jefa de área')).getByRole('button', {
-        name: 'Jefa de área es administrador y no se puede eliminar',
+        name: 'Jefa de área no se puede eliminar desde tu cuenta',
       }),
     ).toBeDisabled();
     expect(
@@ -209,6 +304,8 @@ describe('MembersPage: alta', () => {
 
     await user.type(within(dialogo).getByLabelText('Nombre'), 'Persona nueva');
     await user.type(within(dialogo).getByLabelText('Correo'), 'nueva@empresa.pe');
+    await user.click(await within(dialogo).findByRole('radio', { name: /^Usuario/ }));
+    await user.click(within(dialogo).getByRole('radio', { name: /^Básica/ }));
     await user.click(within(dialogo).getByRole('button', { name: 'Crear usuario' }));
 
     expect(await screen.findByText('clave-generada-larga')).toBeInTheDocument();
@@ -218,6 +315,7 @@ describe('MembersPage: alta', () => {
       displayName: 'Persona nueva',
       email: 'nueva@empresa.pe',
       role: 'MEMBER',
+      planCode: 'BASICA',
     });
 
     // Se puede descartar: la contraseña no debe quedarse en pantalla indefinidamente.
@@ -239,7 +337,9 @@ describe('MembersPage: alta', () => {
 
     await user.type(within(dialogo).getByLabelText('Nombre'), 'Nuevo admin');
     await user.type(within(dialogo).getByLabelText('Correo'), 'nuevo-admin@empresa.pe');
-    await user.click(within(dialogo).getByRole('radio', { name: /Administrador/ }));
+    await user.click(await within(dialogo).findByRole('radio', { name: /^Administrador/ }));
+    // Otro administrador para la empresa: su rol propone Atlas.
+    expect(within(dialogo).getByRole('radio', { name: /^Atlas/ })).toBeChecked();
     await user.click(within(dialogo).getByRole('radio', { name: /Escribirla yo/ }));
     await user.type(within(dialogo).getByLabelText('Contraseña inicial'), 'una-clave-bien-larga');
     await user.click(within(dialogo).getByRole('button', { name: 'Crear usuario' }));
@@ -252,6 +352,7 @@ describe('MembersPage: alta', () => {
       displayName: 'Nuevo admin',
       email: 'nuevo-admin@empresa.pe',
       role: 'ADMIN',
+      planCode: 'ATLAS',
       password: 'una-clave-bien-larga',
     });
   });
@@ -309,6 +410,8 @@ describe('MembersPage: alta', () => {
 
     await user.type(within(dialogo).getByLabelText('Nombre'), 'Persona repetida');
     await user.type(within(dialogo).getByLabelText('Correo'), 'otra@empresa.pe');
+    await user.click(await within(dialogo).findByRole('radio', { name: /^Usuario/ }));
+    await user.click(within(dialogo).getByRole('radio', { name: /^Básica/ }));
     await user.click(within(dialogo).getByRole('button', { name: 'Crear usuario' }));
 
     expect(
@@ -382,7 +485,7 @@ describe('MembersPage: edición', () => {
 
     await user.click(screen.getByRole('button', { name: 'Editar a Otra persona' }));
     const dialogo = await screen.findByRole('dialog');
-    await user.click(within(dialogo).getByRole('radio', { name: /Administrador/ }));
+    await user.click(await within(dialogo).findByRole('radio', { name: /^Administrador/ }));
     await user.click(within(dialogo).getByRole('button', { name: 'Guardar cambios' }));
 
     await waitFor(() => {
@@ -397,10 +500,14 @@ describe('MembersPage: edición', () => {
     await user.click(screen.getByRole('button', { name: 'Editar a Jefa de área' }));
     const dialogo = await screen.findByRole('dialog');
 
-    expect(within(dialogo).getByRole('radio', { name: /Usuario/ })).toBeDisabled();
+    expect(await within(dialogo).findByRole('radio', { name: /^Usuario/ })).toBeDisabled();
     expect(
-      within(dialogo).getByText('Un administrador no puede pasar a ser usuario.'),
+      within(dialogo).getByText(
+        'Solo alguien de rango superior puede cambiar el rol de esta cuenta.',
+      ),
     ).toBeInTheDocument();
+    // Entre administradores, la membresía sí se puede cambiar.
+    expect(within(dialogo).getByRole('radio', { name: /^Básica/ })).toBeEnabled();
   });
 
   it('explica el conflicto cuando el correo ya lo usa otra cuenta', async () => {
@@ -515,9 +622,72 @@ describe('MembersPage: acceso y eliminación', () => {
     await user.click(within(dialogo).getByRole('button', { name: 'Eliminar usuario' }));
 
     expect(
-      await within(dialogo).findByText(
-        'Un administrador no se puede eliminar. Puedes desactivarlo.',
-      ),
+      await within(dialogo).findByText(/No puedes eliminar una cuenta de tu mismo rango/),
     ).toBeInTheDocument();
+    // Y lo que soporte necesita para encontrarlo, por si hay que llamar.
+    expect(within(dialogo).getByText('ADMIN_CANNOT_BE_DELETED')).toBeInTheDocument();
+    expect(within(dialogo).getByText('Permisos')).toBeInTheDocument();
+  });
+});
+
+describe('MembersPage: membresías y jerarquía', () => {
+  it('muestra la membresía de cada cuenta y su cupo', async () => {
+    await montar();
+
+    const otra = filaDe('Otra persona');
+    expect(within(otra).getByText('Básica')).toBeInTheDocument();
+    expect(within(otra).getByText(/de 3/).parentElement).toHaveTextContent('2 de 3');
+    const jefa = filaDe('Jefa de área');
+    expect(within(jefa).getByText('Atlas')).toBeInTheDocument();
+    expect(within(jefa).getByText(/de 20/).parentElement).toHaveTextContent('3 de 20');
+  });
+
+  it('el alta siempre pide rol y membresía', async () => {
+    const fetchMock = await montar();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Nuevo usuario' }));
+    const dialogo = await screen.findByRole('dialog');
+
+    await user.type(within(dialogo).getByLabelText('Nombre'), 'Persona nueva');
+    await user.type(within(dialogo).getByLabelText('Correo'), 'nueva@empresa.pe');
+    await user.click(within(dialogo).getByRole('button', { name: 'Crear usuario' }));
+
+    expect(await within(dialogo).findByText('Elige el rol')).toBeInTheDocument();
+    expect(within(dialogo).getByText('Elige la membresía')).toBeInTheDocument();
+    expect(peticiones(fetchMock, 'POST')).toHaveLength(0);
+  });
+
+  it('cambia la membresía de un usuario y avisa si guardará menos documentos', async () => {
+    const fetchMock = await montar({
+      lista: () => jsonResponse(200, [YO, { ...OTRA, ...ATLAS, documentCount: 12 }]),
+    });
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'Editar a Otra persona' }));
+    const dialogo = await screen.findByRole('dialog');
+    await user.click(await within(dialogo).findByRole('radio', { name: /^Básica/ }));
+
+    expect(within(dialogo).getByText(/Tiene 12 documentos y Básica guarda 3/)).toBeInTheDocument();
+    await user.click(within(dialogo).getByRole('button', { name: 'Guardar cambios' }));
+
+    await waitFor(() => {
+      expect(cuerpo(peticiones(fetchMock, 'PATCH')[0]?.[1])).toEqual({ planCode: 'BASICA' });
+    });
+  });
+
+  it('a un superadministrador se le ve, pero un administrador no puede tocarlo', async () => {
+    await montar({ lista: () => jsonResponse(200, [DUENO, YO, OTRA]) });
+
+    const dueno = filaDe('Brando');
+    expect(within(dueno).getByText('Superadministrador')).toBeInTheDocument();
+    expect(
+      within(dueno).getByRole('button', { name: 'Brando tiene un rol superior al tuyo' }),
+    ).toBeDisabled();
+    expect(
+      within(dueno).getByRole('button', { name: 'Cambiar la contraseña de Brando' }),
+    ).toBeDisabled();
+    expect(within(dueno).getByRole('button', { name: 'Desactivar a Brando' })).toBeDisabled();
+    // Los filtros salen de los roles presentes, del más alto al más bajo.
+    expect(screen.getByRole('button', { name: 'Superadministrador' })).toBeInTheDocument();
   });
 });

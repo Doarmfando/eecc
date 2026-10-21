@@ -1,5 +1,4 @@
 import type { ConfigService } from '@nestjs/config';
-import { MembershipRole } from '@prisma/client';
 
 import type { PrismaService } from '../../common/prisma/prisma.service';
 import type { AppConfig } from '../../config/app-config';
@@ -61,11 +60,11 @@ describe('BootstrapService', () => {
       data: {
         emailNormalized: string;
         passwordHash: string;
-        memberships: { create: { role: string } };
+        memberships: { create: { roleCode: string; planCode: string } };
       };
     };
     expect(datos.data.emailNormalized).toBe(EMAIL);
-    expect(datos.data.memberships.create.role).toBe(MembershipRole.ADMIN);
+    expect(datos.data.memberships.create).toMatchObject({ roleCode: 'ADMIN', planCode: 'ATLAS' });
     // La contraseña se guarda derivada, y debe servir de verdad para entrar.
     expect(datos.data.passwordHash).not.toContain(PASSWORD);
     await expect(verifyPassword(PASSWORD, datos.data.passwordHash)).resolves.toBe(true);

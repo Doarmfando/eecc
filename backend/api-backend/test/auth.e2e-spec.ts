@@ -28,6 +28,40 @@ interface EstadoUsuario {
   lockedUntil: Date | null;
 }
 
+/** Rol con sus permisos y plan, como los resuelve la consulta de la sesión. */
+function accesoDe(role: string): Record<string, unknown> {
+  const admin = role === 'ADMIN';
+  return {
+    roleCode: role,
+    planCode: admin ? 'ATLAS' : 'BASICA',
+    planChangedAt: new Date('2026-01-01T00:00:00Z'),
+    role: {
+      code: role,
+      name: admin ? 'Administrador' : 'Usuario',
+      permissions: (admin ? ['STATEMENTS_CONVERT', 'USERS_MANAGE'] : ['STATEMENTS_CONVERT']).map(
+        (permissionCode) => ({ permissionCode }),
+      ),
+    },
+    plan: admin
+      ? {
+          code: 'ATLAS',
+          name: 'Atlas',
+          maxRetainedStatements: 20,
+          maxPagesPerDocument: null,
+          features: ['FINANCIAL_CALENDAR', 'FINANCIAL_CENTER', 'HISTORY'].map((featureCode) => ({
+            featureCode,
+          })),
+        }
+      : {
+          code: 'BASICA',
+          name: 'Básica',
+          maxRetainedStatements: 3,
+          maxPagesPerDocument: 15,
+          features: [],
+        },
+  };
+}
+
 function buildPrismaDouble(passwordHash: string): {
   prisma: PrismaService;
   sesiones: Map<string, { revokedAt: Date | null; expiresAt: Date }>;
@@ -44,7 +78,7 @@ function buildPrismaDouble(passwordHash: string): {
   const membership = (): Record<string, unknown> => ({
     organizationId: ORGANIZATION_ID,
     userId: USER_ID,
-    role: usuario.role,
+    ...accesoDe(usuario.role),
     status: 'ACTIVE',
     createdAt: new Date('2026-01-01T00:00:00Z'),
     organization: { id: ORGANIZATION_ID, displayName: 'Organización de prueba', status: 'ACTIVE' },
@@ -131,7 +165,7 @@ function buildPrismaDouble(passwordHash: string): {
           return Promise.resolve({
             ...membership(),
             userId: OTRO_USER_ID,
-            role: 'MEMBER',
+            ...accesoDe('MEMBER'),
             user: { ...filaUsuario(), id: OTRO_USER_ID, emailNormalized: 'otra@empresa.pe' },
           });
         }
@@ -223,12 +257,27 @@ describe('Sesión de usuario (e2e)', () => {
       .expect(200);
     expect(yo.body.userId).toBe(USER_ID);
     expect(yo.body.organizationName).toBe('Organización de prueba');
+    // Rol, rango, permisos y membresía: la interfaz decide con esto qué ofrecer.
+    expect(yo.body).toMatchObject({
+      role: 'ADMIN',
+      roleName: 'Administrador',
+      permissions: ['STATEMENTS_CONVERT', 'USERS_MANAGE'],
+      plan: { code: 'ATLAS', maxRetainedStatements: 20, maxPagesPerDocument: null },
+      retainedStatementsPerUser: 20,
+      supportPhone: null,
+    });
 
     await request(app.getHttpServer()).post('/v1/auth/logout').set('Cookie', cookie).expect(204);
 
     // Tras salir, la misma cookie ya no vale: la sesión se revoca en la base y no
     // se espera a que caduque nada firmado.
     await request(app.getHttpServer()).get('/v1/auth/me').set('Cookie', cookie).expect(401);
+  });
+
+  it('publica el contacto de soporte sin pedir sesión', async () => {
+    // Un error al entrar también tiene que decir a quién llamar.
+    const respuesta = await request(app.getHttpServer()).get('/v1/support').expect(200);
+    expect(respuesta.body).toEqual({ phone: null });
   });
 
   it('no distingue una contraseña incorrecta de un correo inexistente', async () => {
@@ -332,14 +381,15 @@ describe('Sesión de usuario (e2e)', () => {
     expect(respuesta.body.code).toBe('EMAIL_DOMAIN_NOT_ALLOWED');
   });
 
-  it('no deja eliminar a un administrador', async () => {
+  it('nadie se elimina a sí mismo, tampoco un administrador', async () => {
+    // Entre administradores lo cubre `member-rules.spec.ts`: aquí, la cuenta propia.
     const cookie = await entrar();
 
     const respuesta = await request(app.getHttpServer())
       .delete(`/v1/users/${USER_ID}`)
       .set('Cookie', cookie)
-      .expect(409);
-    expect(respuesta.body.code).toBe('ADMIN_CANNOT_BE_DELETED');
+      .expect(400);
+    expect(respuesta.body.code).toBe('CANNOT_MODIFY_SELF');
   });
 
   it('rechaza una contraseña fijada demasiado corta sin llegar a guardarla', async () => {

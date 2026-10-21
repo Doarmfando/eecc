@@ -32,5 +32,10 @@ export interface WorkerProcessRequest {
   defaultYear?: number;
   extractorId?: string;
   pdfPassword?: string;
+  /**
+   * Páginas que admite la membresía de quien sube. El worker las cuenta antes de
+   * extraer y rechaza con `PDF_PAGE_LIMIT_EXCEEDED`; sin valor, no hay límite.
+   */
+  maxPages?: number;
   requestId?: string;
 }

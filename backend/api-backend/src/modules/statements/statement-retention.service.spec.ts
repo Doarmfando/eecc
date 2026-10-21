@@ -33,13 +33,17 @@ function construir(
   opciones: {
     limite?: number;
     /** Documentos de la persona, del más reciente al más antiguo, como los ordena la consulta. */
-    documentos?: { id: string }[];
+    documentos?: { id: string; sourceFileName?: string | null }[];
     artefactos?: { objectKey: string }[];
     compartidoConOtro?: boolean;
     fallaElBorrado?: boolean;
   } = {},
 ): Dobles {
-  const sobrantes = jest.fn().mockResolvedValue(opciones.documentos ?? []);
+  const sobrantes = jest
+    .fn()
+    .mockResolvedValue(
+      (opciones.documentos ?? []).map((doc) => ({ sourceFileName: null, ...doc })),
+    );
   const otroArtefacto = jest
     .fn()
     .mockResolvedValue(opciones.compartidoConOtro ? { id: 'otro' } : null);
@@ -95,7 +99,9 @@ describe('StatementRetentionService', () => {
       documentos: [{ id: 'nuevo' }, { id: 'b' }, { id: 'c' }, { id: 'viejo' }],
     });
 
-    await expect(service.enforceForUploader(ORGANIZATION_ID, USUARIO_ID)).resolves.toBe(1);
+    await expect(service.enforceForUploader(ORGANIZATION_ID, USUARIO_ID)).resolves.toEqual([
+      { statementId: 'viejo', sourceFileName: null },
+    ]);
 
     expect(sobrantes).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -142,7 +148,7 @@ describe('StatementRetentionService', () => {
 
     await expect(
       service.enforceForUploader(ORGANIZATION_ID, USUARIO_ID, { preferredStatementId: 'b' }),
-    ).resolves.toBe(0);
+    ).resolves.toEqual([]);
     expect(borrarDocumento).not.toHaveBeenCalled();
   });
 
@@ -151,7 +157,7 @@ describe('StatementRetentionService', () => {
       documentos: [{ id: 'a' }, { id: 'b' }, { id: 'c' }],
     });
 
-    await expect(service.enforceForUploader(ORGANIZATION_ID, USUARIO_ID)).resolves.toBe(0);
+    await expect(service.enforceForUploader(ORGANIZATION_ID, USUARIO_ID)).resolves.toEqual([]);
     expect(borrarDocumento).not.toHaveBeenCalled();
     expect(borrarObjeto).not.toHaveBeenCalled();
     expect(descartarEnWorker).not.toHaveBeenCalled();
@@ -168,7 +174,7 @@ describe('StatementRetentionService', () => {
         ],
       });
 
-    await expect(service.enforceForUploader(ORGANIZATION_ID, USUARIO_ID)).resolves.toBe(1);
+    await expect(service.enforceForUploader(ORGANIZATION_ID, USUARIO_ID)).resolves.toHaveLength(1);
 
     expect(borrarObjeto).toHaveBeenCalledTimes(1);
     expect(borrarObjeto).toHaveBeenCalledWith(clavePdf('viejo'));
@@ -204,7 +210,7 @@ describe('StatementRetentionService', () => {
     });
 
     // Ni lanza ni se detiene: la próxima subida vuelve a intentarlo.
-    await expect(service.enforceForUploader(ORGANIZATION_ID, USUARIO_ID)).resolves.toBe(0);
+    await expect(service.enforceForUploader(ORGANIZATION_ID, USUARIO_ID)).resolves.toEqual([]);
     expect(borrarDocumento).toHaveBeenCalledTimes(2);
   });
 
@@ -233,6 +239,65 @@ describe('StatementRetentionService', () => {
 
     await expect(service.removeAllForUploader(ORGANIZATION_ID, USUARIO_ID)).rejects.toThrow();
     expect(borrarDocumento).toHaveBeenCalledTimes(1);
+  });
+
+  it('usa el cupo de la membresía de quien sube en vez del de servicio', async () => {
+    const docs = Array.from({ length: 21 }, (_, i) => ({
+      id: `d${String(i)}`,
+      sourceFileName: `Doc ${String(i)}.pdf`,
+    }));
+    const { service, borrarDocumento } = construir({ limite: 3, documentos: docs, artefactos: [] });
+
+    // Atlas conserva 20: con el recién subido son 21 y sale solo el más antiguo,
+    // aunque el cupo de servicio sea 3.
+    const reemplazados = await service.enforceForUploader(ORGANIZATION_ID, USUARIO_ID, {
+      limit: 20,
+      keepStatementId: 'd0',
+    });
+
+    expect(reemplazados).toEqual([{ statementId: 'd20', sourceFileName: 'Doc 20.pdf' }]);
+    expect(borrados(borrarDocumento)).toEqual(['d20']);
+  });
+
+  it('tras bajar de membresía retira todo lo que excede el cupo nuevo, empezando por el elegido', async () => {
+    const docs = ['nuevo', 'a', 'b', 'c', 'd', 'viejo'].map((id) => ({ id }));
+    const { service, borrarDocumento } = construir({ documentos: docs, artefactos: [] });
+
+    await service.enforceForUploader(ORGANIZATION_ID, USUARIO_ID, {
+      limit: 3,
+      keepStatementId: 'nuevo',
+      preferredStatementId: 'b',
+    });
+
+    expect(borrados(borrarDocumento)).toEqual(['b', 'viejo', 'd']);
+  });
+
+  it('repetir la limpieza con el cupo ya respetado no borra nada más', async () => {
+    // Idempotente: un reintento de la subida no puede costar un segundo documento.
+    const { service, borrarDocumento } = construir({
+      documentos: [{ id: 'nuevo' }, { id: 'b' }, { id: 'c' }],
+    });
+
+    await expect(
+      service.enforceForUploader(ORGANIZATION_ID, USUARIO_ID, {
+        limit: 3,
+        keepStatementId: 'nuevo',
+      }),
+    ).resolves.toEqual([]);
+    expect(borrarDocumento).not.toHaveBeenCalled();
+  });
+
+  it('descarta en el worker un trabajo no registrado solo si nadie lo referencia', async () => {
+    const libre = construir();
+    await libre.service.discardUnregisteredWorkerJob(WORKER_JOB_ID);
+    expect(libre.otroArtefacto).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { objectKey: { contains: `/${WORKER_JOB_ID}/` } } }),
+    );
+    expect(libre.descartarEnWorker).toHaveBeenCalledWith(WORKER_JOB_ID);
+
+    const compartido = construir({ compartidoConOtro: true });
+    await compartido.service.discardUnregisteredWorkerJob(WORKER_JOB_ID);
+    expect(compartido.descartarEnWorker).not.toHaveBeenCalled();
   });
 
   it('agrupa por subidor, de modo que una credencial de servicio no gasta el cupo de nadie', async () => {

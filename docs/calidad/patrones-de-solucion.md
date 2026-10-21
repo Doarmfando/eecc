@@ -139,6 +139,31 @@ El verificador compara hojas, forma, encabezados y valores tipados contra el mis
 
 Usar una clave derivada de organización, hash seguro del objeto, versión de extractor y opciones. Repetir la misma solicitud devuelve el trabajo existente o crea un intento relacionado según la política; nunca sobrescribe silenciosamente un resultado publicado.
 
+Aplica a todo lo que se pueda repetir, no solo a la extracción:
+
+- **Un límite que decide si se procesa no entra en la identidad del trabajo.** El límite de páginas del plan se comprueba antes de calcular el `job_id` del worker: un documento que pasa da el mismo resultado con cualquier plan, y repetirlo reutiliza el trabajo.
+- **Borrar solo después de guardar.** El reemplazo por cupo corre tras registrar el documento nuevo: una subida rechazada (por páginas, por contraseña) o reintentada no cuesta un documento. Un reintento reutiliza el trabajo y la retención ya no encuentra nada que sobre.
+- **Migraciones de catálogo atómicas y con `ON CONFLICT`.** Todo en una transacción; las semillas con `ON CONFLICT DO NOTHING` y los cambios posteriores con `ON CONFLICT ("code") DO UPDATE`, nunca un `UPDATE` que no hace nada si la fila falta.
+- **Comandos de servidor re-ejecutables.** El de superadministradores crea lo que falta, promueve lo que existe y no toca contraseñas salvo que se pida; la segunda ejecución responde «sin cambios» y no audita nada.
+- **`PATCH` sin efecto no escribe ni audita.** Reenviar la misma membresía o el mismo rol no es un cambio.
+- **Avisos con identidad.** Un aviso con el mismo `id` reemplaza al anterior: el mismo fallo (código + referencia) no se apila dos veces.
+
+## Catálogo en la base, no enum, para lo que crece
+
+Roles, permisos, membresías y funciones son filas (ADR-0016). El código pregunta por **permisos**, **funciones** y **rango**, nunca por el nombre de un plan o rol: así un plan nuevo o un cupo distinto es una migración de datos, no un despliegue. Los códigos son el contrato; nombres y límites son datos. Lo que sí exige código es una función o un permiso nuevos, porque son una vista o una regla nuevas. Un enum sigue siendo lo correcto para estados y tipos que no van a crecer.
+
+## Un límite, en dos capas: barato antes, respaldo después
+
+El límite de páginas lo aplica el worker antes de extraer —pdfium cuenta 478 páginas en décimas de segundo— y la API lo vuelve a comprobar con el `page_count` del resultado antes de registrarlo. La primera capa ahorra el trabajo; la segunda garantiza la regla aunque el otro lado sea una versión anterior o no haya podido contar. Ninguna de las dos obliga a NestJS a abrir un PDF.
+
+## Jerarquía por rango, con las reglas en un módulo puro
+
+Quién gestiona a quién se decide por el rango del rol (`member-rules.ts`): todo sobre rangos inferiores, solo lo reversible entre iguales, nada sobre superiores, nunca asignar un rango mayor que el propio. Es una función pura con su propia prueba, la aplica el servicio y su resultado (`actions` por cuenta) viaja a la interfaz para que no duplique reglas: los botones se habilitan con lo que dice la API.
+
+## Avisos que soporte puede usar
+
+Un error visible dice qué pasó, por qué y qué hacer, y además tipo, código, referencia de la petición y hora, con el teléfono de soporte y un botón para copiarlo todo. La referencia es la misma que el servidor registra, así que soporte encuentra el fallo sin ver el documento. Los números que explican un rechazo viajan en `meta`, solo enteros con nombres controlados: dicen «132 páginas frente a 15» sin poder filtrar texto del documento.
+
 ## Aprendizaje del proyecto
 
 Cuando usuario, prueba o producción revele una regla nueva:

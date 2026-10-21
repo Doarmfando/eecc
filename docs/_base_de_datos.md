@@ -49,8 +49,25 @@ Dos adiciones respecto al diseño conceptual, decididas al escribirlo:
 | --- | --- | --- |
 | `users` | Identidad del usuario | `id`, `email_normalized`, `status`, timestamps |
 | `organizations` | Tenant/empresa | `id`, `display_name`, `status`, política de retención, timestamps |
-| `organization_memberships` | Relación usuario-organización | `organization_id`, `user_id`, `role`, timestamps |
+| `organization_memberships` | Relación usuario-organización: rol y membresía de cada persona | `organization_id`, `user_id`, `role_code`, `plan_code`, `plan_changed_at`, `status`, timestamps |
 | `api_keys` | Credencial de servicio con alcance de organización | `organization_id`, `label`, `token_hash`, `status`, `last_used_at` |
+
+### Roles y membresías (catálogos, ADR-0016)
+
+| Tabla | Propósito | Campos principales |
+| --- | --- | --- |
+| `roles` | Rol dentro de una organización | `code`, `name`, `description`, `rank` (jerarquía), `default_plan_code`, `is_system` |
+| `permissions` | Acción administrable que un rol concede | `code`, `description` |
+| `role_permissions` | Qué permisos tiene cada rol | `role_code`, `permission_code` |
+| `membership_plans` | Tipo de membresía y sus límites | `code`, `name`, `max_retained_statements`, `max_pages_per_document` (nulo: sin límite), `is_default`, `is_active`, `sort_order` |
+| `features` | Vista que un plan habilita además de convertir | `code`, `description` |
+| `plan_features` | Qué vistas incluye cada plan | `plan_code`, `feature_code` |
+
+Son catálogos y no enums: crear o mejorar un plan o un rol es insertar o actualizar filas
+con una migración `ON CONFLICT … DO UPDATE`, sin desplegar código. Los códigos son el
+contrato con la API y la interfaz; el código pregunta por permisos, funciones y rango,
+nunca por el nombre de un plan. Un plan o rol en uso no se borra (`ON DELETE RESTRICT`):
+un plan se retira con `is_active = false` y quien lo tiene lo conserva.
 
 ### Procesamiento
 
@@ -92,7 +109,8 @@ organizations 1 ── N audit_events
 - Moneda: código ISO 4217 de tres caracteres, nunca símbolo visual.
 - Importes que deban persistirse: `numeric(20, 2)` o escala definida por moneda; nunca `float`, `double precision` ni el tipo PostgreSQL `money`.
 - Contadores: `integer` o `bigint` según límite documentado.
-- Estados/roles/tipos estables: enums controlados por migraciones.
+- Estados y tipos estables: enums controlados por migraciones. Roles y membresías, que
+  crecen con el producto, son catálogos (ADR-0016).
 - Metadata flexible: `jsonb` solo con esquema versionado y validación previa; no funciona como cajón de sastre.
 - Correos y búsquedas normalizadas: almacenar versión normalizada y aplicar unicidad según la política de identidad.
 

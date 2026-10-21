@@ -1,7 +1,20 @@
 import { ApiError } from './api-error';
 
-/** `ADMIN` gestiona las cuentas de la organización; `MEMBER` procesa documentos. */
-export type Role = 'ADMIN' | 'MEMBER';
+/**
+ * Código de rol del catálogo de la API (`SUPER_ADMIN`, `ADMIN`, `MEMBER` y los que
+ * se creen). La interfaz decide con permisos, rango y funciones, no con el código.
+ */
+export type Role = string;
+
+/** Membresía de quien tiene la sesión: vistas habilitadas y límites (ADR-0016). */
+export interface SessionPlan {
+  code: string;
+  name: string;
+  maxRetainedStatements: number;
+  /** Páginas por PDF. Nulo: sin límite. */
+  maxPagesPerDocument: number | null;
+  features: string[];
+}
 
 export interface SessionUser {
   userId: string;
@@ -10,30 +23,77 @@ export interface SessionUser {
   organizationId: string;
   organizationName: string;
   role: Role;
-  /** Documentos que conserva cada persona antes de que se borre el más antiguo. */
+  roleName?: string;
+  roleRank?: number;
+  /**
+   * Permisos del rol. Opcionales para convivir con una API anterior a ADR-0016:
+   * sin ellos se deduce del rol, como antes.
+   */
+  permissions?: string[];
+  /** Sin plan (API anterior) no se bloquea ninguna vista. */
+  plan?: SessionPlan;
+  /** Documentos que conserva antes de reemplazar uno: el cupo de su membresía. */
   retainedStatementsPerUser: number;
+  /** Teléfono de soporte para los avisos de error. */
+  supportPhone?: string | null;
   /** Dominios de correo admitidos en las altas. Vacío: cualquiera. */
   allowedEmailDomains?: string[];
 }
+
+/** Lo que quien consulta puede hacer con una cuenta. Lo decide la API por rangos. */
+export type MemberAction =
+  'EDIT_PROFILE' | 'CHANGE_PLAN' | 'CHANGE_ROLE' | 'CHANGE_STATUS' | 'RESET_PASSWORD' | 'DELETE';
 
 export interface Member {
   userId: string;
   email: string;
   displayName: string;
   role: Role;
+  roleName?: string;
+  roleRank?: number;
+  planCode?: string;
+  planName?: string;
+  maxRetainedStatements?: number;
+  maxPagesPerDocument?: number | null;
+  planChangedAt?: string;
   status: string;
   membershipStatus: 'ACTIVE' | 'REVOKED';
   /** Documentos que conserva en la organización. */
   documentCount: number;
   lastLoginAt: string | null;
   createdAt: string;
+  /** Sin este campo (API anterior) se aplican las reglas de siempre. */
+  actions?: MemberAction[];
 }
 
 export interface MemberChanges {
   displayName?: string;
   email?: string;
   role?: Role;
+  planCode?: string;
   membershipStatus?: 'ACTIVE' | 'REVOKED';
+}
+
+/** Membresía del catálogo, tal como la ofrece la API para asignarla. */
+export interface PlanOption {
+  code: string;
+  name: string;
+  description: string;
+  maxRetainedStatements: number;
+  maxPagesPerDocument: number | null;
+  features: string[];
+  isDefault: boolean;
+}
+
+/** Rol que quien consulta puede asignar: de rango igual o inferior al suyo. */
+export interface RoleOption {
+  code: string;
+  name: string;
+  description: string;
+  rank: number;
+  /** Plan que se propone al elegir este rol. Nulo: hay que elegirlo. */
+  defaultPlanCode: string | null;
+  permissions: string[];
 }
 
 function joinUrl(baseUrl: string, path: string): string {
@@ -46,7 +106,10 @@ function joinUrl(baseUrl: string, path: string): string {
 async function readError(response: Response): Promise<ApiError> {
   const raw: unknown = await response.json().catch(() => null);
   if (typeof raw === 'object' && raw !== null && 'code' in raw && typeof raw.code === 'string') {
-    return new ApiError(raw.code, response.status);
+    // La referencia es lo que soporte necesita para encontrar el fallo en el registro.
+    const requestId =
+      'requestId' in raw && typeof raw.requestId === 'string' ? raw.requestId : undefined;
+    return new ApiError(raw.code, response.status, requestId);
   }
   return new ApiError('REQUEST_FAILED', response.status);
 }
@@ -125,10 +188,36 @@ export async function fetchMembers(baseUrl: string, signal?: AbortSignal): Promi
   })) as Member[];
 }
 
+export async function fetchPlans(baseUrl: string, signal?: AbortSignal): Promise<PlanOption[]> {
+  return (await pedir(baseUrl, 'v1/plans', {
+    method: 'GET',
+    ...(signal ? { signal } : {}),
+  })) as PlanOption[];
+}
+
+export async function fetchRoles(baseUrl: string, signal?: AbortSignal): Promise<RoleOption[]> {
+  return (await pedir(baseUrl, 'v1/roles', {
+    method: 'GET',
+    ...(signal ? { signal } : {}),
+  })) as RoleOption[];
+}
+
+/** Pública: la usa también la pantalla de entrada, donde no hay sesión. */
+export async function fetchSupportContact(
+  baseUrl: string,
+  signal?: AbortSignal,
+): Promise<{ phone: string | null }> {
+  const respuesta = (await pedir(baseUrl, 'v1/support', {
+    method: 'GET',
+    ...(signal ? { signal } : {}),
+  })) as { phone?: unknown } | null;
+  return { phone: typeof respuesta?.phone === 'string' ? respuesta.phone : null };
+}
+
 /** Sin `password`, el servidor genera una temporal y la devuelve una sola vez. */
 export async function createMember(
   baseUrl: string,
-  datos: { email: string; displayName: string; role: Role; password?: string },
+  datos: { email: string; displayName: string; role: Role; planCode?: string; password?: string },
 ): Promise<{ member: Member; temporaryPassword: string | null }> {
   return (await pedir(baseUrl, 'v1/users', { method: 'POST', body: datos })) as {
     member: Member;

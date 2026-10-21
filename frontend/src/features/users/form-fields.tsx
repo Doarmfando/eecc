@@ -2,10 +2,9 @@ import { Eye, EyeOff } from 'lucide-react';
 import { useState, type ComponentProps, type ReactNode } from 'react';
 
 import { Input } from '@/components/ui/input';
-import type { Role } from '@/lib/session-client';
+import { NOMBRE_FUNCION, resumenDePlan, type FeatureCode } from '@/features/access/access';
+import type { PlanOption, RoleOption } from '@/lib/session-client';
 import { cn } from '@/lib/utils';
-
-import { DESCRIPCION_ROL, ETIQUETA_ROL, ROLES } from './roles';
 
 export function FieldError({ message }: { message: string | undefined }): ReactNode {
   return message ? <p className="text-sm text-destructive">{message}</p> : null;
@@ -69,30 +68,76 @@ export function ChoiceCard({
   );
 }
 
+/** Roles del catálogo que quien administra puede asignar; la API ya los filtra por rango. */
 export function RoleChoice({
   name,
+  roles,
   value,
   onChange,
   disabled,
 }: {
   name: string;
-  value: Role;
-  onChange: (rol: Role) => void;
+  roles: readonly RoleOption[];
+  value: string;
+  onChange: (rol: RoleOption) => void;
   disabled?: boolean;
 }): ReactNode {
   return (
     <div className="grid gap-2 sm:grid-cols-2">
-      {ROLES.map((rol) => (
+      {roles.map((rol) => (
         <ChoiceCard
-          key={rol}
+          key={rol.code}
           name={name}
-          value={rol}
-          title={ETIQUETA_ROL[rol]}
-          description={DESCRIPCION_ROL[rol]}
-          checked={value === rol}
+          value={rol.code}
+          title={rol.name}
+          description={rol.description}
+          checked={value === rol.code}
           disabled={disabled}
           onChange={() => {
             onChange(rol);
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function describirPlan(plan: PlanOption): string {
+  // En el orden del menú, no en el del catálogo.
+  const vistas = (Object.keys(NOMBRE_FUNCION) as FeatureCode[])
+    .filter((codigo) => plan.features.includes(codigo))
+    .map((codigo) => NOMBRE_FUNCION[codigo]);
+  const incluye = vistas.length > 0 ? `Conversión, ${vistas.join(', ')}` : 'Solo conversión';
+  return `${incluye}. ${resumenDePlan(plan)}.`;
+}
+
+/** Membresías del catálogo: nombre, qué vistas incluye y sus límites. */
+export function PlanChoice({
+  name,
+  plans,
+  value,
+  onChange,
+  disabled,
+}: {
+  name: string;
+  plans: readonly PlanOption[];
+  value: string;
+  onChange: (codigo: string) => void;
+  disabled?: boolean;
+}): ReactNode {
+  return (
+    <div className="grid gap-2 sm:grid-cols-2">
+      {plans.map((plan) => (
+        <ChoiceCard
+          key={plan.code}
+          name={name}
+          value={plan.code}
+          title={plan.name}
+          description={describirPlan(plan)}
+          checked={value === plan.code}
+          disabled={disabled}
+          onChange={() => {
+            onChange(plan.code);
           }}
         />
       ))}

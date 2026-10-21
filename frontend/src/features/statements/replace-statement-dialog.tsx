@@ -19,6 +19,7 @@ export function ReplaceStatementDialog({
   open,
   fileName,
   cupo,
+  planName,
   documents,
   onConfirm,
   onCancel,
@@ -26,6 +27,8 @@ export function ReplaceStatementDialog({
   open: boolean;
   fileName: string;
   cupo: number;
+  /** Membresía de quien sube, para decir de dónde sale el cupo. */
+  planName?: string | undefined;
   /** Del más antiguo al más reciente, como los da `replaceableStatements`. */
   documents: readonly JobListItem[];
   onConfirm: (statementId: string) => void;
@@ -36,6 +39,8 @@ export function ReplaceStatementDialog({
   const confirmRef = useRef<HTMLButtonElement>(null);
   // Si la lista cambia mientras está abierto, la elección vuelve al más antiguo.
   const selected = documents.some((job) => job.statementId === chosen) ? chosen : oldest;
+  // Tras bajar de membresía puede sobrar más de uno: el elegido y los más antiguos.
+  const extra = Math.max(documents.length - cupo, 0);
 
   return (
     <Dialog
@@ -56,13 +61,21 @@ export function ReplaceStatementDialog({
       >
         <DialogTitle>Ya tienes tus {cupo} documentos guardados</DialogTitle>
         <DialogDescription>
+          {planName ? `Tu membresía ${planName} guarda ${String(cupo)}. ` : null}
           Para procesar{' '}
           <strong className="break-words text-foreground [overflow-wrap:anywhere]">
             {fileName}
           </strong>{' '}
-          hay que reemplazar uno. El que elijas se borra con sus archivos; descarga antes lo que
-          necesites. Si ese PDF ya estaba procesado, no se borra nada.
+          hay que reemplazar uno: viene elegido el primero que subiste y basta Enter para seguir, o
+          elige otro. Se borra con sus archivos; descarga antes lo que necesites. Si ese PDF ya
+          estaba procesado, no se borra nada.
         </DialogDescription>
+        {extra > 0 ? (
+          <p className="text-sm text-warning-foreground">
+            Tienes más documentos de los que guarda tu membresía: además del elegido se borrarán los{' '}
+            {extra} más antiguos.
+          </p>
+        ) : null}
 
         <form
           className="space-y-4"
@@ -73,7 +86,8 @@ export function ReplaceStatementDialog({
             }
           }}
         >
-          <fieldset className="space-y-2">
+          {/* Con 20 documentos (Atlas) la lista se desplaza dentro del diálogo. */}
+          <fieldset className="max-h-[45vh] space-y-2 overflow-y-auto pr-1">
             <legend className="mb-2 text-sm font-medium text-foreground">
               Documento a reemplazar
             </legend>

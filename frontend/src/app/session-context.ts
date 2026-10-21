@@ -1,5 +1,6 @@
 import { createContext } from 'react';
 
+import type { FeatureCode } from '@/features/access/access';
 import type { SessionUser } from '@/lib/session-client';
 
 export type SessionState = 'cargando' | 'autenticado' | 'anonimo';
@@ -14,8 +15,10 @@ export interface SessionValue {
   cerrar: (aviso?: string) => Promise<void>;
   /** Motivo del último cierre de sesión, si lo hubo. Se borra al volver a entrar. */
   aviso: string | null;
-  /** `true` solo para ADMIN: es quien gestiona las cuentas de la organización. */
+  /** Si su rol tiene `USERS_MANAGE`: quien gestiona las cuentas de la organización. */
   puedeAdministrar: boolean;
+  /** Si su membresía incluye esa vista (Historial, Centro Financiero, Calendario…). */
+  tieneFuncion: (funcion: FeatureCode) => boolean;
 }
 
 export const SessionContext = createContext<SessionValue | null>(null);

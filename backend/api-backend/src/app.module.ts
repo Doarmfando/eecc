@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 
 import { RequestIdMiddleware } from './common/http/request-id.middleware';
 import { PrismaModule } from './common/prisma/prisma.module';
+import { AccessModule } from './modules/access/access.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { validateConfig } from './config/app-config';
@@ -19,6 +20,7 @@ import { StatementsModule } from './modules/statements/statements.module';
     }),
     PrismaModule,
     AuthModule,
+    AccessModule,
     UsersModule,
     HealthModule,
     StatementsModule,

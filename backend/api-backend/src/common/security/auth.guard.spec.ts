@@ -1,5 +1,4 @@
 import { UnauthorizedException, type CanActivate, type ExecutionContext } from '@nestjs/common';
-import { MembershipRole } from '@prisma/client';
 
 import type { AuthService, AuthenticatedUser } from '../../modules/auth/auth.service';
 import { SESSION_COOKIE } from '../../modules/auth/session-cookie';
@@ -13,7 +12,17 @@ const USUARIO: AuthenticatedUser = {
   displayName: 'Persona de prueba',
   organizationId: '22222222-2222-4222-8222-222222222222',
   organizationName: 'Organización de prueba',
-  role: MembershipRole.ADMIN,
+  role: 'ADMIN',
+  roleName: 'Administrador',
+  roleRank: 50,
+  permissions: ['STATEMENTS_CONVERT', 'USERS_MANAGE'],
+  plan: {
+    code: 'ATLAS',
+    name: 'Atlas',
+    maxRetainedStatements: 20,
+    maxPagesPerDocument: null,
+    features: ['HISTORY'],
+  },
 };
 
 function contextoCon(cabeceras: Record<string, string>): {
@@ -61,7 +70,9 @@ describe('AuthGuard', () => {
       organizationId: USUARIO.organizationId,
       apiKeyId: null,
       userId: USUARIO.userId,
-      role: MembershipRole.ADMIN,
+      role: 'ADMIN',
+      permissions: USUARIO.permissions,
+      plan: USUARIO.plan,
     });
     expect(apiKeyCanActivate).not.toHaveBeenCalled();
   });

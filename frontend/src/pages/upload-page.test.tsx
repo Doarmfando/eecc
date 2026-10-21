@@ -1,5 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -343,11 +343,15 @@ describe('UploadPage', () => {
     await user.upload(screen.getByLabelText('Estado de cuenta en PDF'), pdfFile());
     await user.click(screen.getByRole('button', { name: /Procesar estado de cuenta/ }));
 
-    await waitFor(() => {
-      expect(
-        screen.getByText(/El documento no corresponde a un estado de cuenta compatible/),
-      ).toBeInTheDocument();
-    });
-    expect(screen.getByText('Referencia: req-987654321')).toBeInTheDocument();
+    // El aviso dice qué pasó, por qué, y lo que soporte necesita: tipo, código y
+    // referencia, que se pueden dictar por teléfono.
+    const aviso = await screen.findByRole('alert');
+    expect(within(aviso).getByText('No se pudo procesar «estado.pdf»')).toBeInTheDocument();
+    expect(
+      within(aviso).getByText(/El documento no corresponde a un estado de cuenta compatible/),
+    ).toBeInTheDocument();
+    expect(within(aviso).getByText('Documento')).toBeInTheDocument();
+    expect(within(aviso).getByText('UNSUPPORTED_DOCUMENT')).toBeInTheDocument();
+    expect(within(aviso).getByText('req-987654321')).toBeInTheDocument();
   });
 });

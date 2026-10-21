@@ -3,7 +3,10 @@
 - Estado: Aceptada
 - Fecha: 2026-09-08
 - Ampliada por: [ADR-0014](ADR-0014-elegir-que-documento-reemplazar.md), que deja elegir cuál se
-  reemplaza; el más antiguo sigue siendo el predeterminado.
+  reemplaza; el más antiguo sigue siendo el predeterminado. Y por
+  [ADR-0016](ADR-0016-roles-y-membresias-como-catalogo.md): el cupo de cada persona es el de su
+  membresía (Básica 3, Atlas 20); `RETAINED_STATEMENTS_PER_USER` queda para las credenciales de
+  servicio.
 
 ## Contexto
 

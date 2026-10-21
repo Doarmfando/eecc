@@ -37,6 +37,7 @@ async function readError(response: Response): Promise<ApiError> {
     response.status,
     parsed.data.requestId,
     parsed.data.details,
+    parsed.data.meta,
   );
 }
 

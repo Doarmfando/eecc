@@ -18,7 +18,10 @@ const WORKER_ERROR_CODES = new Set([
   'UNSUPPORTED_DOCUMENT',
   'INVALID_JOB_OPTIONS',
   'STATEMENT_NOT_EXPORTABLE',
+  'PDF_PAGE_LIMIT_EXCEEDED',
 ]);
+
+export const PDF_PAGE_LIMIT_EXCEEDED = 'PDF_PAGE_LIMIT_EXCEEDED';
 
 /**
  * Único punto que habla con la API interna del worker.
@@ -53,6 +56,9 @@ export class WorkerClientService {
     if (request.sourceFileName !== undefined) {
       form.append('source_file_name', request.sourceFileName);
     }
+    if (request.maxPages !== undefined) {
+      form.append('max_pages', String(request.maxPages));
+    }
 
     const headers: Record<string, string> = {};
     if (request.requestId) {
@@ -76,7 +82,7 @@ export class WorkerClientService {
     if (!response.ok) {
       const code = readCode(body);
       if (code && WORKER_ERROR_CODES.has(code)) {
-        throw new UnprocessableEntityException({ code });
+        throw new UnprocessableEntityException({ code, ...readPageLimitMeta(code, body) });
       }
       throw new BadGatewayException({ code: 'WORKER_REJECTED_DOCUMENT' });
     }
@@ -156,6 +162,21 @@ function describeNetworkError(error: unknown): string {
       ? (cause as { code?: unknown }).code
       : undefined;
   return typeof code === 'string' ? `${error.name} (${code})` : error.name;
+}
+
+/** Cuántas páginas tiene el PDF y cuántas admite el plan, para decirlo en el aviso. */
+function readPageLimitMeta(
+  code: string,
+  body: unknown,
+): { meta?: { pageCount: number; maxPages: number } } {
+  if (code !== PDF_PAGE_LIMIT_EXCEEDED || typeof body !== 'object' || body === null) {
+    return {};
+  }
+  const { page_count: pageCount, max_pages: maxPages } = body as Record<string, unknown>;
+  if (Number.isSafeInteger(pageCount) && Number.isSafeInteger(maxPages)) {
+    return { meta: { pageCount: pageCount as number, maxPages: maxPages as number } };
+  }
+  return {};
 }
 
 function readCode(body: unknown): string | null {

@@ -116,6 +116,54 @@ describe('WorkerClientService', () => {
     },
   );
 
+  it('pide el límite de páginas solo cuando la membresía lo tiene', async () => {
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(200, PAYLOAD))
+      .mockResolvedValueOnce(jsonResponse(200, PAYLOAD));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await buildService().processStatement({
+      content: Buffer.from('%PDF-1.7'),
+      fileName: 'e.pdf',
+      maxPages: 15,
+    });
+    await buildService().processStatement({ content: Buffer.from('%PDF-1.7'), fileName: 'e.pdf' });
+
+    const [, limitado] = fetchMock.mock.calls[0] as [URL, RequestInit];
+    const [, libre] = fetchMock.mock.calls[1] as [URL, RequestInit];
+    expect((limitado.body as FormData).get('max_pages')).toEqual('15');
+    expect((libre.body as FormData).has('max_pages')).toBe(false);
+  });
+
+  it('traduce el exceso de páginas con los números que muestra el aviso', async () => {
+    globalThis.fetch = jest
+      .fn()
+      .mockResolvedValue(
+        jsonResponse(422, { code: 'PDF_PAGE_LIMIT_EXCEEDED', page_count: 42, max_pages: 15 }),
+      ) as unknown as typeof fetch;
+
+    await expect(
+      buildService().processStatement({ content: Buffer.from('x'), fileName: 'e.pdf' }),
+    ).rejects.toMatchObject({
+      response: { code: 'PDF_PAGE_LIMIT_EXCEEDED', meta: { pageCount: 42, maxPages: 15 } },
+    });
+
+    // Sin números válidos sigue siendo el mismo rechazo, solo que sin detalle.
+    globalThis.fetch = jest
+      .fn()
+      .mockResolvedValue(
+        jsonResponse(422, { code: 'PDF_PAGE_LIMIT_EXCEEDED', page_count: 'muchas' }),
+      ) as unknown as typeof fetch;
+    const error = await buildService()
+      .processStatement({ content: Buffer.from('x'), fileName: 'e.pdf' })
+      .catch((rechazo: unknown) => rechazo);
+    expect(error).toBeInstanceOf(UnprocessableEntityException);
+    expect((error as UnprocessableEntityException).getResponse()).toEqual({
+      code: 'PDF_PAGE_LIMIT_EXCEEDED',
+    });
+  });
+
   it('traduce los códigos de dominio del worker a 422', async () => {
     globalThis.fetch = jest
       .fn()

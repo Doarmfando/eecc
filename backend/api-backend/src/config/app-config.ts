@@ -1,5 +1,15 @@
 import { plainToInstance } from 'class-transformer';
-import { IsEnum, IsInt, IsString, IsUrl, Max, Min, MinLength, validateSync } from 'class-validator';
+import {
+  IsEnum,
+  IsInt,
+  IsString,
+  IsUrl,
+  Matches,
+  Max,
+  Min,
+  MinLength,
+  validateSync,
+} from 'class-validator';
 
 export enum NodeEnvironment {
   Development = 'development',
@@ -77,16 +87,29 @@ export class AppConfig {
   ALLOWED_EMAIL_DOMAINS = 'hotmail.com,empresa.pe,eecc.local';
 
   /**
-   * Documentos que se conservan por persona. Al superarlo, los más antiguos se
-   * borran enteros: fila y archivos.
+   * Documentos que conservan las **credenciales de servicio**. Al superarlo, los
+   * más antiguos se borran enteros: fila y archivos.
    *
-   * Existe porque nada más caduca: sin tope, cada estado de cuenta deja para
+   * Las personas ya no usan este valor: su cupo es el de su membresía
+   * (`membership_plans.max_retained_statements`, ADR-0016). Una credencial de
+   * servicio no tiene membresía, y sin tope cada documento suyo dejaría para
    * siempre su PDF de origen y sus XLSX/CSV en disco.
    */
   @IsInt()
   @Min(1)
   @Max(100)
   RETAINED_STATEMENTS_PER_USER = 3;
+
+  /**
+   * Teléfono de soporte que muestran los avisos de error, para que quien llame
+   * pueda dictar el código y la referencia. Vacío: los avisos dicen que se avise
+   * a un administrador. Se publica sin sesión en `GET /v1/support`.
+   */
+  @IsString()
+  @Matches(/^[+\d\s()-]{0,32}$/, {
+    message: 'SUPPORT_PHONE solo admite dígitos, espacios, +, - y paréntesis',
+  })
+  SUPPORT_PHONE = '';
 
   /**
    * Carpeta con el frontend ya compilado. Vacío significa no servirlo.

@@ -65,6 +65,16 @@ export class StatementArtifactDto {
   @ApiProperty() name!: string;
 }
 
+export class ReplacedStatementDto {
+  @ApiProperty() statementId!: string;
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    description: 'Nombre del PDF visible solo a su dueño',
+  })
+  sourceFileName!: string | null;
+}
+
 export class JobResponseDto {
   @ApiPropertyOptional({ nullable: true, description: 'Nombre del PDF visible solo a su dueño' })
   sourceFileName?: string | null;
@@ -84,4 +94,11 @@ export class JobResponseDto {
   @ApiProperty({ type: [StatementCheckDto] }) checks!: StatementCheckDto[];
   @ApiProperty({ type: [StatementArtifactDto] }) artifacts!: StatementArtifactDto[];
   @ApiProperty() reused!: boolean;
+
+  /**
+   * Documentos borrados para respetar el cupo de la membresía al guardar este. La
+   * interfaz lo avisa: la persona eligió cuál, pero debe saber que ya no está.
+   */
+  @ApiProperty({ type: [ReplacedStatementDto] })
+  replacedStatements!: ReplacedStatementDto[];
 }

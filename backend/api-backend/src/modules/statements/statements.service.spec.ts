@@ -109,7 +109,8 @@ function buildPrisma(
 function buildService(
   prisma: PrismaService,
   worker: Partial<WorkerClientService> = {},
-  enforceForUploader: jest.Mock = jest.fn().mockResolvedValue(0),
+  enforceForUploader: jest.Mock = jest.fn().mockResolvedValue([]),
+  discardUnregisteredWorkerJob: jest.Mock = jest.fn().mockResolvedValue(undefined),
 ): StatementsService {
   const storage = {
     buildObjectKey: jest.fn(() => 'organizations/o/statements/s/object.pdf'),
@@ -131,7 +132,10 @@ function buildService(
 
   // La retención se comprueba en su propia especificación; aquí solo se registra
   // que se invoca, para que este doble no la ejecute contra la base.
-  const retention = { enforceForUploader } as unknown as StatementRetentionService;
+  const retention = {
+    enforceForUploader,
+    discardUnregisteredWorkerJob,
+  } as unknown as StatementRetentionService;
 
   return new StatementsService(prisma, storage, workerClient, retention, config);
 }
@@ -233,7 +237,9 @@ describe('StatementsService', () => {
   it('dice cuándo se convirtió y respeta el documento elegido para reemplazar', async () => {
     const recorder: TransactionRecorder = { created: [] };
     const { prisma } = buildPrisma(null, recorder);
-    const enforceForUploader = jest.fn().mockResolvedValue(1);
+    const enforceForUploader = jest
+      .fn()
+      .mockResolvedValue([{ statementId: OTHER_STATEMENT_ID, sourceFileName: 'Julio.pdf' }]);
     const service = buildService(prisma, {}, enforceForUploader);
 
     const response = await service.process({
@@ -251,6 +257,10 @@ describe('StatementsService', () => {
       keepStatementId: 'statement-id',
       preferredStatementId: OTHER_STATEMENT_ID,
     });
+    // La interfaz avisa qué se reemplazó: la persona lo eligió, pero ya no está.
+    expect(response.replacedStatements).toEqual([
+      { statementId: OTHER_STATEMENT_ID, sourceFileName: 'Julio.pdf' },
+    ]);
   });
 
   it('reenvía la contraseña del PDF al worker sin guardarla en ninguna parte', async () => {
@@ -445,5 +455,80 @@ describe('StatementsService', () => {
       unknown[] | undefined;
     expect(attempt.errorCode).toEqual('EXTRACTION_FAILED');
     expect(artifacts).toHaveLength(1);
+  });
+
+  it('aplica la membresía: cupo a la retención y páginas al worker', async () => {
+    const recorder: TransactionRecorder = { created: [] };
+    const { prisma } = buildPrisma(null, recorder);
+    const processStatement = jest.fn().mockResolvedValue(workerPayload({ page_count: 12 }));
+    const enforceForUploader = jest.fn().mockResolvedValue([]);
+    const service = buildService(prisma, { processStatement }, enforceForUploader);
+
+    await service.process({
+      organizationId: ORGANIZATION_ID,
+      userId: USER_ID,
+      content: pdfBuffer(),
+      fileName: 'estado.pdf',
+      mimeType: 'application/pdf',
+      retainedStatements: 3,
+      maxPagesPerDocument: 15,
+    });
+
+    expect(processStatement).toHaveBeenCalledWith(expect.objectContaining({ maxPages: 15 }));
+    expect(enforceForUploader).toHaveBeenCalledWith(
+      ORGANIZATION_ID,
+      USER_ID,
+      expect.objectContaining({ limit: 3 }),
+    );
+  });
+
+  it('sin límite de páginas no se lo pide al worker', async () => {
+    const recorder: TransactionRecorder = { created: [] };
+    const { prisma } = buildPrisma(null, recorder);
+    const processStatement = jest.fn().mockResolvedValue(workerPayload({ page_count: 400 }));
+    const service = buildService(prisma, { processStatement });
+
+    await service.process({
+      organizationId: ORGANIZATION_ID,
+      userId: USER_ID,
+      content: pdfBuffer(),
+      fileName: 'estado.pdf',
+      mimeType: 'application/pdf',
+      retainedStatements: 20,
+      maxPagesPerDocument: null,
+    });
+
+    expect(processStatement.mock.calls[0]?.[0]).not.toHaveProperty('maxPages');
+  });
+
+  it('si el worker no aplicó el límite, la API no registra el documento y lo descarta', async () => {
+    // Un worker anterior ignora `max_pages`: el límite del plan no puede depender
+    // de que el otro lado lo cumpla.
+    const recorder: TransactionRecorder = { created: [] };
+    const { prisma } = buildPrisma(null, recorder);
+    const discard = jest.fn().mockResolvedValue(undefined);
+    const enforceForUploader = jest.fn().mockResolvedValue([]);
+    const service = buildService(
+      prisma,
+      { processStatement: jest.fn().mockResolvedValue(workerPayload({ page_count: 40 })) },
+      enforceForUploader,
+      discard,
+    );
+
+    await expect(
+      service.process({
+        organizationId: ORGANIZATION_ID,
+        userId: USER_ID,
+        content: pdfBuffer(),
+        fileName: 'estado.pdf',
+        mimeType: 'application/pdf',
+        maxPagesPerDocument: 15,
+      }),
+    ).rejects.toMatchObject({
+      response: { code: 'PDF_PAGE_LIMIT_EXCEEDED', meta: { pageCount: 40, maxPages: 15 } },
+    });
+    expect(discard).toHaveBeenCalledWith(workerPayload().job_id);
+    expect(recorder.created.find((entry) => entry.model === 'statement')).toBeUndefined();
+    expect(enforceForUploader).not.toHaveBeenCalled();
   });
 });

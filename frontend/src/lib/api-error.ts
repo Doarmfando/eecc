@@ -5,6 +5,8 @@ export class ApiError extends Error {
     readonly httpStatus: number,
     readonly requestId?: string,
     readonly details?: string[],
+    /** Números que explican el rechazo, como páginas del PDF y límite del plan. */
+    readonly meta?: Record<string, number>,
   ) {
     super(code);
     this.name = 'ApiError';
@@ -45,13 +47,83 @@ const MESSAGES: Record<string, string> = {
   WORKER_CONTRACT_MISMATCH: 'La respuesta del procesador no es compatible con esta versión.',
   RESPONSE_CONTRACT_MISMATCH: 'La respuesta del servidor no es compatible con esta versión.',
   NETWORK_ERROR: 'No se pudo contactar al servidor.',
+  PDF_PAGE_LIMIT_EXCEEDED:
+    'El PDF tiene más páginas de las que admite tu membresía. Divídelo en partes más cortas o pide a un administrador una membresía sin ese límite.',
+  ROLE_ABOVE_YOURS: 'Esa cuenta o ese rol están por encima del tuyo.',
+  ROLE_NOT_FOUND: 'Ese rol ya no existe. Recarga la página.',
+  PLAN_NOT_FOUND: 'Esa membresía ya no está disponible. Recarga la página y elige otra.',
 };
+
+/** Con los números del rechazo, el mensaje dice exactamente qué sobra. */
+function describePageLimit(meta: Record<string, number> | undefined): string | null {
+  const paginas = meta?.pageCount;
+  const limite = meta?.maxPages;
+  if (paginas === undefined || limite === undefined) {
+    return null;
+  }
+  return `El PDF tiene ${String(paginas)} páginas y tu membresía admite hasta ${String(limite)} por documento. Divídelo en partes de ${String(limite)} páginas o menos, o pide a un administrador una membresía sin ese límite.`;
+}
 
 export function describeError(error: unknown): string {
   if (error instanceof ApiError) {
+    if (error.code === 'PDF_PAGE_LIMIT_EXCEEDED') {
+      return describePageLimit(error.meta) ?? (MESSAGES[error.code] as string);
+    }
     return MESSAGES[error.code] ?? 'Ocurrió un error inesperado al procesar la solicitud.';
   }
   return 'Ocurrió un error inesperado.';
+}
+
+/** Familia del error: lo primero que pregunta soporte para saber a quién derivarlo. */
+export type ErrorKind =
+  | 'Documento'
+  | 'Límite de la membresía'
+  | 'Permisos'
+  | 'Sesión'
+  | 'Conexión'
+  | 'Servidor'
+  | 'Datos enviados';
+
+const KIND_BY_CODE: Record<string, ErrorKind> = {
+  UNSUPPORTED_MEDIA_TYPE: 'Documento',
+  UPLOAD_TOO_LARGE: 'Documento',
+  INVALID_PDF: 'Documento',
+  PDF_PASSWORD_REQUIRED: 'Documento',
+  PDF_PASSWORD_INCORRECT: 'Documento',
+  PDF_SIZE_LIMIT_EXCEEDED: 'Documento',
+  UNSUPPORTED_DOCUMENT: 'Documento',
+  STATEMENT_NOT_EXPORTABLE: 'Documento',
+  DOCUMENT_REQUIRED: 'Documento',
+  STATEMENT_NOT_CONSOLIDABLE: 'Documento',
+  PDF_PAGE_LIMIT_EXCEEDED: 'Límite de la membresía',
+  INSUFFICIENT_ROLE: 'Permisos',
+  ROLE_ABOVE_YOURS: 'Permisos',
+  CANNOT_MODIFY_SELF: 'Permisos',
+  ADMIN_CANNOT_BE_DELETED: 'Permisos',
+  ADMIN_CANNOT_BE_DEMOTED: 'Permisos',
+  AUTHENTICATION_REQUIRED: 'Sesión',
+  SESSION_EXPIRED: 'Sesión',
+  INVALID_CREDENTIALS: 'Sesión',
+  ACCOUNT_LOCKED: 'Sesión',
+  ACCOUNT_DISABLED: 'Sesión',
+  NO_ACTIVE_MEMBERSHIP: 'Sesión',
+  NETWORK_ERROR: 'Conexión',
+};
+
+export function describeErrorKind(error: unknown): ErrorKind {
+  if (!(error instanceof ApiError)) {
+    return 'Servidor';
+  }
+  const conocido = KIND_BY_CODE[error.code];
+  if (conocido) {
+    return conocido;
+  }
+  return error.httpStatus >= 500 || error.httpStatus === 0 ? 'Servidor' : 'Datos enviados';
+}
+
+/** Código estable para dictar por teléfono; uno genérico si el fallo no es de la API. */
+export function errorCode(error: unknown): string {
+  return error instanceof ApiError ? error.code : 'UNEXPECTED_ERROR';
 }
 
 /** Un fallo de credencial o de contrato no mejora reintentando. */

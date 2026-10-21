@@ -81,14 +81,28 @@ Get-Content -Wait -Tail 30 .local\logs\api.log
 
 Con sesión de **administrador**, entra en **Usuarios** (menú lateral, sección *Administración*):
 
-- **Nuevo usuario** crea una cuenta de *Usuario* o de *Administrador*. La contraseña se puede **generar** —se muestra **una sola vez**, entrégasela— o **escribir** tú.
-- **Editar** cambia nombre y correo, y permite ascender un usuario a administrador.
+- **Nuevo usuario** pide siempre **rol** y **membresía**. Un administrador recibe Atlas propuesto; a un usuario le eliges Básica, Atlas o la que exista. La contraseña se puede **generar** —se muestra **una sola vez**, entrégasela— o **escribir** tú.
+- **Editar** cambia nombre, correo, rol y membresía. Si la nueva guarda menos documentos de los que tiene, te lo advierte: el exceso se borra al subir el siguiente.
 - **Cambiar contraseña** genera otra o fija la que escribas; cierra sus sesiones y desbloquea la cuenta.
 - **Desactivar** cierra sus sesiones en el acto, no cuando caduque su cookie. Se puede reactivar.
 - **Eliminar** borra la cuenta **y sus documentos**. No se puede deshacer.
 - La columna **Documentos** dice cuántos conserva cada persona frente al cupo.
 
-Un administrador no se puede eliminar ni pasar a usuario; sí desactivar. Nadie puede desactivarse ni cambiarse el rol a sí mismo, y la propia contraseña se cambia desde el menú de cuenta (arriba a la derecha).
+Solo gestionas cuentas de rango inferior al tuyo; con las de tu mismo rango, solo nombre, membresía, acceso y contraseña. Un administrador no elimina ni degrada a otro; un **superadministrador** sí. Nadie puede desactivarse ni cambiarse el rol a sí mismo, y la propia contraseña se cambia desde el menú de cuenta (arriba a la derecha).
+
+**Superadministradores.** No se crean desde la aplicación —nadie asigna un rol por encima del suyo—, sino desde el servidor, una vez:
+
+```powershell
+cd backendpi-backend
+npm run access:super-admins -- brando@hotmail.com fabio@hotmail.com
+# en producción: node dist/cli/super-admins.js brando@hotmail.com fabio@hotmail.com
+```
+
+Crea las cuentas que falten con una contraseña generada (se muestra una sola vez) y promueve las que existan sin tocar su contraseña. Repetirlo no cambia nada; `--restablecer` genera contraseñas nuevas.
+
+**Membresías.** *Básica*: solo conversión, 3 documentos, 15 páginas por PDF. *Atlas*: todo el producto, 20 documentos, sin límite de páginas. Para crear o mejorar una, ver la guía de [`ADR-0016`](docs/decisiones/ADR-0016-roles-y-membresias-como-catalogo.md#cómo-crear-o-mejorar-un-plan-o-un-rol).
+
+**Teléfono de soporte.** Ponlo en `SUPPORT_PHONE` del `.env` de la API: los avisos de error lo muestran junto al código y la referencia que hay que dictar.
 
 No existe registro abierto: nadie entra sin que un administrador lo dé de alta.
 
@@ -116,7 +130,7 @@ Sin `SEED_ADMIN_PASSWORD` la semilla nunca toca una contraseña existente.
 | XLSX/CSV generados | Disco del worker, en su directorio de artefactos |
 | Movimientos bancarios | **En ningún sitio**: el esquema no tiene tabla para ellos |
 
-**Los archivos no se acumulan.** Cada persona conserva sus **3 documentos más recientes**; al subir el cuarto, el más antiguo se borra entero: PDF de origen, resultados y fila del historial. El número se ajusta con `RETAINED_STATEMENTS_PER_USER` en el `.env` de la API. Detalles y lo que se pierde a cambio, en [`ADR-0007`](docs/decisiones/ADR-0007-cupo-de-documentos-por-persona.md).
+**Los archivos no se acumulan.** Cada persona conserva los documentos de su membresía (Básica 3, Atlas 20); al superarlo, la carga pregunta cuál reemplazar —viene elegido el más antiguo, basta Enter— y ese se borra entero: PDF de origen, resultados y fila del historial. Detalles y lo que se pierde a cambio, en [`ADR-0007`](docs/decisiones/ADR-0007-cupo-de-documentos-por-persona.md) y [`ADR-0016`](docs/decisiones/ADR-0016-roles-y-membresias-como-catalogo.md).
 
 Esa última fila no es un descuido, es la minimización que fija [`ADR-0002`](docs/decisiones/ADR-0002-postgresql-prisma-y-minimizacion-financiera.md): se guardan identificadores, estados, conteos y códigos, nunca los importes ni las descripciones extraídas.
 
