@@ -86,6 +86,12 @@ Cada línea es una frase del pedido y la tarea que la cubre (§ = sección de ab
 - «Puedes comitear y pushear» → §7: commit y push del trabajo verificado (fetch y rebase
   antes, porque otra persona sube a `main` en paralelo).
 
+**Mensaje 9**
+
+- «Hazlo todo tú, pon números ficticios» → §11: desplegar en Railway, crear los
+  superadmins en producción, `SUPPORT_PHONE` ficticio y fechas de vencimiento en las
+  cuentas existentes.
+
 ## Forma de trabajo
 
 - [x] Plan de trabajo armado y ejecutado de corrido, sin pausas para preguntar.
@@ -229,3 +235,18 @@ Cada línea es una frase del pedido y la tarea que la cubre (§ = sección de ab
   ADR-0017, README, EJECUTAR, `_base_de_datos.md`, Railway, `.env.example`, patrones y
   trampas.
 - [x] Commit y push.
+
+## 11. Despliegue en producción (mensaje 9)
+
+- [ ] Respaldo de la base de producción antes de migrar.
+- [ ] Worker primero (`max_pages` y las hojas comunes del 18-19 de octubre, que tampoco
+  estaban desplegadas).
+- [ ] Variables de la API: `SUPPORT_PHONE` ficticio, `BUSINESS_TIMEZONE`,
+  `PROFILE_VERSION=statements-2026.10.18` si está definida.
+- [ ] API (aplica `roles_y_membresias` y `vigencia_de_membresia` al arrancar) y frontend
+  (va en la misma imagen).
+- [ ] Superadmins `brando@hotmail.com` y `fabio@hotmail.com` en producción; contraseñas
+  guardadas fuera del repo.
+- [ ] Fecha de vencimiento ficticia a los usuarios normales existentes.
+- [ ] Prueba de humo en producción con un PDF sintético (subir, límite, borrar).
+- [ ] Bitácora, commit y push.

@@ -1,7 +1,7 @@
 import { MembershipStatus, UserStatus, type PrismaClient } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
 
-import { hashPassword, normalizeEmail } from '../auth/password-hash';
+import { MIN_PASSWORD_LENGTH, hashPassword, normalizeEmail } from '../auth/password-hash';
 import { SYSTEM_ROLE } from './access-catalog';
 
 export type SuperAdminOutcome = 'CREATED' | 'PROMOTED' | 'UNCHANGED' | 'PASSWORD_RESET';
@@ -18,6 +18,11 @@ export interface EnsureSuperAdminsOptions {
   organizationId?: string;
   /** Genera una contraseña nueva también para las cuentas que ya existían. */
   resetPasswords?: boolean;
+  /**
+   * Contraseña inicial de cada cuenta que haya que **crear**, por correo
+   * normalizado. Sin ella se genera una. Nunca cambia la de una cuenta existente.
+   */
+  initialPasswords?: ReadonlyMap<string, string>;
 }
 
 type Cliente = Pick<
@@ -81,10 +86,34 @@ export async function ensureSuperAdmins(
         organizacion.id,
         planCode,
         options.resetPasswords === true,
+        options.initialPasswords?.get(email),
       ),
     );
   }
   return resultados;
+}
+
+/**
+ * `correo:contraseña,correo:contraseña` → correos y contraseñas iniciales.
+ *
+ * La contraseña va tras el **primer** `:` (puede contener más); no puede llevar
+ * comas. Lanza sin repetir ningún valor: el mensaje puede acabar en un registro.
+ */
+export function parseSuperAdminBootstrap(valor: string): Map<string, string> {
+  const cuentas = new Map<string, string>();
+  for (const entrada of valor
+    .split(',')
+    .map((parte) => parte.trim())
+    .filter(Boolean)) {
+    const separador = entrada.indexOf(':');
+    const email = normalizeEmail(separador > 0 ? entrada.slice(0, separador) : '');
+    const password = separador > 0 ? entrada.slice(separador + 1) : '';
+    if (!CORREO.test(email) || password.length < MIN_PASSWORD_LENGTH) {
+      throw new Error('BOOTSTRAP_SUPER_ADMINS: cada entrada debe ser correo:contraseña (12+)');
+    }
+    cuentas.set(email, password);
+  }
+  return cuentas;
 }
 
 async function asegurarCuenta(
@@ -93,6 +122,7 @@ async function asegurarCuenta(
   organizationId: string,
   planCode: string,
   restablecer: boolean,
+  passwordInicial?: string,
 ): Promise<SuperAdminResult> {
   const existente = await prisma.user.findUnique({
     where: { emailNormalized: email },
@@ -100,7 +130,7 @@ async function asegurarCuenta(
   });
 
   if (!existente) {
-    const password = generarContrasena();
+    const password = passwordInicial ?? generarContrasena();
     const passwordHash = await hashPassword(password);
     await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
@@ -117,7 +147,8 @@ async function asegurarCuenta(
       });
       await auditar(tx, organizationId, user.id, 'member.created', planCode);
     });
-    return { email, outcome: 'CREATED', password };
+    // Si la indicó quien despliega, ya la conoce: no se devuelve para no repetirla.
+    return { email, outcome: 'CREATED', password: passwordInicial ? null : password };
   }
 
   const membresia = existente.memberships[0];

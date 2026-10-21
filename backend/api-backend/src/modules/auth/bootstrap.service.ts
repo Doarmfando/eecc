@@ -5,6 +5,7 @@ import { UserStatus } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AppConfig } from '../../config/app-config';
 import { PLAN, SYSTEM_ROLE } from '../access/access-catalog';
+import { ensureSuperAdmins, parseSuperAdminBootstrap } from '../access/super-admins';
 import { hashPassword, normalizeEmail } from './password-hash';
 
 const ORGANIZACION_INICIAL = 'Organización';
@@ -31,16 +32,38 @@ export class BootstrapService implements OnApplicationBootstrap {
   async onApplicationBootstrap(): Promise<void> {
     const email = this.config.get('BOOTSTRAP_ADMIN_EMAIL', { infer: true });
     const password = this.config.get('BOOTSTRAP_ADMIN_PASSWORD', { infer: true });
-    if (!email || !password) {
+    if (email && password) {
+      const creada = await this.createInitialOwner(normalizeEmail(email), password);
+      if (creada) {
+        this.logger.warn(
+          `Cuenta inicial creada para ${normalizeEmail(email)}. Cambia su contraseña al entrar y retira BOOTSTRAP_ADMIN_PASSWORD del entorno.`,
+        );
+      }
+    }
+    // Después de la cuenta inicial: en una base vacía es la que crea la organización.
+    await this.ensureSuperAdminsFromEnvironment();
+  }
+
+  /**
+   * Asegura los superadministradores de `BOOTSTRAP_SUPER_ADMINS`. Idempotente: en
+   * cada arranque crea solo los que falten y nunca cambia una contraseña existente.
+   * Registra cuántos, no quiénes ni con qué contraseña.
+   */
+  async ensureSuperAdminsFromEnvironment(): Promise<void> {
+    const cuentas = parseSuperAdminBootstrap(
+      this.config.get('BOOTSTRAP_SUPER_ADMINS', { infer: true }),
+    );
+    if (cuentas.size === 0) {
       return;
     }
-
-    const creada = await this.createInitialOwner(normalizeEmail(email), password);
-    if (creada) {
-      this.logger.warn(
-        `Cuenta inicial creada para ${normalizeEmail(email)}. Cambia su contraseña al entrar y retira BOOTSTRAP_ADMIN_PASSWORD del entorno.`,
-      );
-    }
+    const resultados = await ensureSuperAdmins(this.prisma, [...cuentas.keys()], {
+      initialPasswords: cuentas,
+    });
+    const cuenta = (outcome: string): number =>
+      resultados.filter((resultado) => resultado.outcome === outcome).length;
+    this.logger.warn(
+      `Superadministradores asegurados: ${String(cuenta('CREATED'))} creados, ${String(cuenta('PROMOTED'))} promovidos, ${String(cuenta('UNCHANGED'))} sin cambios. Retira BOOTSTRAP_SUPER_ADMINS del entorno cuando hayan entrado.`,
+    );
   }
 
   /** Devuelve `true` si creó la cuenta; `false` si ya había alguien. */

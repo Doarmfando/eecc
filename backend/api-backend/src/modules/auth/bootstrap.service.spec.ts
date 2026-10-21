@@ -1,9 +1,19 @@
 import type { ConfigService } from '@nestjs/config';
 
+import type * as superAdmins from '../access/super-admins';
+import { ensureSuperAdmins } from '../access/super-admins';
+
+type SuperAdminsModule = typeof superAdmins;
+
 import type { PrismaService } from '../../common/prisma/prisma.service';
 import type { AppConfig } from '../../config/app-config';
 import { BootstrapService } from './bootstrap.service';
 import { verifyPassword } from './password-hash';
+
+jest.mock('../access/super-admins', () => ({
+  ...jest.requireActual<SuperAdminsModule>('../access/super-admins'),
+  ensureSuperAdmins: jest.fn(),
+}));
 
 const EMAIL = 'admin@empresa.pe';
 const PASSWORD = 'contraseña-inicial-larga';
@@ -20,6 +30,7 @@ function construir(
     organizacionExistente?: { id: string } | null;
     email?: string;
     password?: string;
+    superAdmins?: string;
   } = {},
 ): Dobles {
   const crearUsuario = jest.fn().mockResolvedValue({ id: 'nuevo' });
@@ -41,6 +52,7 @@ function construir(
   const valores: Record<string, string> = {
     BOOTSTRAP_ADMIN_EMAIL: opciones.email ?? EMAIL,
     BOOTSTRAP_ADMIN_PASSWORD: opciones.password ?? PASSWORD,
+    BOOTSTRAP_SUPER_ADMINS: opciones.superAdmins ?? '',
   };
   const config = {
     get: (clave: string): string => valores[clave] ?? '',
@@ -109,5 +121,43 @@ describe('BootstrapService', () => {
 
     const datos = crearUsuario.mock.calls[0]?.[0] as { data: { emailNormalized: string } };
     expect(datos.data.emailNormalized).toBe(EMAIL);
+  });
+});
+
+describe('BootstrapService y los superadministradores', () => {
+  const asegurar = ensureSuperAdmins as jest.MockedFunction<typeof ensureSuperAdmins>;
+
+  beforeEach(() => {
+    asegurar.mockReset();
+  });
+
+  it('sin la variable no hace nada', async () => {
+    const { service } = construir({ usuariosExistentes: 3 });
+    await service.onApplicationBootstrap();
+    expect(asegurar).not.toHaveBeenCalled();
+  });
+
+  it('asegura los de la variable con su contraseña inicial, en cada arranque', async () => {
+    asegurar.mockResolvedValue([
+      { email: 'brando@hotmail.com', outcome: 'CREATED', password: null },
+      { email: 'fabio@hotmail.com', outcome: 'UNCHANGED', password: null },
+    ]);
+    const { service } = construir({
+      usuariosExistentes: 3,
+      superAdmins: 'brando@hotmail.com:inicial-de-brando,fabio@hotmail.com:inicial-de-fabio',
+    });
+
+    await service.onApplicationBootstrap();
+
+    expect(asegurar).toHaveBeenCalledWith(
+      expect.anything(),
+      ['brando@hotmail.com', 'fabio@hotmail.com'],
+      {
+        initialPasswords: new Map([
+          ['brando@hotmail.com', 'inicial-de-brando'],
+          ['fabio@hotmail.com', 'inicial-de-fabio'],
+        ]),
+      },
+    );
   });
 });

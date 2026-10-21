@@ -48,6 +48,16 @@ describe('validateConfig', () => {
     );
   });
 
+  it('rechaza superadministradores mal escritos sin mostrar sus contraseñas', () => {
+    expect(() =>
+      validateConfig({ ...BASE, BOOTSTRAP_SUPER_ADMINS: 'brando@hotmail.com:corta' }),
+    ).toThrow('Configuración inválida en: BOOTSTRAP_SUPER_ADMINS');
+    expect(
+      validateConfig({ ...BASE, BOOTSTRAP_SUPER_ADMINS: 'brando@hotmail.com:una-clave-larga' })
+        .BOOTSTRAP_SUPER_ADMINS,
+    ).toBe('brando@hotmail.com:una-clave-larga');
+  });
+
   it('no expone secretos en el mensaje de error', () => {
     try {
       validateConfig({ ...BASE, FINGERPRINT_SECRET: 'secreto-corto' });

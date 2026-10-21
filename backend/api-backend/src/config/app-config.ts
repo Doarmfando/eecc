@@ -1,6 +1,7 @@
 import { plainToInstance } from 'class-transformer';
 
 import { isValidTimeZone } from '../common/time/business-date';
+import { parseSuperAdminBootstrap } from '../modules/access/super-admins';
 import {
   IsEnum,
   IsInt,
@@ -77,6 +78,18 @@ export class AppConfig {
 
   @IsString()
   BOOTSTRAP_ADMIN_PASSWORD = '';
+
+  /**
+   * Superadministradores que el arranque asegura: `correo:contraseña` separados
+   * por coma. Crea los que falten con esa contraseña inicial y promueve los que
+   * existan sin tocar la suya; repetirlo no cambia nada (ADR-0016).
+   *
+   * Existe por la misma razón que `BOOTSTRAP_ADMIN_*`: en un PaaS la base solo es
+   * accesible desde dentro. Retírala en cuanto las personas entren y cambien su
+   * contraseña. Vacía: no hace nada.
+   */
+  @IsString()
+  BOOTSTRAP_SUPER_ADMINS = '';
 
   /**
    * Dominios de correo admitidos al crear una cuenta o cambiarle el correo,
@@ -192,6 +205,14 @@ export function validateConfig(raw: Record<string, unknown>): AppConfig {
   const fields = errors.map((error) => error.property);
   if (!fields.includes('BUSINESS_TIMEZONE') && !isValidTimeZone(config.BUSINESS_TIMEZONE)) {
     fields.push('BUSINESS_TIMEZONE');
+  }
+  if (!fields.includes('BOOTSTRAP_SUPER_ADMINS')) {
+    try {
+      parseSuperAdminBootstrap(config.BOOTSTRAP_SUPER_ADMINS);
+    } catch {
+      // Solo el nombre: el valor lleva contraseñas.
+      fields.push('BOOTSTRAP_SUPER_ADMINS');
+    }
   }
   if (fields.length > 0) {
     throw new Error(`Configuración inválida en: ${fields.join(', ')}`);

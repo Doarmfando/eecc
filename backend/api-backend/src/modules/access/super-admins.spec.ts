@@ -1,7 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 
 import { verifyPassword } from '../auth/password-hash';
-import { ensureSuperAdmins, nombreDesdeCorreo } from './super-admins';
+import { ensureSuperAdmins, nombreDesdeCorreo, parseSuperAdminBootstrap } from './super-admins';
 
 const ORG = '11111111-1111-4111-8111-111111111111';
 
@@ -215,5 +215,48 @@ describe('ensureSuperAdmins', () => {
   it('deriva un nombre legible del correo', () => {
     expect(nombreDesdeCorreo('maria.perez@empresa.pe')).toBe('Maria perez');
     expect(nombreDesdeCorreo('x@empresa.pe')).toBe('X@empresa.pe');
+  });
+
+  it('con contraseña inicial indicada la usa al crear y no la devuelve', async () => {
+    const { prisma, usuarios } = base();
+    const iniciales = new Map([['brando@hotmail.com', 'inicial-elegida-larga']]);
+
+    const [creado] = await ensureSuperAdmins(prisma, ['brando@hotmail.com'], {
+      initialPasswords: iniciales,
+    });
+
+    expect(creado).toEqual({ email: 'brando@hotmail.com', outcome: 'CREATED', password: null });
+    await expect(
+      verifyPassword(
+        'inicial-elegida-larga',
+        usuarios.get('brando@hotmail.com')?.passwordHash ?? '',
+      ),
+    ).resolves.toBe(true);
+
+    // En el siguiente arranque la cuenta ya existe: su contraseña no se toca.
+    const hashAntes = usuarios.get('brando@hotmail.com')?.passwordHash;
+    const [repetido] = await ensureSuperAdmins(prisma, ['brando@hotmail.com'], {
+      initialPasswords: new Map([['brando@hotmail.com', 'otra-contraseña-larga']]),
+    });
+    expect(repetido?.outcome).toBe('UNCHANGED');
+    expect(usuarios.get('brando@hotmail.com')?.passwordHash).toBe(hashAntes);
+  });
+
+  it('lee BOOTSTRAP_SUPER_ADMINS sin repetir valores al fallar', () => {
+    expect(parseSuperAdminBootstrap('')).toEqual(new Map());
+    expect(
+      parseSuperAdminBootstrap(
+        ' Brando@Hotmail.com:clave:con-dos-puntos , fabio@hotmail.com:otra-clave-larga ',
+      ),
+    ).toEqual(
+      new Map([
+        ['brando@hotmail.com', 'clave:con-dos-puntos'],
+        ['fabio@hotmail.com', 'otra-clave-larga'],
+      ]),
+    );
+    for (const malo of ['sin-dos-puntos', 'brando@hotmail.com:corta', ':clave-sin-correo-larga']) {
+      expect(() => parseSuperAdminBootstrap(malo)).toThrow(/BOOTSTRAP_SUPER_ADMINS/);
+      expect(() => parseSuperAdminBootstrap(malo)).not.toThrow(/corta|clave-sin/);
+    }
   });
 });
