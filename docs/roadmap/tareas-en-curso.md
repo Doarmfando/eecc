@@ -86,6 +86,10 @@ Cada línea es una frase del pedido y la tarea que la cubre (§ = sección de ab
 - «Puedes comitear y pushear» → §7: commit y push del trabajo verificado (fetch y rebase
   antes, porque otra persona sube a `main` en paralelo).
 
+**Mensaje 10**
+
+- «Esta raya del sidebar que está encima de la animación, quítala» → §12.
+
 **Mensaje 9**
 
 - «Hazlo todo tú, pon números ficticios» → §11: desplegar en Railway, crear los
@@ -254,3 +258,8 @@ Cada línea es una frase del pedido y la tarea que la cubre (§ = sección de ab
 - [x] Bitácora, trampas, Railway; commit y push.
 - [ ] Del responsable: cambiar las contraseñas iniciales, poner teléfono y fechas reales,
   decidir quién pasa a Atlas, retirar `BOOTSTRAP_ADMIN_PASSWORD`, activar copias.
+
+## 12. Ajuste visual (mensaje 10)
+
+- [x] Quitar la línea horizontal sobre la animación del pie de la barra lateral
+  (`border-t` de `SidebarConversionArt`) y desplegarlo.

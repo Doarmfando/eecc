@@ -94,7 +94,7 @@ const ENLACES_ADMINISTRACION: Enlace[] = [{ to: '/usuarios', etiqueta: 'Usuarios
  */
 function SidebarConversionArt(): ReactNode {
   return (
-    <div className="mt-auto border-t border-border/60 px-2 pt-6 pb-2">
+    <div className="mt-auto px-2 pt-6 pb-2">
       <div className="relative mx-auto flex h-16 w-16 items-center justify-center">
         {/* Rayado de hoja de cálculo, apenas insinuado: sin caja, sin borde. */}
         <div
