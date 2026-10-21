@@ -190,37 +190,42 @@ Cada línea es una frase del pedido y la tarea que la cubre (§ = sección de ab
 
 ## 7. Pendiente fuera de este entorno
 
-- [~] Commit y push a `main` del trabajo de roles y membresías (pedido en el mensaje 8).
-- [ ] Despliegue: worker → API (aplica la migración) → frontend. En el servicio de la API:
+- [x] Commit y push a `main` del trabajo de roles y membresías (`5307cb5`).
+- [ ] Despliegue: worker → API (aplica las migraciones `roles_y_membresias` y
+  `vigencia_de_membresia`) → frontend. En el servicio de la API:
   `node dist/cli/super-admins.js brando@hotmail.com fabio@hotmail.com` y guardar las
   contraseñas que imprime. Definir `SUPPORT_PHONE`.
 - [ ] Revisar en *Usuarios* qué cuentas existentes deben pasar a Atlas (hoy: los usuarios
-  quedaron en Básica, los administradores en Atlas).
+  quedaron en Básica, los administradores en Atlas) y ponerles fecha de vencimiento
+  (quedaron «Sin vencimiento»).
 - [x] Dudas abiertas respondidas (mensaje 6).
 
 ## 8. Vigencia de la membresía (mensaje 6)
 
-- [ ] Fecha de vencimiento por persona en la BD; solo para roles que la exigen (hoy
+- [x] Fecha de vencimiento por persona en la BD; solo para roles que la exigen (hoy
   `MEMBER`). Administradores y superadmins no vencen.
-- [ ] Alta de un usuario normal: la vigencia es obligatoria (atajos 1, 3, 6 y 12 meses o
+- [x] Alta de un usuario normal: la vigencia es obligatoria (atajos 1, 3, 6 y 12 meses o
   una fecha). Edición: renovar o cambiar la fecha.
-- [ ] Los admins la ven en cada cuenta: «vence el …», «vence en N días», «vencida»; y un
-  filtro de vencidas.
-- [ ] Al vencer: no puede convertir (`MEMBERSHIP_EXPIRED`), pero entra y conserva lo
+- [x] Los admins la ven en cada cuenta: «vence el …», «vence en N días», «venció el …»; y
+  un filtro de vencidas.
+- [x] Al vencer: no puede convertir (`MEMBERSHIP_EXPIRED`), pero entra y conserva lo
   suyo. La persona ve el aviso antes (por vencer) y después (vencida) con el teléfono.
-- [ ] Fecha según la zona horaria del negocio (`BUSINESS_TIMEZONE`, Lima).
-- [ ] Pruebas, prueba real y capturas.
+- [x] Fecha según la zona horaria del negocio (`BUSINESS_TIMEZONE`, Lima).
+- [x] Pruebas, prueba real (26 comprobaciones) y capturas (18).
 
 ## 9. Borrar documentos del historial (mensaje 6)
 
-- [ ] API: borrar un documento propio o todos los propios, con sus archivos; idempotente
+- [x] API: borrar un documento propio o todos los propios, con sus archivos; idempotente
   (repetir no falla) y auditado sin nombres.
-- [ ] Historial: botón para borrar cada documento y «Vaciar historial», con confirmación.
-- [ ] Resultado de una conversión: «Eliminar este documento» (sirve también a la Básica,
+- [x] Historial: botón para borrar cada documento y «Vaciar historial», con confirmación.
+- [x] Resultado de una conversión: «Borrar este documento» (sirve también a la Básica,
   que no tiene Historial).
-- [ ] Aviso de lo borrado; las vistas que leen esos documentos se refrescan.
-- [ ] Pruebas, prueba real y capturas.
+- [x] Aviso de lo borrado; las vistas que leen esos documentos se refrescan.
+- [x] Pruebas, prueba real y capturas.
 
 ## 10. Cierre
 
-- [ ] Checks de los tres, bitácora, ADR-0017, README/EJECUTAR, commit y push.
+- [x] Checks (API 257 + 9 de aislamiento, frontend 290; worker sin cambios), bitácora,
+  ADR-0017, README, EJECUTAR, `_base_de_datos.md`, Railway, `.env.example`, patrones y
+  trampas.
+- [x] Commit y push.

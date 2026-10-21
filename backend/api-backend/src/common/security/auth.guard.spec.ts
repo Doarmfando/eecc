@@ -22,6 +22,8 @@ const USUARIO: AuthenticatedUser = {
     maxRetainedStatements: 20,
     maxPagesPerDocument: null,
     features: ['HISTORY'],
+    expiresOn: null,
+    expired: false,
   },
 };
 

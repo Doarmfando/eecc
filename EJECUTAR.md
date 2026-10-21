@@ -81,7 +81,8 @@ Get-Content -Wait -Tail 30 .local\logs\api.log
 
 Con sesión de **administrador**, entra en **Usuarios** (menú lateral, sección *Administración*):
 
-- **Nuevo usuario** pide siempre **rol** y **membresía**. Un administrador recibe Atlas propuesto; a un usuario le eliges Básica, Atlas o la que exista. La contraseña se puede **generar** —se muestra **una sola vez**, entrégasela— o **escribir** tú.
+- **Nuevo usuario** pide siempre **rol** y **membresía**. Un administrador recibe Atlas propuesto; a un usuario le eliges Básica, Atlas o la que exista, y **hasta cuándo vale** (se propone un mes; atajos de 1, 3, 6 y 12 meses o una fecha). La contraseña se puede **generar** —se muestra **una sola vez**, entrégasela— o **escribir** tú.
+- **Vigencia.** Cada usuario normal muestra «Vence el …», «Vence en N días» (desde una semana antes) o «Venció el …», y el filtro **Vencidas** los reúne. Al vencer, entra y conserva lo suyo, pero no convierte. Renuévala desde **Editar** (los atajos cuentan desde el vencimiento actual) o pon una fecha pasada para cortarle la conversión. Los administradores no vencen. Los días se cuentan en `BUSINESS_TIMEZONE` (Lima).
 - **Editar** cambia nombre, correo, rol y membresía. Si la nueva guarda menos documentos de los que tiene, te lo advierte: el exceso se borra al subir el siguiente.
 - **Cambiar contraseña** genera otra o fija la que escribas; cierra sus sesiones y desbloquea la cuenta.
 - **Desactivar** cierra sus sesiones en el acto, no cuando caduque su cookie. Se puede reactivar.
@@ -129,6 +130,8 @@ Sin `SEED_ADMIN_PASSWORD` la semilla nunca toca una contraseña existente.
 | PDF que subes | Disco, en `STORAGE_ROOT` (`backend\api-backend\storage`) |
 | XLSX/CSV generados | Disco del worker, en su directorio de artefactos |
 | Movimientos bancarios | **En ningún sitio**: el esquema no tiene tabla para ellos |
+
+**Cada persona puede borrar sus documentos** desde el *Historial* (uno a uno o «Vaciar historial») o desde el resultado de una conversión («Borrar este documento»). Se van con su PDF, Excel y CSV; no se puede deshacer.
 
 **Los archivos no se acumulan.** Cada persona conserva los documentos de su membresía (Básica 3, Atlas 20); al superarlo, la carga pregunta cuál reemplazar —viene elegido el más antiguo, basta Enter— y ese se borra entero: PDF de origen, resultados y fila del historial. Detalles y lo que se pierde a cambio, en [`ADR-0007`](docs/decisiones/ADR-0007-cupo-de-documentos-por-persona.md) y [`ADR-0016`](docs/decisiones/ADR-0016-roles-y-membresias-como-catalogo.md).
 

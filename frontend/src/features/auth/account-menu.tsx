@@ -12,6 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { FieldError, PasswordInput } from '@/features/users/form-fields';
 import { clavePropiaSchema, type ClavePropia } from '@/features/users/member-schemas';
 import { resumenDePlan } from '@/features/access/access';
+import { describirVigencia, hoyLocal } from '@/lib/plan-dates';
 import { nombreDeRol } from '@/features/users/roles';
 import { ApiError } from '@/lib/api-error';
 import { changePassword } from '@/lib/session-client';
@@ -207,6 +208,18 @@ export function AccountMenu(): ReactNode {
                     Membresía {usuario.plan.name}
                   </p>
                   <p className="text-xs text-muted-foreground">{resumenDePlan(usuario.plan)}</p>
+                  {usuario.plan.expiresOn ? (
+                    <p
+                      className={cn(
+                        'text-xs',
+                        usuario.plan.expired
+                          ? 'font-medium text-destructive'
+                          : 'text-muted-foreground',
+                      )}
+                    >
+                      {describirVigencia(usuario.plan.expiresOn, hoyLocal(), usuario.plan.expired)}
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
 

@@ -1,5 +1,7 @@
 import type { Prisma } from '@prisma/client';
 
+import { isExpired, toIsoDate } from '../../common/time/business-date';
+
 /**
  * Códigos del catálogo de acceso sembrado por la migración `roles_y_membresias`.
  *
@@ -49,6 +51,14 @@ export interface PlanSummary {
   features: string[];
 }
 
+/** El plan de una persona concreta: sus límites y hasta cuándo vale (ADR-0017). */
+export interface MembershipPlanState extends PlanSummary {
+  /** Último día de vigencia (`YYYY-MM-DD`). Nulo: no vence. */
+  expiresOn: string | null;
+  /** Ya pasó su último día: no puede convertir hasta que la renueven. */
+  expired: boolean;
+}
+
 /** Lo que una membresía de organización concede: rol con sus permisos y plan. */
 export interface MembershipAccess {
   role: string;
@@ -56,7 +66,7 @@ export interface MembershipAccess {
   /** Rango del rol: decide a quién puede gestionar (ver `member-rules.ts`). */
   roleRank: number;
   permissions: string[];
-  plan: PlanSummary;
+  plan: MembershipPlanState;
 }
 
 /** Consulta común para leer rol, permisos y plan de una membresía en un solo viaje. */
@@ -81,6 +91,7 @@ export const MEMBERSHIP_ACCESS_INCLUDE = {
 } satisfies Prisma.OrganizationMembershipInclude;
 
 export interface MembershipWithAccess {
+  planExpiresOn: Date | null;
   role: { code: string; name: string; rank: number; permissions: { permissionCode: string }[] };
   plan: {
     code: string;
@@ -91,13 +102,18 @@ export interface MembershipWithAccess {
   };
 }
 
-export function toMembershipAccess(membership: MembershipWithAccess): MembershipAccess {
+/** `hoy` es el día del negocio (`businessToday`): decide si la vigencia ya pasó. */
+export function toMembershipAccess(
+  membership: MembershipWithAccess,
+  hoy: string,
+): MembershipAccess {
+  const expiresOn = membership.planExpiresOn ? toIsoDate(membership.planExpiresOn) : null;
   return {
     role: membership.role.code,
     roleName: membership.role.name,
     roleRank: membership.role.rank,
     permissions: membership.role.permissions.map(({ permissionCode }) => permissionCode),
-    plan: toPlanSummary(membership.plan),
+    plan: { ...toPlanSummary(membership.plan), expiresOn, expired: isExpired(expiresOn, hoy) },
   };
 }
 

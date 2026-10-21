@@ -7,6 +7,7 @@ import { useSession } from '@/app/use-session';
 import { useNotifications, useNotifyError } from '@/components/notifications/notifications-context';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { cupoDe } from '@/features/access/access';
+import { AvisoDeVigencia } from '@/features/access/plan-gate';
 import {
   AVAILABLE_BANKS,
   AVAILABLE_BANKS_LABEL,
@@ -113,6 +114,8 @@ export function UploadPage(): ReactNode {
   const [awaitingChoice, setAwaitingChoice] = useState<UploadFormValues | null>(null);
 
   const cupo = cupoDe(usuario);
+  // Vencida, la API rechaza la carga: el formulario no se ofrece para algo que fallará.
+  const vencida = usuario?.plan?.expired === true;
   const replaceable = replaceableStatements(history.data?.items ?? []);
 
   /** Lo que pasó, dicho en pantalla: convertido, reutilizado y qué se reemplazó. */
@@ -186,6 +189,8 @@ export function UploadPage(): ReactNode {
         </div>
       </div>
 
+      <AvisoDeVigencia />
+
       <Card>
         <CardHeader>
           <CardTitle>Selecciona tu banco y sube el documento</CardTitle>
@@ -211,6 +216,7 @@ export function UploadPage(): ReactNode {
                 </span>
                 <div className="mt-3">
                   <UploadForm
+                    disabled={vencida}
                     pending={upload.isPending}
                     passwordProblem={passwordProblemOf(upload.error)}
                     onSubmit={handleSubmit}

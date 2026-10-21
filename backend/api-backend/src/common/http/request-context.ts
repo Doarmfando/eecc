@@ -1,7 +1,7 @@
 import { createParamDecorator, type ExecutionContext } from '@nestjs/common';
 import type { Request } from 'express';
 
-import type { PlanSummary } from '../../modules/access/access-catalog';
+import type { MembershipPlanState } from '../../modules/access/access-catalog';
 import type { AuthenticatedUser } from '../../modules/auth/auth.service';
 
 export interface OrganizationContext {
@@ -15,7 +15,7 @@ export interface OrganizationContext {
   /** Permisos del rol. Vacío para una credencial de servicio. */
   permissions: readonly string[];
   /** Membresía de la persona. Nula para una credencial de servicio. */
-  plan: PlanSummary | null;
+  plan: MembershipPlanState | null;
 }
 
 /** El contexto de una persona con sesión, el mismo en todos los guards. */

@@ -159,6 +159,9 @@ model OrganizationMembership {
   planCode       String           @map("plan_code") @db.VarChar(32)
   /// Desde cuándo tiene la membresía actual. Los cambios quedan en `audit_events`.
   planChangedAt  DateTime         @default(now()) @map("plan_changed_at") @db.Timestamptz(6)
+  /// Último día de vigencia, en la zona horaria del negocio. Nulo: no vence. Solo
+  /// la llevan los roles con `plan_expiry_required`; vencida, no se convierte (ADR-0017).
+  planExpiresOn  DateTime?        @map("plan_expires_on") @db.Date
   status         MembershipStatus @default(ACTIVE)
   createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -179,17 +182,19 @@ model OrganizationMembership {
 /// rol sea insertar filas, no migrar un tipo. El código pregunta por **permisos**
 /// (`role_permissions`) y por **rango**, nunca por el nombre de un rol (ADR-0016).
 model Role {
-  code            String   @id @db.VarChar(32)
-  name            String   @db.VarChar(80)
-  description     String   @db.VarChar(255)
+  code               String   @id @db.VarChar(32)
+  name               String   @db.VarChar(80)
+  description        String   @db.VarChar(255)
   /// Jerarquía: solo se gestionan cuentas de rango inferior; con el mismo rango,
   /// solo cambios reversibles. Nadie asigna un rol de rango superior al suyo.
-  rank            Int      @default(0)
+  rank               Int      @default(0)
   /// Plan que se propone al dar de alta con este rol. Nulo: hay que elegirlo.
-  defaultPlanCode String?  @map("default_plan_code") @db.VarChar(32)
+  defaultPlanCode    String?  @map("default_plan_code") @db.VarChar(32)
+  /// Si su membresía tiene fecha de vencimiento. Los administradores no vencen.
+  planExpiryRequired Boolean  @default(false) @map("plan_expiry_required")
   /// Los roles sembrados por migración no se borran del catálogo.
-  isSystem        Boolean  @default(false) @map("is_system")
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  isSystem           Boolean  @default(false) @map("is_system")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   defaultPlan MembershipPlan?          @relation("RoleDefaultPlan", fields: [defaultPlanCode], references: [code], onDelete: SetNull)
   permissions RolePermission[]

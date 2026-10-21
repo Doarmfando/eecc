@@ -52,6 +52,10 @@ const MESSAGES: Record<string, string> = {
   ROLE_ABOVE_YOURS: 'Esa cuenta o ese rol están por encima del tuyo.',
   ROLE_NOT_FOUND: 'Ese rol ya no existe. Recarga la página.',
   PLAN_NOT_FOUND: 'Esa membresía ya no está disponible. Recarga la página y elige otra.',
+  MEMBERSHIP_EXPIRED:
+    'Tu membresía venció, así que no puedes convertir documentos. Pide a un administrador que la renueve; lo que ya tienes sigue disponible.',
+  STATEMENT_DELETE_FAILED:
+    'No se pudieron borrar todos los documentos. Vuelve a intentarlo: lo que ya se borró no se repite.',
 };
 
 /** Con los números del rechazo, el mensaje dice exactamente qué sobra. */
@@ -96,6 +100,7 @@ const KIND_BY_CODE: Record<string, ErrorKind> = {
   DOCUMENT_REQUIRED: 'Documento',
   STATEMENT_NOT_CONSOLIDABLE: 'Documento',
   PDF_PAGE_LIMIT_EXCEEDED: 'Límite de la membresía',
+  MEMBERSHIP_EXPIRED: 'Límite de la membresía',
   INSUFFICIENT_ROLE: 'Permisos',
   ROLE_ABOVE_YOURS: 'Permisos',
   CANNOT_MODIFY_SELF: 'Permisos',

@@ -3,6 +3,7 @@ import { useState, type ComponentProps, type ReactNode } from 'react';
 
 import { Input } from '@/components/ui/input';
 import { NOMBRE_FUNCION, resumenDePlan, type FeatureCode } from '@/features/access/access';
+import { describirVigencia, diasHasta, hoyLocal, sumarMeses } from '@/lib/plan-dates';
 import type { PlanOption, RoleOption } from '@/lib/session-client';
 import { cn } from '@/lib/utils';
 
@@ -141,6 +142,102 @@ export function PlanChoice({
           }}
         />
       ))}
+    </div>
+  );
+}
+
+const ATAJOS: readonly { meses: number; etiqueta: string }[] = [
+  { meses: 1, etiqueta: '1 mes' },
+  { meses: 3, etiqueta: '3 meses' },
+  { meses: 6, etiqueta: '6 meses' },
+  { meses: 12, etiqueta: '1 año' },
+];
+
+/**
+ * Hasta cuándo vale la membresía. Los atajos cuentan desde `desde`: hoy en un
+ * alta, o el vencimiento actual si aún no pasó (renovar no regala ni quita días).
+ */
+export function VigenciaField({
+  id,
+  value,
+  onChange,
+  desde,
+  error,
+  disabled,
+  permitirQuitar,
+}: {
+  id: string;
+  value: string;
+  onChange: (dia: string) => void;
+  desde: string;
+  error?: string | undefined;
+  disabled?: boolean;
+  /** En la edición se puede dejar sin vencimiento; en el alta, no. */
+  permitirQuitar?: boolean;
+}): ReactNode {
+  const hoy = hoyLocal();
+  const pasada = value !== '' && diasHasta(value, hoy) < 0;
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Duración de la membresía">
+        {ATAJOS.map(({ meses, etiqueta }) => {
+          const dia = sumarMeses(desde, meses);
+          return (
+            <button
+              key={meses}
+              type="button"
+              disabled={disabled}
+              aria-pressed={value === dia}
+              onClick={() => {
+                onChange(dia);
+              }}
+              className={cn(
+                'cursor-pointer rounded-md border px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+                value === dia
+                  ? 'border-primary bg-primary/10 text-primary'
+                  : 'border-border text-muted-foreground hover:border-primary/40 hover:text-foreground',
+              )}
+            >
+              {etiqueta}
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <Input
+          id={id}
+          type="date"
+          value={value}
+          disabled={disabled}
+          aria-invalid={error ? true : undefined}
+          onChange={(event) => {
+            onChange(event.target.value);
+          }}
+          className="w-44"
+        />
+        {permitirQuitar && value !== '' && !disabled ? (
+          <button
+            type="button"
+            onClick={() => {
+              onChange('');
+            }}
+            className="cursor-pointer text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+          >
+            Quitar vencimiento
+          </button>
+        ) : null}
+      </div>
+      {error ? (
+        <FieldError message={error} />
+      ) : value !== '' ? (
+        <p className={cn('text-xs', pasada ? 'text-destructive' : 'text-muted-foreground')}>
+          {pasada
+            ? 'Esa fecha ya pasó: la membresía quedará vencida y no podrá convertir.'
+            : `${describirVigencia(value, hoy)}. Después no podrá convertir hasta que la renueves.`}
+        </p>
+      ) : (
+        <p className="text-xs text-muted-foreground">Sin vencimiento.</p>
+      )}
     </div>
   );
 }

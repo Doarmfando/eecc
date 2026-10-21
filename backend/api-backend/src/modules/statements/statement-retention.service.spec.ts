@@ -311,4 +311,38 @@ describe('StatementRetentionService', () => {
       }),
     );
   });
+
+  it('borra a pedido de su dueño uno o todos sus documentos, filtrando por dueño', async () => {
+    const uno = construir({ documentos: [{ id: 'elegido', sourceFileName: 'Julio.pdf' }] });
+
+    await expect(uno.service.removeOwn(ORGANIZATION_ID, USUARIO_ID, 'elegido')).resolves.toEqual([
+      { statementId: 'elegido', sourceFileName: 'Julio.pdf' },
+    ]);
+    expect(uno.sobrantes).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { organizationId: ORGANIZATION_ID, uploadedById: USUARIO_ID, id: 'elegido' },
+      }),
+    );
+
+    const todos = construir({ documentos: [{ id: 'a' }, { id: 'b' }], artefactos: [] });
+    await expect(todos.service.removeOwn(ORGANIZATION_ID, USUARIO_ID)).resolves.toHaveLength(2);
+    expect(todos.sobrantes).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { organizationId: ORGANIZATION_ID, uploadedById: USUARIO_ID },
+      }),
+    );
+  });
+
+  it('si un borrado a pedido falla, sigue con los demás y después avisa', async () => {
+    const { service, borrarDocumento } = construir({
+      documentos: [{ id: 'a' }, { id: 'b' }],
+      artefactos: [],
+      fallaElBorrado: true,
+    });
+
+    await expect(service.removeOwn(ORGANIZATION_ID, USUARIO_ID)).rejects.toMatchObject({
+      response: { code: 'STATEMENT_DELETE_FAILED' },
+    });
+    expect(borrarDocumento).toHaveBeenCalledTimes(2);
+  });
 });

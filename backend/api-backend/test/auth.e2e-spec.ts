@@ -35,9 +35,11 @@ function accesoDe(role: string): Record<string, unknown> {
     roleCode: role,
     planCode: admin ? 'ATLAS' : 'BASICA',
     planChangedAt: new Date('2026-01-01T00:00:00Z'),
+    planExpiresOn: admin ? null : new Date('2099-12-31T00:00:00Z'),
     role: {
       code: role,
       name: admin ? 'Administrador' : 'Usuario',
+      planExpiryRequired: !admin,
       permissions: (admin ? ['STATEMENTS_CONVERT', 'USERS_MANAGE'] : ['STATEMENTS_CONVERT']).map(
         (permissionCode) => ({ permissionCode }),
       ),
@@ -262,7 +264,13 @@ describe('Sesión de usuario (e2e)', () => {
       role: 'ADMIN',
       roleName: 'Administrador',
       permissions: ['STATEMENTS_CONVERT', 'USERS_MANAGE'],
-      plan: { code: 'ATLAS', maxRetainedStatements: 20, maxPagesPerDocument: null },
+      plan: {
+        code: 'ATLAS',
+        maxRetainedStatements: 20,
+        maxPagesPerDocument: null,
+        expiresOn: null,
+        expired: false,
+      },
       retainedStatementsPerUser: 20,
       supportPhone: null,
     });

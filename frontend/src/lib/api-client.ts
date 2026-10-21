@@ -42,7 +42,7 @@ async function readError(response: Response): Promise<ApiError> {
 }
 
 interface RequestInput {
-  method: 'GET' | 'POST';
+  method: 'GET' | 'POST' | 'DELETE';
   body?: FormData;
   headers?: Record<string, string>;
   signal?: AbortSignal;
@@ -128,6 +128,38 @@ export async function uploadStatement(
       ...(input.signal ? { signal: input.signal } : {}),
     }),
   );
+}
+
+/** Lo que respondió un borrado del historial: cero si ya no estaba. */
+export interface DeletedStatements {
+  deletedCount: number;
+}
+
+function parseDeleted(payload: unknown): DeletedStatements {
+  if (
+    typeof payload === 'object' &&
+    payload !== null &&
+    'deletedCount' in payload &&
+    typeof payload.deletedCount === 'number'
+  ) {
+    return { deletedCount: payload.deletedCount };
+  }
+  throw new ApiError('RESPONSE_CONTRACT_MISMATCH', 200);
+}
+
+/**
+ * Quita del historial un documento propio, con sus archivos. Sin identificador,
+ * todos los propios. Repetirlo no falla: responde `deletedCount: 0`.
+ */
+export async function deleteStatements(
+  options: ApiClientOptions,
+  statementId?: string,
+): Promise<DeletedStatements> {
+  const path =
+    statementId === undefined
+      ? 'v1/statements'
+      : `v1/statements/${encodeURIComponent(statementId)}`;
+  return parseDeleted(await request(options, path, { method: 'DELETE' }));
 }
 
 export async function fetchJobHistory(

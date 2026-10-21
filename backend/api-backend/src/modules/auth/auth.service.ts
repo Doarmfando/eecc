@@ -2,6 +2,7 @@ import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { businessToday } from '../../common/time/business-date';
 import type { AppConfig } from '../../config/app-config';
 import {
   MEMBERSHIP_ACCESS_INCLUDE,
@@ -144,7 +145,7 @@ export class AuthService {
         displayName: user.displayName,
         organizationId: membership.organizationId,
         organizationName: membership.organization.displayName,
-        ...toMembershipAccess(membership),
+        ...toMembershipAccess(membership, this.hoy()),
       },
     };
   }
@@ -201,8 +202,13 @@ export class AuthService {
       displayName: registro.user.displayName,
       organizationId: registro.organizationId,
       organizationName: membership.organization.displayName,
-      ...toMembershipAccess(membership),
+      ...toMembershipAccess(membership, this.hoy()),
     };
+  }
+
+  /** Día del negocio: la vigencia se revisa en cada petición, no al entrar. */
+  private hoy(): string {
+    return businessToday(this.config.get('BUSINESS_TIMEZONE', { infer: true }));
   }
 
   async logout(token: string): Promise<void> {

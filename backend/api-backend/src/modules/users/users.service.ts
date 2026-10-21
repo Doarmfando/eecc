@@ -11,6 +11,13 @@ import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'node:crypto';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
+import {
+  businessToday,
+  fromIsoDate,
+  isExpired,
+  isValidIsoDate,
+  toIsoDate,
+} from '../../common/time/business-date';
 import { isEmailDomainAllowed, parseEmailDomains, type AppConfig } from '../../config/app-config';
 import { AccessService } from '../access/access.service';
 import { hashPassword, normalizeEmail } from '../auth/password-hash';
@@ -40,6 +47,12 @@ export interface MemberSummary {
   maxRetainedStatements: number;
   maxPagesPerDocument: number | null;
   planChangedAt: string;
+  /** Último día de vigencia (`YYYY-MM-DD`); nulo si no vence (ADR-0017). */
+  planExpiresOn: string | null;
+  /** Ya venció: no puede convertir hasta que la renueven. */
+  planExpired: boolean;
+  /** Si su rol lleva vencimiento: los administradores no vencen. */
+  planExpiryRequired: boolean;
   status: UserStatus;
   membershipStatus: MembershipStatus;
   /** Documentos que conserva en esta organización. El cupo de su membresía los limita. */
@@ -64,6 +77,8 @@ export interface MemberChanges {
   email?: string;
   role?: string;
   planCode?: string;
+  /** `YYYY-MM-DD` para renovar o cambiar la vigencia; `null` la quita. */
+  planExpiresOn?: string | null;
   membershipStatus?: MembershipStatus;
 }
 
@@ -82,6 +97,7 @@ const LONGITUD_TEMPORAL = 16;
 @Injectable()
 export class UsersService {
   private readonly dominiosPermitidos: string[];
+  private readonly zonaHoraria: string;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -92,6 +108,19 @@ export class UsersService {
     this.dominiosPermitidos = parseEmailDomains(
       config.get('ALLOWED_EMAIL_DOMAINS', { infer: true }),
     );
+    this.zonaHoraria = config.get('BUSINESS_TIMEZONE', { infer: true });
+  }
+
+  /** Día del negocio, para decidir qué vigencias ya pasaron. */
+  private hoy(): string {
+    return businessToday(this.zonaHoraria);
+  }
+
+  /** Una fecha que no existe no se guarda ni se interpreta. */
+  private exigirFecha(dia: string): void {
+    if (!isValidIsoDate(dia)) {
+      throw new BadRequestException({ code: 'PLAN_EXPIRY_INVALID' });
+    }
   }
 
   /** La organización solo da de alta correos de los dominios configurados. */
@@ -107,7 +136,8 @@ export class UsersService {
       include: incluirMiembro(organizationId),
       orderBy: { createdAt: 'asc' },
     });
-    return memberships.map((membership) => toMemberSummary(membership, actor));
+    const hoy = this.hoy();
+    return memberships.map((membership) => toMemberSummary(membership, actor, hoy));
   }
 
   /**
@@ -126,6 +156,8 @@ export class UsersService {
       displayName: string;
       role: string;
       planCode?: string;
+      /** Obligatoria si el rol lleva vencimiento; se ignora si no. */
+      planExpiresOn?: string | null;
       password?: string;
     },
     requestId?: string,
@@ -141,6 +173,21 @@ export class UsersService {
       undefined,
       rol.defaultPlanCode,
     );
+    // Un usuario normal nace con fecha de vencimiento, y no en el pasado: darlo
+    // de alta ya vencido sería una cuenta que no puede hacer nada. Un rol que no
+    // vence (los administradores) nunca la lleva, aunque se envíe.
+    const hoy = this.hoy();
+    let planExpiresOn: string | null = null;
+    if (rol.planExpiryRequired) {
+      if (!datos.planExpiresOn) {
+        throw new BadRequestException({ code: 'PLAN_EXPIRY_REQUIRED' });
+      }
+      this.exigirFecha(datos.planExpiresOn);
+      if (datos.planExpiresOn < hoy) {
+        throw new BadRequestException({ code: 'PLAN_EXPIRY_IN_PAST' });
+      }
+      planExpiresOn = datos.planExpiresOn;
+    }
 
     const existente = await this.prisma.user.findUnique({
       where: { emailNormalized: email },
@@ -169,7 +216,13 @@ export class UsersService {
         }));
 
       const creada = await tx.organizationMembership.create({
-        data: { organizationId, userId: user.id, roleCode: datos.role, planCode },
+        data: {
+          organizationId,
+          userId: user.id,
+          roleCode: datos.role,
+          planCode,
+          planExpiresOn: planExpiresOn ? fromIsoDate(planExpiresOn) : null,
+        },
         include: incluirMiembro(organizationId),
       });
 
@@ -181,7 +234,7 @@ export class UsersService {
           entityType: 'user',
           entityId: user.id,
           ...(requestId !== undefined ? { requestId } : {}),
-          metadata: { role: datos.role, planCode },
+          metadata: { role: datos.role, planCode, planExpiresOn },
         },
       });
 
@@ -189,7 +242,7 @@ export class UsersService {
     });
 
     return {
-      member: toMemberSummary(membership, actor),
+      member: toMemberSummary(membership, actor, hoy),
       temporaryPassword: existente || datos.password !== undefined ? null : password,
     };
   }
@@ -228,10 +281,35 @@ export class UsersService {
     }
     const cambiaPlan = cambios.planCode !== undefined && cambios.planCode !== membership.planCode;
 
+    // La vigencia sigue al rol final: uno que no vence la pierde (ascender a
+    // administrador la quita); uno que vence conserva la que tenía salvo que se
+    // envíe otra. Se permite una fecha pasada: es la forma de cortar el acceso.
+    const hoy = this.hoy();
+    const rolFinal =
+      typeof datosMembresia.roleCode === 'string'
+        ? await this.access.findRole(datosMembresia.roleCode)
+        : membership.role;
+    const vigenciaActual = membership.planExpiresOn ? toIsoDate(membership.planExpiresOn) : null;
+    let vigenciaNueva = vigenciaActual;
+    if (!rolFinal.planExpiryRequired) {
+      vigenciaNueva = null;
+    } else if (cambios.planExpiresOn !== undefined) {
+      if (cambios.planExpiresOn !== null) {
+        this.exigirFecha(cambios.planExpiresOn);
+      }
+      vigenciaNueva = cambios.planExpiresOn;
+    }
+    const cambiaVigencia = vigenciaNueva !== vigenciaActual;
+
     const camposUsuario = Object.keys(datosUsuario);
     const camposMembresia = Object.keys(datosMembresia);
-    if (camposUsuario.length === 0 && camposMembresia.length === 0 && !cambiaPlan) {
-      return toMemberSummary(membership, actor);
+    if (
+      camposUsuario.length === 0 &&
+      camposMembresia.length === 0 &&
+      !cambiaPlan &&
+      !cambiaVigencia
+    ) {
+      return toMemberSummary(membership, actor, hoy);
     }
 
     // Cada cambio exige su acción: quitarse el acceso o el rol a uno mismo, tocar
@@ -241,14 +319,15 @@ export class UsersService {
     if (camposUsuario.length > 0) acciones.push('EDIT_PROFILE');
     if (datosMembresia.roleCode !== undefined) acciones.push('CHANGE_ROLE');
     if (datosMembresia.status !== undefined) acciones.push('CHANGE_STATUS');
-    if (cambiaPlan) acciones.push('CHANGE_PLAN');
+    // La vigencia es parte de la membresía. Si solo cambia por el rol (ascender
+    // la quita), basta con poder cambiar el rol.
+    if (cambiaPlan || (cambiaVigencia && datosMembresia.roleCode === undefined)) {
+      acciones.push('CHANGE_PLAN');
+    }
     exigirAcciones(actor, { userId, rank: membership.role.rank }, acciones);
 
-    if (typeof datosMembresia.roleCode === 'string') {
-      const nuevo = await this.access.findRole(datosMembresia.roleCode);
-      if (!canAssignRole(actor.rank, nuevo.rank)) {
-        throw new ForbiddenException({ code: 'ROLE_ABOVE_YOURS' });
-      }
+    if (typeof datosMembresia.roleCode === 'string' && !canAssignRole(actor.rank, rolFinal.rank)) {
+      throw new ForbiddenException({ code: 'ROLE_ABOVE_YOURS' });
     }
     if (cambiaPlan) {
       datosMembresia.planCode = await this.access.resolvePlanCode(
@@ -256,6 +335,9 @@ export class UsersService {
         membership.planCode,
       );
       datosMembresia.planChangedAt = new Date();
+    }
+    if (cambiaVigencia) {
+      datosMembresia.planExpiresOn = vigenciaNueva ? fromIsoDate(vigenciaNueva) : null;
     }
     if (camposUsuario.length > 0) {
       await this.exigirCuentaExclusiva(organizationId, userId);
@@ -302,9 +384,16 @@ export class UsersService {
             // Qué campos cambiaron, no sus valores: el correo es un dato personal
             // y la auditoría no necesita guardarlo para ser útil.
             metadata: {
-              fields: [...camposUsuario, ...camposMembresia, ...(cambiaPlan ? ['planCode'] : [])],
+              fields: [
+                ...camposUsuario,
+                ...camposMembresia.filter((campo) => campo !== 'planExpiresOn'),
+                ...(cambiaPlan ? ['planCode'] : []),
+                ...(cambiaVigencia ? ['planExpiresOn'] : []),
+              ],
               ...(cambios.role !== undefined ? { role: cambios.role } : {}),
               ...(cambiaPlan ? { planCode: cambios.planCode } : {}),
+              // Una fecha no es un dato personal y es lo que soporte necesita ver.
+              ...(cambiaVigencia ? { planExpiresOn: vigenciaNueva } : {}),
               ...(cambios.membershipStatus !== undefined
                 ? { membershipStatus: cambios.membershipStatus }
                 : {}),
@@ -315,7 +404,7 @@ export class UsersService {
         return resultado;
       });
 
-      return toMemberSummary(actualizada, actor);
+      return toMemberSummary(actualizada, actor, hoy);
     } catch (error) {
       // La comprobación previa no cubre la carrera de dos altas simultáneas con el
       // mismo correo; la restricción única de la base sí.
@@ -493,7 +582,7 @@ function generarContrasenaTemporal(): string {
 }
 
 const ROL_Y_PLAN = {
-  role: { select: { code: true, name: true, rank: true } },
+  role: { select: { code: true, name: true, rank: true, planExpiryRequired: true } },
   plan: {
     select: { code: true, name: true, maxRetainedStatements: true, maxPagesPerDocument: true },
   },
@@ -532,9 +621,10 @@ interface MembershipConUsuario {
   roleCode: string;
   planCode: string;
   planChangedAt: Date;
+  planExpiresOn: Date | null;
   status: MembershipStatus;
   createdAt: Date;
-  role: { code: string; name: string; rank: number };
+  role: { code: string; name: string; rank: number; planExpiryRequired: boolean };
   plan: {
     code: string;
     name: string;
@@ -551,7 +641,12 @@ interface MembershipConUsuario {
   };
 }
 
-function toMemberSummary(membership: MembershipConUsuario, actor: MemberActor): MemberSummary {
+function toMemberSummary(
+  membership: MembershipConUsuario,
+  actor: MemberActor,
+  hoy: string,
+): MemberSummary {
+  const planExpiresOn = membership.planExpiresOn ? toIsoDate(membership.planExpiresOn) : null;
   return {
     userId: membership.user.id,
     email: membership.user.emailNormalized,
@@ -564,6 +659,9 @@ function toMemberSummary(membership: MembershipConUsuario, actor: MemberActor): 
     maxRetainedStatements: membership.plan.maxRetainedStatements,
     maxPagesPerDocument: membership.plan.maxPagesPerDocument,
     planChangedAt: membership.planChangedAt.toISOString(),
+    planExpiresOn,
+    planExpired: isExpired(planExpiresOn, hoy),
+    planExpiryRequired: membership.role.planExpiryRequired,
     status: membership.user.status,
     membershipStatus: membership.status,
     documentCount: membership.user._count.statements,

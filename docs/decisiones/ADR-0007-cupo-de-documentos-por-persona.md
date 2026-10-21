@@ -6,7 +6,8 @@
   reemplaza; el más antiguo sigue siendo el predeterminado. Y por
   [ADR-0016](ADR-0016-roles-y-membresias-como-catalogo.md): el cupo de cada persona es el de su
   membresía (Básica 3, Atlas 20); `RETAINED_STATEMENTS_PER_USER` queda para las credenciales de
-  servicio.
+  servicio. Y por [ADR-0017](ADR-0017-vigencia-de-la-membresia-y-borrado-del-historial.md): además
+  del cupo, cada persona puede borrar sus documentos cuando quiera.
 
 ## Contexto
 

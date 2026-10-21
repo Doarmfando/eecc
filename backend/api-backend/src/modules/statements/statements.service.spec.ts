@@ -531,4 +531,68 @@ describe('StatementsService', () => {
     expect(recorder.created.find((entry) => entry.model === 'statement')).toBeUndefined();
     expect(enforceForUploader).not.toHaveBeenCalled();
   });
+
+  it('con la membresía vencida no convierte, no llama al worker y lo audita', async () => {
+    const recorder: TransactionRecorder = { created: [] };
+    const { prisma } = buildPrisma(null, recorder);
+    const processStatement = jest.fn();
+    const service = buildService(prisma, { processStatement });
+
+    await expect(
+      service.process({
+        organizationId: ORGANIZATION_ID,
+        userId: USER_ID,
+        content: pdfBuffer(),
+        fileName: 'estado.pdf',
+        mimeType: 'application/pdf',
+        membershipExpired: true,
+      }),
+    ).rejects.toMatchObject({ response: { code: 'MEMBERSHIP_EXPIRED' } });
+    expect(processStatement).not.toHaveBeenCalled();
+    const auditoria = recorder.created.find((entry) => entry.model === 'auditEvent')?.data as {
+      action: string;
+      metadata: { code: string };
+    };
+    expect(auditoria).toMatchObject({
+      action: 'statement.request_failed',
+      metadata: { code: 'MEMBERSHIP_EXPIRED' },
+    });
+  });
+
+  it('borra documentos propios del historial y lo audita sin nombres', async () => {
+    const recorder: TransactionRecorder = { created: [] };
+    const { prisma } = buildPrisma(null, recorder);
+    const removeOwn = jest
+      .fn()
+      .mockResolvedValueOnce([{ statementId: OTHER_STATEMENT_ID, sourceFileName: 'Junio.pdf' }])
+      .mockResolvedValueOnce([]);
+    const retention = { removeOwn } as unknown as StatementRetentionService;
+    const service = new StatementsService(
+      prisma,
+      {} as ObjectStorageService,
+      {} as WorkerClientService,
+      retention,
+      { get: (key: string): unknown => CONFIG[key] } as unknown as ConfigService<AppConfig, true>,
+    );
+
+    await expect(
+      service.deleteOwn(ORGANIZATION_ID, USER_ID, OTHER_STATEMENT_ID, 'req-borrar'),
+    ).resolves.toEqual({ deletedCount: 1 });
+    expect(removeOwn).toHaveBeenCalledWith(ORGANIZATION_ID, USER_ID, OTHER_STATEMENT_ID);
+    const evento = recorder.created.find((entry) => entry.model === 'auditEvent')?.data;
+    expect(evento).toMatchObject({
+      action: 'statement.deleted',
+      entityId: OTHER_STATEMENT_ID,
+      requestId: 'req-borrar',
+      metadata: { count: 1, scope: 'one' },
+    });
+    expect(JSON.stringify(evento)).not.toContain('Junio');
+
+    // Repetir: ya no está, no falla y no audita de nuevo (idempotente).
+    recorder.created.length = 0;
+    await expect(service.deleteOwn(ORGANIZATION_ID, USER_ID)).resolves.toEqual({
+      deletedCount: 0,
+    });
+    expect(recorder.created).toHaveLength(0);
+  });
 });

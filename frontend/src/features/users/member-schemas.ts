@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { diasHasta, hoyLocal } from '@/lib/plan-dates';
+
 /** Los mismos límites que aplica la API; aquí solo evitan una llamada condenada a fallar. */
 export const MIN_PASSWORD_LENGTH = 12;
 export const MAX_PASSWORD_LENGTH = 200;
@@ -78,24 +80,61 @@ function exigirDominio(
   };
 }
 
+/** `YYYY-MM-DD` o vacío. La API vuelve a comprobar que la fecha exista. */
+const vigencia = z
+  .string()
+  .refine((valor) => valor === '' || /^\d{4}-\d{2}-\d{2}$/.test(valor), 'Fecha no válida');
+
 const nuevaCuentaBase = z.object({
   displayName: nombre,
   email: correo,
   role: rol,
   planCode: plan,
+  planExpiresOn: vigencia,
   modoClave,
   password: z.string(),
 });
 
 export type NuevaCuenta = z.infer<typeof nuevaCuentaBase>;
 
-export function nuevaCuentaSchema(dominios: readonly string[]): z.ZodType<NuevaCuenta> {
+/**
+ * `rolesQueVencen`: los roles cuya membresía lleva fecha (hoy, los usuarios). Para
+ * ellos el alta exige un vencimiento de hoy en adelante, como la API.
+ */
+export function nuevaCuentaSchema(
+  dominios: readonly string[],
+  rolesQueVencen: ReadonlySet<string> = new Set(),
+): z.ZodType<NuevaCuenta> {
   return nuevaCuentaBase
     .extend({ email: correo.superRefine(exigirDominio(dominios)) })
-    .superRefine(validarClaveElegida);
+    .superRefine(validarClaveElegida)
+    .superRefine((valores, ctx) => {
+      if (!rolesQueVencen.has(valores.role)) {
+        return;
+      }
+      if (valores.planExpiresOn === '') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['planExpiresOn'],
+          message: 'Elige hasta cuándo vale la membresía',
+        });
+      } else if (diasHasta(valores.planExpiresOn, hoyLocal()) < 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['planExpiresOn'],
+          message: 'No puede vencer antes de hoy',
+        });
+      }
+    });
 }
 
-const edicionBase = z.object({ displayName: nombre, email: correo, role: rol, planCode: plan });
+const edicionBase = z.object({
+  displayName: nombre,
+  email: correo,
+  role: rol,
+  planCode: plan,
+  planExpiresOn: vigencia,
+});
 
 export type Edicion = z.infer<typeof edicionBase>;
 

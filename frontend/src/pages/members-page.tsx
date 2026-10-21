@@ -33,6 +33,7 @@ import {
 } from '@/features/users/member-dialogs';
 import { accionesSobre, nombreDeRol } from '@/features/users/roles';
 import { fetchMembers, updateMember, type Member } from '@/lib/session-client';
+import { describirVigencia, estadoDeVigencia, hoyLocal } from '@/lib/plan-dates';
 import { cn } from '@/lib/utils';
 
 /** `todos`, `desactivados` o un rol concreto: los filtros salen de los roles presentes. */
@@ -40,6 +41,7 @@ type Filtro = string;
 
 const TODOS = 'todos';
 const DESACTIVADOS = 'desactivados';
+const VENCIDAS = 'vencidas';
 
 function cumpleFiltro(miembro: Member, filtro: Filtro): boolean {
   if (filtro === TODOS) {
@@ -48,7 +50,35 @@ function cumpleFiltro(miembro: Member, filtro: Filtro): boolean {
   if (filtro === DESACTIVADOS) {
     return miembro.membershipStatus === 'REVOKED';
   }
+  if (filtro === VENCIDAS) {
+    return miembro.planExpired === true;
+  }
   return miembro.role === filtro;
+}
+
+const ESTILO_VIGENCIA = {
+  vigente: 'text-muted-foreground',
+  'por-vencer': 'text-warning-foreground font-medium',
+  vencida: 'text-destructive font-medium',
+  'sin-vencimiento': 'text-muted-foreground',
+} as const;
+
+/**
+ * Hasta cuándo vale la membresía de un usuario normal. Los administradores no
+ * vencen y no muestran nada; un usuario sin fecha lo dice para que se le ponga.
+ */
+function Vigencia({ miembro, hoy }: { miembro: Member; hoy: string }): ReactNode {
+  if (!miembro.planExpiryRequired) {
+    return null;
+  }
+  const estado = estadoDeVigencia(miembro.planExpiresOn, hoy, miembro.planExpired);
+  return (
+    <span className={cn('text-xs whitespace-nowrap', ESTILO_VIGENCIA[estado])}>
+      {miembro.planExpiresOn
+        ? describirVigencia(miembro.planExpiresOn, hoy, miembro.planExpired)
+        : 'Sin vencimiento'}
+    </span>
+  );
 }
 
 /** Rango de una cuenta; con una API anterior, el de los dos roles de entonces. */
@@ -261,8 +291,13 @@ export function MembersPage(): ReactNode {
         .sort(([, a], [, b]) => b.rango - a.rango)
         .map(([valor, { etiqueta }]) => ({ valor, etiqueta })),
       { valor: DESACTIVADOS, etiqueta: 'Desactivados' },
+      // Solo si hay alguna: un filtro que siempre da cero no ayuda.
+      ...(lista.some((miembro) => miembro.planExpired)
+        ? [{ valor: VENCIDAS, etiqueta: 'Vencidas' }]
+        : []),
     ];
   }, [lista]);
+  const hoy = hoyLocal();
   const rangoBase = lista.reduce((minimo, miembro) => Math.min(minimo, rangoDe(miembro)), Infinity);
 
   const visibles = useMemo(() => {
@@ -477,6 +512,7 @@ export function MembersPage(): ReactNode {
                           <div className="flex flex-col items-start gap-1">
                             <InsigniaRol miembro={miembro} gestiona={gestiona} />
                             <InsigniaPlan miembro={miembro} />
+                            <Vigencia miembro={miembro} hoy={hoy} />
                           </div>
                         </td>
                         <td className="px-3 py-3">

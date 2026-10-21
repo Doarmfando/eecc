@@ -119,6 +119,7 @@ export function UploadForm({
           }}
           className={cn(
             'relative mt-2 flex flex-col items-center gap-2 rounded-xl border-2 border-dashed p-8 text-center transition-colors sm:p-10',
+            disabled && 'opacity-60',
             hasError
               ? 'border-destructive/40 bg-destructive/5'
               : selected
@@ -177,7 +178,8 @@ export function UploadForm({
             type="file"
             accept="application/pdf,.pdf"
             disabled={disabled || pending}
-            className="absolute inset-0 h-full w-full cursor-pointer border-0 bg-transparent p-0 opacity-0 shadow-none file:hidden"
+            // `disabled:opacity-0`: el estilo base del campo lo haría visible al deshabilitarlo.
+            className="absolute inset-0 h-full w-full cursor-pointer border-0 bg-transparent p-0 opacity-0 shadow-none file:hidden disabled:cursor-not-allowed disabled:opacity-0"
             aria-invalid={hasError ? true : undefined}
             aria-describedby={fileErrorId}
             {...register('document')}

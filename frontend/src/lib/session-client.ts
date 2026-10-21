@@ -14,6 +14,10 @@ export interface SessionPlan {
   /** Páginas por PDF. Nulo: sin límite. */
   maxPagesPerDocument: number | null;
   features: string[];
+  /** Último día de vigencia (`YYYY-MM-DD`); nulo si no vence (ADR-0017). */
+  expiresOn?: string | null;
+  /** Ya venció: no puede convertir hasta que la renueven. */
+  expired?: boolean;
 }
 
 export interface SessionUser {
@@ -56,6 +60,11 @@ export interface Member {
   maxRetainedStatements?: number;
   maxPagesPerDocument?: number | null;
   planChangedAt?: string;
+  /** Último día de vigencia (`YYYY-MM-DD`); nulo si no vence. */
+  planExpiresOn?: string | null;
+  planExpired?: boolean;
+  /** Si su rol lleva vencimiento: los administradores no vencen. */
+  planExpiryRequired?: boolean;
   status: string;
   membershipStatus: 'ACTIVE' | 'REVOKED';
   /** Documentos que conserva en la organización. */
@@ -71,6 +80,8 @@ export interface MemberChanges {
   email?: string;
   role?: Role;
   planCode?: string;
+  /** `YYYY-MM-DD` para renovar o cambiar la vigencia; `null` la quita. */
+  planExpiresOn?: string | null;
   membershipStatus?: 'ACTIVE' | 'REVOKED';
 }
 
@@ -93,6 +104,8 @@ export interface RoleOption {
   rank: number;
   /** Plan que se propone al elegir este rol. Nulo: hay que elegirlo. */
   defaultPlanCode: string | null;
+  /** Si su membresía lleva fecha de vencimiento. */
+  planExpiryRequired?: boolean;
   permissions: string[];
 }
 
@@ -217,7 +230,14 @@ export async function fetchSupportContact(
 /** Sin `password`, el servidor genera una temporal y la devuelve una sola vez. */
 export async function createMember(
   baseUrl: string,
-  datos: { email: string; displayName: string; role: Role; planCode?: string; password?: string },
+  datos: {
+    email: string;
+    displayName: string;
+    role: Role;
+    planCode?: string;
+    planExpiresOn?: string;
+    password?: string;
+  },
 ): Promise<{ member: Member; temporaryPassword: string | null }> {
   return (await pedir(baseUrl, 'v1/users', { method: 'POST', body: datos })) as {
     member: Member;

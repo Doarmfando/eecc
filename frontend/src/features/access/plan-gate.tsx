@@ -1,12 +1,14 @@
-import { Gem } from 'lucide-react';
+import { Gem, Phone } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 
 import { useSession } from '@/app/use-session';
 import { Alert } from '@/components/ui/alert';
 
+import { describirVigencia, estadoDeVigencia, formatearDia, hoyLocal } from '@/lib/plan-dates';
+
 import { NOMBRE_FUNCION, resumenDePlan, type FeatureCode } from './access';
-import { usePlans } from './queries';
+import { usePlans, useSupportPhone } from './queries';
 
 function enumerar(nombres: readonly string[]): string {
   if (nombres.length <= 1) {
@@ -60,6 +62,68 @@ export function PlanBadge(): ReactNode {
         Membresía {plan.name}
       </p>
       <p className="mt-0.5 text-xs text-muted-foreground">{resumenDePlan(plan)}</p>
+      {plan.expiresOn ? (
+        <p
+          className={
+            plan.expired
+              ? 'mt-1 text-xs font-medium text-destructive'
+              : 'mt-1 text-xs text-muted-foreground'
+          }
+        >
+          {describirVigencia(plan.expiresOn, hoyLocal(), plan.expired)}
+        </p>
+      ) : null}
     </div>
+  );
+}
+
+/**
+ * Lo que la persona necesita saber de su vigencia antes de subir: que vence
+ * pronto, o que ya venció y por qué no puede convertir. Devuelve `null` si no hay
+ * nada que avisar.
+ */
+export function AvisoDeVigencia(): ReactNode {
+  const { usuario } = useSession();
+  const telefono = useSupportPhone();
+  const plan = usuario?.plan;
+  if (!plan?.expiresOn) {
+    return null;
+  }
+  const estado = estadoDeVigencia(plan.expiresOn, hoyLocal(), plan.expired);
+  if (estado === 'vigente') {
+    return null;
+  }
+  const contacto = telefono ? (
+    <>
+      {' '}
+      Llama a soporte al{' '}
+      <a
+        href={`tel:${telefono.replace(/[^+\d]/g, '')}`}
+        className="inline-flex items-center gap-1 font-medium text-foreground underline underline-offset-2"
+      >
+        <Phone aria-hidden className="size-3" />
+        {telefono}
+      </a>
+      .
+    </>
+  ) : null;
+  if (estado === 'vencida') {
+    return (
+      <Alert
+        variant="destructive"
+        title={`Tu membresía ${plan.name} venció el ${formatearDia(plan.expiresOn)}`}
+      >
+        No puedes convertir documentos hasta que un administrador la renueve. Lo que ya tienes sigue
+        disponible para consultar y descargar.{contacto}
+      </Alert>
+    );
+  }
+  return (
+    <Alert
+      variant="warning"
+      title={`Tu membresía ${plan.name}: ${describirVigencia(plan.expiresOn, hoyLocal()).toLowerCase()}`}
+    >
+      Pide a un administrador que la renueve para seguir convirtiendo sin interrupciones.{contacto}
+    </Alert>
   );
 }

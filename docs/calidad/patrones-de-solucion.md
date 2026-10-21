@@ -160,6 +160,14 @@ El límite de páginas lo aplica el worker antes de extraer —pdfium cuenta 478
 
 Quién gestiona a quién se decide por el rango del rol (`member-rules.ts`): todo sobre rangos inferiores, solo lo reversible entre iguales, nada sobre superiores, nunca asignar un rango mayor que el propio. Es una función pura con su propia prueba, la aplica el servicio y su resultado (`actions` por cuenta) viaja a la interfaz para que no duplique reglas: los botones se habilitan con lo que dice la API.
 
+## Fechas de calendario en la zona del negocio
+
+Una vigencia «hasta el 20» se guarda como `DATE` y se compara con «hoy» calculado en `BUSINESS_TIMEZONE`, no con el reloj del servidor (Railway corre en UTC: sin esto, caducaría el 20 a las 19:00 de Lima). Las fechas viajan como `YYYY-MM-DD`, se validan para que existan (`2026-02-30` no) y se formatean en UTC para no correr el día. Se evalúan en cada petición, igual que el rol: renovar o vencer surte efecto en la siguiente.
+
+## Borrar de verdad, idempotente y sin nombres
+
+Un borrado pedido por su dueño reutiliza la rutina del cupo (archivos, artefactos compartidos, fila), filtra por organización y dueño, responde cuántos borró —cero si ya no estaban— y audita cuántos y el alcance, nunca el nombre. Si uno falla, sigue con los demás y avisa: repetir termina el trabajo.
+
 ## Avisos que soporte puede usar
 
 Un error visible dice qué pasó, por qué y qué hacer, y además tipo, código, referencia de la petición y hora, con el teléfono de soporte y un botón para copiarlo todo. La referencia es la misma que el servidor registra, así que soporte encuentra el fallo sin ver el documento. Los números que explican un rechazo viajan en `meta`, solo enteros con nombres controlados: dicen «132 páginas frente a 15» sin poder filtrar texto del documento.

@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { usePlans, useRoles } from '@/features/access/queries';
+import { diasHasta, hoyLocal, sumarMeses } from '@/lib/plan-dates';
 import {
   createMember,
   deleteMember,
@@ -24,7 +25,14 @@ import {
 } from '@/lib/session-client';
 
 import { mensajeDeError } from './error-messages';
-import { ChoiceCard, FieldError, PasswordInput, PlanChoice, RoleChoice } from './form-fields';
+import {
+  ChoiceCard,
+  FieldError,
+  PasswordInput,
+  PlanChoice,
+  RoleChoice,
+  VigenciaField,
+} from './form-fields';
 import { accionesSobre, nombreDeRol } from './roles';
 import {
   claveSchema,
@@ -175,9 +183,15 @@ const NUEVA_CUENTA: NuevaCuenta = {
   email: '',
   role: '',
   planCode: '',
+  planExpiresOn: '',
   modoClave: 'generar',
   password: '',
 };
+
+/** Roles del catálogo cuya membresía lleva fecha de vencimiento. */
+function rolesQueVencen(roles: readonly RoleOption[] | undefined): Set<string> {
+  return new Set((roles ?? []).filter((rol) => rol.planExpiryRequired).map((rol) => rol.code));
+}
 
 const SIN_ROLES: readonly RoleOption[] = [];
 const SIN_PLANES: readonly PlanOption[] = [];
@@ -196,10 +210,12 @@ export function CrearCuentaDialog({
   const nombreId = useId();
   const correoId = useId();
   const claveId = useId();
+  const vigenciaId = useId();
   const dominios = usuario?.allowedEmailDomains ?? SIN_DOMINIOS;
-  const schema = useMemo(() => nuevaCuentaSchema(dominios), [dominios]);
   const roles = useRoles();
   const planes = usePlans();
+  const conVigencia = useMemo(() => rolesQueVencen(roles.data), [roles.data]);
+  const schema = useMemo(() => nuevaCuentaSchema(dominios, conVigencia), [dominios, conVigencia]);
 
   const form = useForm<NuevaCuenta>({
     resolver: zodResolver(schema),
@@ -207,6 +223,8 @@ export function CrearCuentaDialog({
   });
   const errores = form.formState.errors;
   const modo = useWatch({ control: form.control, name: 'modoClave' });
+  const rolElegido = useWatch({ control: form.control, name: 'role' });
+  const pideVigencia = conVigencia.has(rolElegido);
 
   const alta = useMutation({
     mutationFn: (valores: NuevaCuenta) =>
@@ -215,6 +233,8 @@ export function CrearCuentaDialog({
         email: valores.email,
         role: valores.role,
         planCode: valores.planCode,
+        // Solo para los roles que vencen: a un administrador nunca se le envía.
+        ...(conVigencia.has(valores.role) ? { planExpiresOn: valores.planExpiresOn } : {}),
         ...(valores.modoClave === 'elegir' ? { password: valores.password } : {}),
       }),
     onSuccess: (resultado) => {
@@ -299,6 +319,11 @@ export function CrearCuentaDialog({
                     if (rol.defaultPlanCode) {
                       form.setValue('planCode', rol.defaultPlanCode, { shouldValidate: true });
                     }
+                    // Un usuario normal nace con vencimiento: se propone un mes, a la
+                    // vista y editable, para que el alta siga siendo rápida.
+                    if (rol.planExpiryRequired && form.getValues('planExpiresOn') === '') {
+                      form.setValue('planExpiresOn', sumarMeses(hoyLocal(), 1));
+                    }
                   }}
                 />
               )}
@@ -322,6 +347,27 @@ export function CrearCuentaDialog({
             />
             <FieldError message={errores.planCode?.message} />
           </fieldset>
+
+          {pideVigencia ? (
+            <fieldset>
+              <legend className="mb-2 text-sm font-medium">
+                <label htmlFor={vigenciaId}>Vence el</label>
+              </legend>
+              <Controller
+                control={form.control}
+                name="planExpiresOn"
+                render={({ field }) => (
+                  <VigenciaField
+                    id={vigenciaId}
+                    value={field.value}
+                    onChange={field.onChange}
+                    desde={hoyLocal()}
+                    error={errores.planExpiresOn?.message}
+                  />
+                )}
+              />
+            </fieldset>
+          ) : null}
 
           <ModoDeClave
             modo={modo}
@@ -370,6 +416,10 @@ function cambiosDe(miembro: Member, valores: Edicion): MemberChanges {
   }
   if (valores.planCode !== (miembro.planCode ?? '')) {
     cambios.planCode = valores.planCode;
+  }
+  const vigencia = valores.planExpiresOn === '' ? null : valores.planExpiresOn;
+  if (vigencia !== (miembro.planExpiresOn ?? null)) {
+    cambios.planExpiresOn = vigencia;
   }
   return cambios;
 }
@@ -424,10 +474,24 @@ function EditarCuentaContenido({
       email: miembro.email,
       role: miembro.role,
       planCode: miembro.planCode ?? '',
+      planExpiresOn: miembro.planExpiresOn ?? '',
     },
   });
   const errores = form.formState.errors;
   const planElegido = useWatch({ control: form.control, name: 'planCode' });
+  const rolElegido = useWatch({ control: form.control, name: 'role' });
+  const vigenciaId = useId();
+  // La vigencia sigue al rol elegido: ascender a administrador la quita.
+  const rolDelCatalogo = roles.data?.find((rol) => rol.code === rolElegido);
+  const pideVigencia =
+    rolDelCatalogo?.planExpiryRequired ??
+    (rolElegido === miembro.role && miembro.planExpiryRequired === true);
+  // Renovar cuenta desde el vencimiento actual si aún no pasó: no regala ni quita días.
+  const hoy = hoyLocal();
+  const desde =
+    miembro.planExpiresOn && diasHasta(miembro.planExpiresOn, hoy) > 0
+      ? miembro.planExpiresOn
+      : hoy;
 
   const edicion = useMutation({
     mutationFn: (cambios: MemberChanges) => updateMember(baseUrl, miembro.userId, cambios),
@@ -549,6 +613,29 @@ function EditarCuentaContenido({
             documentos={miembro.documentCount}
           />
         </fieldset>
+
+        {pideVigencia ? (
+          <fieldset>
+            <legend className="mb-2 text-sm font-medium">
+              <label htmlFor={vigenciaId}>Vence el</label>
+            </legend>
+            <Controller
+              control={form.control}
+              name="planExpiresOn"
+              render={({ field }) => (
+                <VigenciaField
+                  id={vigenciaId}
+                  value={field.value}
+                  onChange={field.onChange}
+                  desde={desde}
+                  error={errores.planExpiresOn?.message}
+                  disabled={planBloqueado}
+                  permitirQuitar
+                />
+              )}
+            />
+          </fieldset>
+        ) : null}
 
         {edicion.isError ? (
           <ErrorDeDialogo titulo="No se pudieron guardar los cambios" error={edicion.error} />

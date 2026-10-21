@@ -2,6 +2,8 @@
 
 - Estado: Aceptada
 - Fecha: 2026-10-20
+- Ampliada por: [ADR-0017](ADR-0017-vigencia-de-la-membresia-y-borrado-del-historial.md), que
+  añade la fecha de vencimiento de la membresía de los usuarios normales.
 - Amplía: [ADR-0007](ADR-0007-cupo-de-documentos-por-persona.md) (el cupo pasa a depender
   del plan), [ADR-0008](ADR-0008-administrador-y-usuario.md) (los dos roles pasan a ser un
   catálogo con jerarquía) y [ADR-0014](ADR-0014-elegir-que-documento-reemplazar.md).

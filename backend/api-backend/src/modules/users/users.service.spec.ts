@@ -46,6 +46,8 @@ const PLANES: Record<string, { name: string; docs: number; pages: number | null 
   ATLAS: { name: 'Atlas', docs: 20, pages: null },
 };
 const DESDE = new Date('2026-01-01T00:00:00Z');
+/** Una vigencia futura para las altas de usuarios normales, que la exigen. */
+const VIGENCIA = '2099-12-31';
 
 function usuarioFila(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -67,6 +69,7 @@ function membresiaFila(overrides: Record<string, unknown> = {}): Record<string, 
     roleCode: 'MEMBER',
     planCode: 'BASICA',
     planChangedAt: DESDE,
+    planExpiresOn: null,
     status: MembershipStatus.ACTIVE,
     createdAt: DESDE,
     user: usuarioFila(),
@@ -77,7 +80,11 @@ function membresiaFila(overrides: Record<string, unknown> = {}): Record<string, 
   const plan = PLANES[planCode] ?? { name: planCode, docs: 3, pages: null };
   return {
     ...fila,
-    role: { code: roleCode, ...(ROLES[roleCode] ?? { name: roleCode, rank: 0 }) },
+    role: {
+      code: roleCode,
+      ...(ROLES[roleCode] ?? { name: roleCode, rank: 0 }),
+      planExpiryRequired: roleCode === 'MEMBER',
+    },
     plan: {
       code: planCode,
       name: plan.name,
@@ -115,6 +122,7 @@ function construir(
       membresiaFila({
         roleCode: args.data.roleCode,
         planCode: args.data.planCode,
+        planExpiresOn: args.data.planExpiresOn ?? null,
         user: usuarioFila({ _count: { statements: 0 } }),
       }),
     ),
@@ -129,6 +137,7 @@ function construir(
           code: codigo,
           rank: ROLES[codigo]?.rank ?? 0,
           defaultPlanCode: codigo === 'MEMBER' ? null : 'ATLAS',
+          planExpiryRequired: codigo === 'MEMBER',
         }),
       );
   const planResuelto = opciones.falloDeCatalogo
@@ -182,7 +191,10 @@ function construir(
   } as unknown as StatementRetentionService;
 
   const config = {
-    get: (): string => opciones.dominios ?? 'hotmail.com,empresa.pe,eecc.local',
+    get: (clave: string): string =>
+      clave === 'BUSINESS_TIMEZONE'
+        ? 'America/Lima'
+        : (opciones.dominios ?? 'hotmail.com,empresa.pe,eecc.local'),
   } as unknown as ConfigService<AppConfig, true>;
 
   const access = {
@@ -228,6 +240,9 @@ describe('UsersService.list', () => {
         maxRetainedStatements: 3,
         maxPagesPerDocument: 15,
         planChangedAt: '2026-01-01T00:00:00.000Z',
+        planExpiresOn: null,
+        planExpired: false,
+        planExpiryRequired: true,
         status: UserStatus.ACTIVE,
         membershipStatus: MembershipStatus.ACTIVE,
         documentCount: 2,
@@ -267,6 +282,7 @@ describe('UsersService.create', () => {
     email: '  Persona@Empresa.PE ',
     displayName: '  Persona de prueba  ',
     role: 'MEMBER',
+    planExpiresOn: VIGENCIA,
   };
 
   it('genera una contraseña temporal que nunca se guarda en claro', async () => {
@@ -588,7 +604,12 @@ describe('UsersService.update', () => {
 });
 
 describe('UsersService y la membresía', () => {
-  const datos = { email: 'nueva@empresa.pe', displayName: 'Persona nueva', role: 'MEMBER' };
+  const datos = {
+    email: 'nueva@empresa.pe',
+    displayName: 'Persona nueva',
+    role: 'MEMBER',
+    planExpiresOn: VIGENCIA,
+  };
 
   it('sin membresía indicada asigna la predeterminada del catálogo', async () => {
     const { service, membresiaCreada, planResuelto } = construir();
@@ -619,7 +640,11 @@ describe('UsersService y la membresía', () => {
       maxPagesPerDocument: null,
     });
     const evento = auditoria.mock.calls[0]?.[0] as { data: { metadata: unknown } };
-    expect(evento.data.metadata).toEqual({ role: 'MEMBER', planCode: 'ATLAS' });
+    expect(evento.data.metadata).toEqual({
+      role: 'MEMBER',
+      planCode: 'ATLAS',
+      planExpiresOn: VIGENCIA,
+    });
   });
 
   it('rechaza un rol o un plan que no están en el catálogo sin crear nada', async () => {
@@ -921,5 +946,122 @@ describe('UsersService.remove', () => {
     await expect(service.remove(ORGANIZATION_ID, ACTOR, MIEMBRO_ID)).rejects.toBeInstanceOf(
       NotFoundException,
     );
+  });
+});
+
+describe('UsersService y la vigencia de la membresía', () => {
+  const nuevo = { email: 'nueva@empresa.pe', displayName: 'Persona nueva', role: 'MEMBER' };
+
+  it('un usuario normal nace con fecha de vencimiento obligatoria', async () => {
+    const { service, membresiaCreada } = construir();
+
+    await expect(service.create(ORGANIZATION_ID, ACTOR, nuevo)).rejects.toMatchObject({
+      response: { code: 'PLAN_EXPIRY_REQUIRED' },
+    });
+    expect(membresiaCreada).not.toHaveBeenCalled();
+
+    const creado = await service.create(ORGANIZATION_ID, ACTOR, {
+      ...nuevo,
+      planExpiresOn: VIGENCIA,
+    });
+    const escrito = membresiaCreada.mock.calls[0]?.[0] as { data: { planExpiresOn: Date } };
+    expect(escrito.data.planExpiresOn.toISOString()).toBe('2099-12-31T00:00:00.000Z');
+    expect(creado.member).toMatchObject({ planExpiresOn: VIGENCIA, planExpired: false });
+  });
+
+  it('no da de alta a nadie ya vencido ni con una fecha que no existe', async () => {
+    const { service } = construir();
+
+    await expect(
+      service.create(ORGANIZATION_ID, ACTOR, { ...nuevo, planExpiresOn: '2020-01-01' }),
+    ).rejects.toMatchObject({ response: { code: 'PLAN_EXPIRY_IN_PAST' } });
+    await expect(
+      service.create(ORGANIZATION_ID, ACTOR, { ...nuevo, planExpiresOn: '2099-02-30' }),
+    ).rejects.toMatchObject({ response: { code: 'PLAN_EXPIRY_INVALID' } });
+  });
+
+  it('un administrador no vence aunque se envíe una fecha', async () => {
+    const { service, membresiaCreada } = construir();
+
+    await service.create(ORGANIZATION_ID, ACTOR, {
+      ...nuevo,
+      role: 'ADMIN',
+      planExpiresOn: VIGENCIA,
+    });
+
+    const escrito = membresiaCreada.mock.calls[0]?.[0] as { data: { planExpiresOn: unknown } };
+    expect(escrito.data.planExpiresOn).toBeNull();
+  });
+
+  it('renovar cambia la vigencia, lo audita con la fecha y repetirlo no escribe', async () => {
+    const { service, membresiaActualizada, auditoria } = construir({
+      membresiaExistente: membresiaFila({ planExpiresOn: new Date('2026-01-31T00:00:00Z') }),
+    });
+
+    const renovada = await service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, {
+      planExpiresOn: '2099-06-30',
+    });
+
+    const escrito = membresiaActualizada.mock.calls[0]?.[0] as {
+      data: { planExpiresOn: Date };
+    };
+    expect(escrito.data.planExpiresOn.toISOString()).toBe('2099-06-30T00:00:00.000Z');
+    expect(renovada.planExpiresOn).toBe('2099-06-30');
+    const evento = auditoria.mock.calls[0]?.[0] as { data: { metadata: unknown } };
+    expect(evento.data.metadata).toEqual({
+      fields: ['planExpiresOn'],
+      planExpiresOn: '2099-06-30',
+    });
+
+    const otra = construir({
+      membresiaExistente: membresiaFila({ planExpiresOn: new Date('2099-06-30T00:00:00Z') }),
+    });
+    await otra.service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, { planExpiresOn: '2099-06-30' });
+    expect(otra.membresiaActualizada).not.toHaveBeenCalled();
+  });
+
+  it('una fecha pasada en la edición corta el acceso; null quita el vencimiento', async () => {
+    const corte = construir();
+    const vencida = await corte.service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, {
+      planExpiresOn: '2020-01-01',
+    });
+    expect(vencida.planExpired).toBe(true);
+
+    const sinFecha = construir({
+      membresiaExistente: membresiaFila({ planExpiresOn: new Date('2099-06-30T00:00:00Z') }),
+    });
+    await sinFecha.service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, { planExpiresOn: null });
+    expect(sinFecha.membresiaActualizada).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { planExpiresOn: null } }),
+    );
+  });
+
+  it('ascender a administrador quita la vigencia; un par no puede renovarle', async () => {
+    const ascenso = construir({
+      membresiaExistente: membresiaFila({ planExpiresOn: new Date('2099-06-30T00:00:00Z') }),
+    });
+    await ascenso.service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, { role: 'ADMIN' });
+    expect(ascenso.membresiaActualizada).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { roleCode: 'ADMIN', planExpiresOn: null } }),
+    );
+
+    // A un superadministrador no se le toca nada, tampoco la vigencia.
+    const superior = construir({ membresiaExistente: membresiaFila({ roleCode: 'SUPER_ADMIN' }) });
+    await expect(
+      superior.service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, { planCode: 'ATLAS' }),
+    ).rejects.toMatchObject({ response: { code: 'ROLE_ABOVE_YOURS' } });
+  });
+
+  it('la lista dice quién está vencido', async () => {
+    const { service, listado } = construir();
+    listado.mockResolvedValue([membresiaFila({ planExpiresOn: new Date('2020-01-01T00:00:00Z') })]);
+
+    const [miembro] = await service.list(ORGANIZATION_ID, ACTOR);
+
+    expect(miembro).toMatchObject({
+      planExpiresOn: '2020-01-01',
+      planExpired: true,
+      planExpiryRequired: true,
+    });
   });
 });

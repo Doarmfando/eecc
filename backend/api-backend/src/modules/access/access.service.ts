@@ -20,6 +20,8 @@ export interface RoleOption {
   rank: number;
   /** Plan que se propone al dar de alta con este rol. Nulo: hay que elegirlo. */
   defaultPlanCode: string | null;
+  /** Si su membresía lleva fecha de vencimiento (ADR-0017). */
+  planExpiryRequired: boolean;
   permissions: string[];
 }
 
@@ -27,6 +29,7 @@ export interface RoleRef {
   code: string;
   rank: number;
   defaultPlanCode: string | null;
+  planExpiryRequired: boolean;
 }
 
 const PLAN_SELECT = {
@@ -77,6 +80,7 @@ export class AccessService {
         description: true,
         rank: true,
         defaultPlanCode: true,
+        planExpiryRequired: true,
         permissions: { select: { permissionCode: true }, orderBy: { permissionCode: 'asc' } },
       },
     });
@@ -86,6 +90,7 @@ export class AccessService {
       description: rol.description,
       rank: rol.rank,
       defaultPlanCode: rol.defaultPlanCode,
+      planExpiryRequired: rol.planExpiryRequired,
       permissions: rol.permissions.map(({ permissionCode }) => permissionCode),
     }));
   }
@@ -145,7 +150,7 @@ export class AccessService {
     }
     const rol = await this.prisma.role.findUnique({
       where: { code: codigo },
-      select: { code: true, rank: true, defaultPlanCode: true },
+      select: { code: true, rank: true, defaultPlanCode: true, planExpiryRequired: true },
     });
     if (!rol) {
       throw new BadRequestException({ code: 'ROLE_NOT_FOUND' });

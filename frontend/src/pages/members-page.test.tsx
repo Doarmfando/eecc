@@ -2,6 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { hoyLocal, sumarMeses } from '@/lib/plan-dates';
 import { renderWithProviders, TEST_USER } from '@/test/render';
 
 import { MembersPage } from './members-page';
@@ -61,6 +62,9 @@ const OTRA = {
   roleName: 'Usuario',
   roleRank: 10,
   ...BASICA,
+  planExpiryRequired: true,
+  planExpiresOn: '2099-12-31',
+  planExpired: false,
   actions: TODAS,
   status: 'ACTIVE',
   membershipStatus: 'ACTIVE',
@@ -78,6 +82,9 @@ const JEFA = {
   roleName: 'Administrador',
   roleRank: 50,
   ...ATLAS,
+  // Los administradores no vencen.
+  planExpiryRequired: false,
+  planExpiresOn: null,
   actions: ['EDIT_PROFILE', 'CHANGE_PLAN', 'CHANGE_STATUS', 'RESET_PASSWORD'],
   documentCount: 3,
 };
@@ -91,6 +98,8 @@ const DUENO = {
   roleName: 'Superadministrador',
   roleRank: 100,
   ...ATLAS,
+  planExpiryRequired: false,
+  planExpiresOn: null,
   actions: [],
 };
 
@@ -102,6 +111,7 @@ const ROLES = [
     description: 'Convierte estados de cuenta.',
     rank: 10,
     defaultPlanCode: null,
+    planExpiryRequired: true,
     permissions: ['STATEMENTS_CONVERT'],
   },
   {
@@ -110,6 +120,7 @@ const ROLES = [
     description: 'Gestiona cuentas.',
     rank: 50,
     defaultPlanCode: 'ATLAS',
+    planExpiryRequired: false,
     permissions: ['STATEMENTS_CONVERT', 'USERS_MANAGE'],
   },
 ];
@@ -311,11 +322,13 @@ describe('MembersPage: alta', () => {
     expect(await screen.findByText('clave-generada-larga')).toBeInTheDocument();
     const [, alta] = peticiones(fetchMock, 'POST')[0] ?? [];
     // Sin `password`: es lo que le pide al servidor que la genere.
+    // Un usuario normal nace con vencimiento: se propone un mes, visible y editable.
     expect(cuerpo(alta)).toEqual({
       displayName: 'Persona nueva',
       email: 'nueva@empresa.pe',
       role: 'MEMBER',
       planCode: 'BASICA',
+      planExpiresOn: sumarMeses(hoyLocal(), 1),
     });
 
     // Se puede descartar: la contraseña no debe quedarse en pantalla indefinidamente.
@@ -689,5 +702,106 @@ describe('MembersPage: membresías y jerarquía', () => {
     expect(within(dueno).getByRole('button', { name: 'Desactivar a Brando' })).toBeDisabled();
     // Los filtros salen de los roles presentes, del más alto al más bajo.
     expect(screen.getByRole('button', { name: 'Superadministrador' })).toBeInTheDocument();
+  });
+});
+
+describe('MembersPage: vigencia de la membresía', () => {
+  it('el alta de un usuario normal pide hasta cuándo vale, con atajos', async () => {
+    const fetchMock = await montar();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Nuevo usuario' }));
+    const dialogo = await screen.findByRole('dialog');
+
+    await user.type(within(dialogo).getByLabelText('Nombre'), 'Cliente nuevo');
+    await user.type(within(dialogo).getByLabelText('Correo'), 'cliente@empresa.pe');
+    await user.click(await within(dialogo).findByRole('radio', { name: /^Usuario/ }));
+    await user.click(within(dialogo).getByRole('radio', { name: /^Atlas/ }));
+    expect(within(dialogo).getByLabelText('Vence el')).toHaveValue(sumarMeses(hoyLocal(), 1));
+    await user.click(within(dialogo).getByRole('button', { name: '3 meses' }));
+    await user.click(within(dialogo).getByRole('button', { name: 'Crear usuario' }));
+
+    await waitFor(() => {
+      expect(cuerpo(peticiones(fetchMock, 'POST')[0]?.[1])).toMatchObject({
+        role: 'MEMBER',
+        planCode: 'ATLAS',
+        planExpiresOn: sumarMeses(hoyLocal(), 3),
+      });
+    });
+  });
+
+  it('un administrador no lleva vencimiento', async () => {
+    await montar();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Nuevo usuario' }));
+    const dialogo = await screen.findByRole('dialog');
+
+    await user.click(await within(dialogo).findByRole('radio', { name: /^Administrador/ }));
+
+    expect(within(dialogo).queryByLabelText('Vence el')).not.toBeInTheDocument();
+  });
+
+  it('no deja dar de alta a un usuario ya vencido', async () => {
+    const fetchMock = await montar();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Nuevo usuario' }));
+    const dialogo = await screen.findByRole('dialog');
+
+    await user.type(within(dialogo).getByLabelText('Nombre'), 'Cliente nuevo');
+    await user.type(within(dialogo).getByLabelText('Correo'), 'cliente@empresa.pe');
+    await user.click(await within(dialogo).findByRole('radio', { name: /^Usuario/ }));
+    await user.click(within(dialogo).getByRole('radio', { name: /^Básica/ }));
+    const fecha = within(dialogo).getByLabelText('Vence el');
+    await user.clear(fecha);
+    await user.type(fecha, '2020-01-01');
+    await user.click(within(dialogo).getByRole('button', { name: 'Crear usuario' }));
+
+    expect(await within(dialogo).findByText('No puede vencer antes de hoy')).toBeInTheDocument();
+    expect(peticiones(fetchMock, 'POST')).toHaveLength(0);
+  });
+
+  it('cada usuario normal muestra su vencimiento y los vencidos se filtran', async () => {
+    const vencida = {
+      ...OTRA,
+      userId: '77777777-7777-4777-8777-777777777777',
+      email: 'vencida@empresa.pe',
+      displayName: 'Cuenta vencida',
+      planExpiresOn: '2020-01-31',
+      planExpired: true,
+    };
+    await montar({ lista: () => jsonResponse(200, [YO, OTRA, vencida, JEFA]) });
+    const user = userEvent.setup();
+
+    expect(within(filaDe('Otra persona')).getByText(/^Vence el /)).toBeInTheDocument();
+    expect(within(filaDe('Cuenta vencida')).getByText(/^Venció el /)).toBeInTheDocument();
+    // Los administradores no vencen: no muestran nada.
+    expect(within(filaDe('Jefa de área')).queryByText(/Vence|Venció/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Vencidas' }));
+    expect(screen.getByText('Cuenta vencida')).toBeInTheDocument();
+    expect(screen.queryByText('Otra persona')).not.toBeInTheDocument();
+  });
+
+  it('renueva desde el vencimiento actual y puede quitarlo', async () => {
+    const fetchMock = await montar();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'Editar a Otra persona' }));
+    let dialogo = await screen.findByRole('dialog');
+    expect(await within(dialogo).findByLabelText('Vence el')).toHaveValue('2099-12-31');
+    await user.click(within(dialogo).getByRole('button', { name: '1 mes' }));
+    await user.click(within(dialogo).getByRole('button', { name: 'Guardar cambios' }));
+    await waitFor(() => {
+      expect(cuerpo(peticiones(fetchMock, 'PATCH')[0]?.[1])).toEqual({
+        planExpiresOn: '2100-01-31',
+      });
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Editar a Otra persona' }));
+    dialogo = await screen.findByRole('dialog');
+    await user.click(await within(dialogo).findByRole('button', { name: 'Quitar vencimiento' }));
+    await user.click(within(dialogo).getByRole('button', { name: 'Guardar cambios' }));
+    await waitFor(() => {
+      expect(cuerpo(peticiones(fetchMock, 'PATCH')[1]?.[1])).toEqual({ planExpiresOn: null });
+    });
   });
 });

@@ -27,7 +27,8 @@ async function bootstrap(): Promise<void> {
   if (corsOrigins.length > 0) {
     app.enableCors({
       origin: corsOrigins,
-      methods: ['GET', 'POST'],
+      // `PATCH` y `DELETE` los usan la gestión de usuarios y el borrado del historial.
+      methods: ['GET', 'POST', 'PATCH', 'DELETE'],
       allowedHeaders: ['content-type', 'x-api-key', 'idempotency-key', 'x-request-id'],
       exposedHeaders: ['x-request-id'],
       // La sesión viaja en cookie: sin esto el navegador no la enviaría entre orígenes.

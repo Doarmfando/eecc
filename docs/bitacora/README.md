@@ -13,6 +13,17 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-10-21 — Vigencia de la membresía y borrado del historial
+
+- Contexto: respondiendo a las dudas de la entrada anterior, el responsable del producto pidió fecha de vencimiento para la membresía de los usuarios normales, visible a los administradores en cada cuenta, y poder borrar documentos del historial de lo cargado. El resto, a criterio. También pidió commit y push del trabajo anterior (`5307cb5`).
+- Hecho (base): migración `vigencia_de_membresia`: `organization_memberships.plan_expires_on` (`DATE`, último día de vigencia) y `roles.plan_expiry_required` (hoy solo `MEMBER`). Idempotente; las cuentas existentes quedan sin vencimiento.
+- Hecho (API): «hoy» en `BUSINESS_TIMEZONE` (Lima) y no en UTC; la sesión trae `plan.expiresOn` y `plan.expired`. Alta de usuario normal con vencimiento obligatorio y no pasado; un admin nunca lo guarda; ascender lo quita; renovar o cambiarlo exige `CHANGE_PLAN`. Vencida, la carga responde `MEMBERSHIP_EXPIRED` (auditado) pero la persona entra y conserva lo suyo. `DELETE /v1/statements/{id}` y `DELETE /v1/statements` borran lo propio con sus archivos, responden `deletedCount` (cero si ya no estaba) y auditan cuántos y el alcance, sin nombres. CORS con `PATCH` y `DELETE`.
+- Hecho (frontend): campo «Vence el» en alta (propone un mes; atajos 1, 3, 6 y 12 meses) y edición (renueva desde el vencimiento actual, o quitarlo); la tabla de usuarios muestra «Vence el …», «Vence en N días» o «Venció el …» y filtra las vencidas. La persona ve el aviso siete días antes y, vencida, la carga deshabilitada con la explicación. Borrar en el Historial (por documento y «Vaciar historial») y en el resultado de una conversión, con confirmación y el foco en «Cancelar».
+- Decisión: ADR-0017. Al vencer se bloquea la conversión, no el acceso ni el plan; se borra de verdad, no se oculta.
+- Verificación automática: API `npm run check` (257 pruebas, cobertura 96 %) más las 9 de aislamiento contra PostgreSQL local; frontend `npm run check` (290 pruebas, 96 %). El worker no cambió.
+- Verificación real contra la API local con los PDF de la carpeta de muestras (26 comprobaciones): alta rechazada sin fecha, con fecha pasada o inexistente; vencida no convierte en la misma sesión y el rechazo queda auditado; renovada vuelve a convertir; borrar uno se lleva sus 6 artefactos, repetir responde 0, nadie borra lo ajeno (ni un superadmin) y vaciar deja el historial en cero. Navegador con Playwright a 1366 y 375 px (18 comprobaciones), sin errores de consola. Usuarios de prueba eliminados.
+- Pendiente: desplegar (worker sin cambios; API con las dos migraciones; frontend) y poner fecha a los usuarios existentes desde *Usuarios*.
+
 ## 2026-10-20 — Roles y membresías como catálogo, superadministrador, límite de páginas y avisos para soporte
 
 - Contexto: el responsable del producto pidió tipos de usuario, roles que puedan crecer y membresías: **Básica** (solo conversión, 3 documentos, 15 páginas por PDF) y **Atlas** (todo, 20 documentos, sin límite), con más planes en el futuro; un **superadministrador** que gestione incluso a los administradores, con dos cuentas (brando y fabio); el alta de usuario pidiendo siempre rol y plan; avisos en pantalla con el porqué y el tipo de error para poder llamar a soporte; idempotencia y patrones donde corresponda, y pruebas con la carpeta de muestras. La lista viva del pedido está en `docs/roadmap/tareas-en-curso.md`.

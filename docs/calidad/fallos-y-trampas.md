@@ -178,12 +178,15 @@ El extractor se escribió **sin muestra**, adivinando la plantilla, y se corrigi
 - **PowerShell 5.1 convierte en error cualquier línea de stderr de un ejecutable** cuando `$ErrorActionPreference = 'Stop'`, aunque termine bien. `pg_ctl` avisa en stderr de un PID huérfano tras un apagado brusco y arranca igual; `local-postgres.ps1` abortaba por ese aviso. Decidir por `$LASTEXITCODE`, no por stderr.
 - **PowerShell 5.1 lee como ANSI un `.ps1` en UTF-8 sin BOM**: `local-postgres.ps1` imprime «DespuÃ©s». Es cosmético y anterior; no se cambió la codificación del archivo.
 - **La consola de Windows usa cp1252**: un script de Python que imprime «≤» u otros símbolos falla con `UnicodeEncodeError`. Ejecutarlo con `python -X utf8` (con `-I`, `PYTHONIOENCODING` se ignora).
+- **Con la API en marcha, Windows bloquea el motor de Prisma** y `prisma generate` falla tras una migración: detener los servicios (`.\ejecutar.ps1 -Detener`), generar y volver a levantar.
 - **`frontend/.env.local` apunta el proxy a producción.** Para probar contra la API local sin tocar el archivo: `VITE_API_PROXY_TARGET=http://127.0.0.1:3000 npx vite` (las variables del proceso ganan a `.env.local` en `loadEnv`).
 
 ## Frontend
 
 - **Un texto con prefijo para lectores de pantalla no empieza por lo que se ve.** Los avisos llevan `<span class="sr-only">Atención: </span>` antes del título: en Playwright, `getByText(/^Se reemplazó/)` no coincide; usar la expresión sin ancla o el rol.
 - **Al probar el reemplazo por cupo con documentos reales, repetir un PDF que sigue guardado lo reutiliza** y no reemplaza nada, que es lo correcto. Una prueba repetible prepara antes la cuenta en un estado conocido.
+- **`disabled:opacity-50` del `Input` base pisa el `opacity-0` del selector de archivo oculto**: al deshabilitar la carga aparecía el texto nativo «No file chosen». Añadir `disabled:opacity-0` al campo que debe seguir invisible.
+- **Una mutación que reintenta los 5xx tarda unos segundos en mostrar el error** (backoff de TanStack Query): en las pruebas, `findBy…` con `timeout` mayor y un `timeout` de la prueba acorde.
 - **`eslint-plugin-react-refresh` no admite exportar componentes y funciones del mismo archivo**: las funciones auxiliares van a un `.ts` aparte (`lib/support-report.ts`).
 
 - **Cada exportador rotula sus CSV a su manera, y un rótulo desconocido no falla: da cero.** El Centro Financiero y el Calendario buscaban `Cargo`/`Abono` y `Fecha proceso`/`Fecha`; el BBVA publica `Cargo/Abono` con signo y `Fecha oper.`, así que un estado de cuenta del BBVA se veía **sin un solo movimiento** y sin error. Al añadir un exportador, añadir sus cabeceras reales a `statement-from-csv.test.ts`.

@@ -241,3 +241,32 @@ describe('Membresía Atlas', () => {
     }
   });
 });
+
+describe('Vigencia de la membresía', () => {
+  it('vencida: lo dice con la fecha y no deja convertir', async () => {
+    stub(
+      { ...SESION_ATLAS, plan: { ...SESION_ATLAS.plan, expiresOn: '2026-01-31', expired: true } },
+      propios(1),
+    );
+    abrir();
+
+    expect(await screen.findByText(/Tu membresía Atlas venció el/)).toBeInTheDocument();
+    expect(screen.getByText(/No puedes convertir documentos/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /\+51 999 888 777/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Procesar estado de cuenta/ })).toBeDisabled();
+  });
+
+  it('por vencer: avisa con tiempo y deja convertir', async () => {
+    const dentroDeTres = new Date();
+    dentroDeTres.setDate(dentroDeTres.getDate() + 3);
+    const dia = `${String(dentroDeTres.getFullYear())}-${String(dentroDeTres.getMonth() + 1).padStart(2, '0')}-${String(dentroDeTres.getDate()).padStart(2, '0')}`;
+    stub(
+      { ...SESION_BASICA, plan: { ...SESION_BASICA.plan, expiresOn: dia, expired: false } },
+      propios(0),
+    );
+    abrir();
+
+    expect(await screen.findByText('Tu membresía Básica: vence en 3 días')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Procesar estado de cuenta/ })).toBeEnabled();
+  });
+});

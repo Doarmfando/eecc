@@ -57,10 +57,13 @@ export function renderWithProviders(
     usuario = TEST_USER,
     cerrar = () => Promise.resolve(),
     aviso = null,
+    ruta = '/',
   }: {
     usuario?: SessionUser | null;
     cerrar?: SessionValue['cerrar'];
     aviso?: string | null;
+    /** Ruta inicial, para las páginas que leen parámetros de la URL. */
+    ruta?: string;
   } = {},
 ): RenderResult {
   const value: SessionValue = {
@@ -79,7 +82,7 @@ export function renderWithProviders(
       <QueryClientProvider client={createQueryClient()}>
         <SessionContext value={value}>
           <NotificationsProvider>
-            <MemoryRouter>{children}</MemoryRouter>
+            <MemoryRouter initialEntries={[ruta]}>{children}</MemoryRouter>
             <NotificationRegion />
           </NotificationsProvider>
         </SessionContext>

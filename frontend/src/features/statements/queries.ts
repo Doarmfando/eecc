@@ -8,10 +8,12 @@ import {
 
 import { useSession } from '@/app/use-session';
 import {
+  deleteStatements,
   downloadArtifact,
   fetchJob,
   fetchJobHistory,
   uploadStatement,
+  type DeletedStatements,
   type DownloadedArtifact,
   type UploadStatementInput,
 } from '@/lib/api-client';
@@ -62,6 +64,33 @@ export function useUploadStatement(): UseMutationResult<Job, ApiError, UploadSta
     onSuccess: () => {
       // Un documento recién publicado debe aparecer en el historial sin recargar.
       void queryClient.invalidateQueries({ queryKey: jobHistoryQueryKey() });
+    },
+  });
+}
+
+/**
+ * Borra del historial un documento propio (`statementId`) o todos. Después se
+ * refresca todo lo que lee documentos: historial, Centro Financiero, Calendario.
+ */
+export function useDeleteStatements(): UseMutationResult<
+  DeletedStatements,
+  ApiError,
+  { statementId?: string }
+> {
+  const options = useOpcionesDeApi();
+  const queryClient = useQueryClient();
+
+  return useMutation<DeletedStatements, ApiError, { statementId?: string }>({
+    mutationFn: async ({ statementId }) => {
+      if (!options) {
+        throw new ApiError('AUTHENTICATION_REQUIRED', 401);
+      }
+      return deleteStatements(options, statementId);
+    },
+    // Repetir el borrado es inofensivo: la API responde cero si ya no estaba.
+    retry: (attempt, error) => attempt < MAX_ATTEMPTS - 1 && isRetriable(error),
+    onSuccess: () => {
+      void queryClient.invalidateQueries();
     },
   });
 }

@@ -49,14 +49,14 @@ Dos adiciones respecto al diseño conceptual, decididas al escribirlo:
 | --- | --- | --- |
 | `users` | Identidad del usuario | `id`, `email_normalized`, `status`, timestamps |
 | `organizations` | Tenant/empresa | `id`, `display_name`, `status`, política de retención, timestamps |
-| `organization_memberships` | Relación usuario-organización: rol y membresía de cada persona | `organization_id`, `user_id`, `role_code`, `plan_code`, `plan_changed_at`, `status`, timestamps |
+| `organization_memberships` | Relación usuario-organización: rol y membresía de cada persona | `organization_id`, `user_id`, `role_code`, `plan_code`, `plan_changed_at`, `plan_expires_on` (último día de vigencia, nulo si no vence; ADR-0017), `status`, timestamps |
 | `api_keys` | Credencial de servicio con alcance de organización | `organization_id`, `label`, `token_hash`, `status`, `last_used_at` |
 
 ### Roles y membresías (catálogos, ADR-0016)
 
 | Tabla | Propósito | Campos principales |
 | --- | --- | --- |
-| `roles` | Rol dentro de una organización | `code`, `name`, `description`, `rank` (jerarquía), `default_plan_code`, `is_system` |
+| `roles` | Rol dentro de una organización | `code`, `name`, `description`, `rank` (jerarquía), `default_plan_code`, `plan_expiry_required` (si su membresía vence), `is_system` |
 | `permissions` | Acción administrable que un rol concede | `code`, `description` |
 | `role_permissions` | Qué permisos tiene cada rol | `role_code`, `permission_code` |
 | `membership_plans` | Tipo de membresía y sus límites | `code`, `name`, `max_retained_statements`, `max_pages_per_document` (nulo: sin límite), `is_default`, `is_active`, `sort_order` |

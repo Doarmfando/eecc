@@ -26,6 +26,8 @@ export class RoleDto {
   rank!: number;
   @ApiProperty({ nullable: true, type: String, description: 'Plan que se propone con este rol' })
   defaultPlanCode!: string | null;
+  @ApiProperty({ description: 'Si su membresía lleva fecha de vencimiento' })
+  planExpiryRequired!: boolean;
   @ApiProperty({ type: [String], example: ['STATEMENTS_CONVERT'] }) permissions!: string[];
 }
 

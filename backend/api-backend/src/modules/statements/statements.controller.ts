@@ -1,9 +1,12 @@
 import {
   Body,
   Controller,
+  Delete,
   Headers,
   HttpCode,
   HttpStatus,
+  Param,
+  ParseUUIDPipe,
   Post,
   UploadedFile,
   UseGuards,
@@ -18,7 +21,11 @@ import { AuthGuard } from '../../common/security/auth.guard';
 import { PermissionsGuard, RequirePermissions } from '../../common/security/permissions.guard';
 import { PERMISSION } from '../access/access-catalog';
 import { CurrentOrganization, type OrganizationContext } from '../../common/http/request-context';
-import { CreateStatementDto, JobResponseDto } from './dto/create-statement.dto';
+import {
+  CreateStatementDto,
+  DeletedStatementsDto,
+  JobResponseDto,
+} from './dto/create-statement.dto';
 import { StatementsService } from './statements.service';
 
 interface UploadedPdf {
@@ -79,9 +86,50 @@ export class StatementsController {
         ? {
             retainedStatements: organization.plan.maxRetainedStatements,
             maxPagesPerDocument: organization.plan.maxPagesPerDocument,
+            membershipExpired: organization.plan.expired,
           }
         : {}),
       ...(requestId !== undefined ? { requestId } : {}),
     });
+  }
+
+  /**
+   * Quita del historial todos los documentos propios, con sus archivos. No toca
+   * los de nadie más, aunque compartan organización.
+   */
+  @Delete()
+  @RequirePermissions(PERMISSION.STATEMENTS_CONVERT)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Borra todos los documentos propios del historial' })
+  @ApiResponse({ status: HttpStatus.OK, type: DeletedStatementsDto })
+  async deleteAll(
+    @CurrentOrganization() organization: OrganizationContext,
+    @Headers('x-request-id') requestId?: string,
+  ): Promise<DeletedStatementsDto> {
+    return this.statements.deleteOwn(
+      organization.organizationId,
+      organization.userId,
+      undefined,
+      requestId,
+    );
+  }
+
+  /** Quita del historial un documento propio. Repetirlo responde `deletedCount: 0`. */
+  @Delete(':statementId')
+  @RequirePermissions(PERMISSION.STATEMENTS_CONVERT)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Borra un documento propio del historial, con sus archivos' })
+  @ApiResponse({ status: HttpStatus.OK, type: DeletedStatementsDto })
+  async deleteOne(
+    @CurrentOrganization() organization: OrganizationContext,
+    @Param('statementId', new ParseUUIDPipe({ version: '4' })) statementId: string,
+    @Headers('x-request-id') requestId?: string,
+  ): Promise<DeletedStatementsDto> {
+    return this.statements.deleteOwn(
+      organization.organizationId,
+      organization.userId,
+      statementId,
+      requestId,
+    );
   }
 }

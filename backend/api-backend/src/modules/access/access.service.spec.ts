@@ -43,6 +43,7 @@ function servicio(planes = [BASICA, ATLAS]): {
       description: 'd',
       rank: 10,
       defaultPlanCode: null,
+      planExpiryRequired: true,
       permissions: [{ permissionCode: 'STATEMENTS_CONVERT' }],
     },
   ]);
@@ -52,7 +53,9 @@ function servicio(planes = [BASICA, ATLAS]): {
       findMany: roleFindMany,
       findUnique: jest.fn(({ where }: { where: { code: string } }) =>
         Promise.resolve(
-          where.code === 'ADMIN' ? { code: 'ADMIN', rank: 50, defaultPlanCode: 'ATLAS' } : null,
+          where.code === 'ADMIN'
+            ? { code: 'ADMIN', rank: 50, defaultPlanCode: 'ATLAS', planExpiryRequired: false }
+            : null,
         ),
       ),
     },
@@ -91,6 +94,7 @@ describe('AccessService', () => {
       description: 'd',
       rank: 10,
       defaultPlanCode: null,
+      planExpiryRequired: true,
       permissions: ['STATEMENTS_CONVERT'],
     });
   });
@@ -131,6 +135,7 @@ describe('AccessService', () => {
       code: 'ADMIN',
       rank: 50,
       defaultPlanCode: 'ATLAS',
+      planExpiryRequired: false,
     });
     await expect(service.findRole('AUDITOR')).rejects.toMatchObject({
       response: { code: 'ROLE_NOT_FOUND' },

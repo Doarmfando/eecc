@@ -1,4 +1,6 @@
 import { plainToInstance } from 'class-transformer';
+
+import { isValidTimeZone } from '../common/time/business-date';
 import {
   IsEnum,
   IsInt,
@@ -112,6 +114,15 @@ export class AppConfig {
   SUPPORT_PHONE = '';
 
   /**
+   * Zona horaria en la que se cuentan los días de vigencia de una membresía: un
+   * plan que vence «el 20» vale todo el 20 en esta zona, corra el servidor donde
+   * corra (ADR-0017).
+   */
+  @IsString()
+  @MinLength(1)
+  BUSINESS_TIMEZONE = 'America/Lima';
+
+  /**
    * Carpeta con el frontend ya compilado. Vacío significa no servirlo.
    *
    * Servir la página desde la propia API la deja en el mismo origen que `/v1`, que
@@ -178,9 +189,12 @@ export function validateConfig(raw: Record<string, unknown>): AppConfig {
 
   const config = plainToInstance(AppConfig, coerced, { excludeExtraneousValues: false });
   const errors = validateSync(config, { skipMissingProperties: false, whitelist: false });
-  if (errors.length > 0) {
-    const fields = errors.map((error) => error.property).join(', ');
-    throw new Error(`Configuración inválida en: ${fields}`);
+  const fields = errors.map((error) => error.property);
+  if (!fields.includes('BUSINESS_TIMEZONE') && !isValidTimeZone(config.BUSINESS_TIMEZONE)) {
+    fields.push('BUSINESS_TIMEZONE');
+  }
+  if (fields.length > 0) {
+    throw new Error(`Configuración inválida en: ${fields.join(', ')}`);
   }
   return config;
 }

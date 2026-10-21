@@ -64,6 +64,8 @@ Solo se gestionan cuentas de rango inferior; entre iguales, solo lo reversible (
 | **Básica** | Solo conversión | 3 | 15 |
 | **Atlas** | Conversión, Historial, Centro Financiero, Calendario | 20 | Sin límite |
 
+La membresía de un usuario normal tiene **fecha de vencimiento**, que el administrador fija al darlo de alta y ve en cada cuenta; al vencer, la persona entra y conserva lo suyo, pero no convierte hasta que la renueven. Los administradores no vencen. Cada persona puede **borrar** sus documentos del historial (uno o todos), con sus archivos. Ver [`ADR-0017`](docs/decisiones/ADR-0017-vigencia-de-la-membresia-y-borrado-del-historial.md).
+
 Roles, permisos, membresías y sus límites son **catálogos en la base**: crear o mejorar uno es una migración de datos, sin cambiar código. Detalles en [`ADR-0016`](docs/decisiones/ADR-0016-roles-y-membresias-como-catalogo.md) (que amplía [`ADR-0008`](docs/decisiones/ADR-0008-administrador-y-usuario.md)).
 
 Cuando algo pasa, la pantalla lo avisa: qué pasó, por qué, qué hacer y, si es un error, su tipo, código, referencia y hora, con el teléfono de soporte (`SUPPORT_PHONE`) para dictarlos.

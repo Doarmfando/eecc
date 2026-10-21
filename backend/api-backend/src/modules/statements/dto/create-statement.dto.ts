@@ -52,6 +52,11 @@ export class CreateStatementDto {
   replaceStatementId?: string;
 }
 
+export class DeletedStatementsDto {
+  @ApiProperty({ description: 'Documentos borrados; cero si ya no estaban' })
+  deletedCount!: number;
+}
+
 export class StatementCheckDto {
   @ApiProperty() code!: string;
   @ApiProperty() status!: string;

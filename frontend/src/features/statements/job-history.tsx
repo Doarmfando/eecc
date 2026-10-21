@@ -1,10 +1,11 @@
-import { Check, Search } from 'lucide-react';
+import { Check, Search, Trash2 } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 
 import { StatusBadge } from '@/components/shared/status-badge';
 import { statusLabel } from '@/components/shared/status-labels';
 import { Alert } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { BANK_ACCENTS, bankFromExtractor } from '@/features/financial-center/bank-accent';
@@ -16,6 +17,7 @@ import { CURRENCY_NAMES, currencySymbol, formatCount, type Currency } from '@/li
 import { cn } from '@/lib/utils';
 import type { JobListItem } from '@/types/job';
 
+import { DeleteStatementsDialog, type DeleteTarget } from './delete-statements-dialog';
 import { formatProcessedAt } from './format-processed-at';
 import { useJobHistory } from './queries';
 import { RetentionNotice } from './retention-notice';
@@ -148,10 +150,12 @@ function HistoryRow({
   job,
   label,
   selection,
+  onDelete,
 }: {
   job: JobListItem;
   label: StatementLabel | undefined;
   selection: StatementSelection;
+  onDelete: (target: DeleteTarget) => void;
 }): ReactNode {
   const consolidable = isConsolidable(job);
   const included = consolidable && selection.isIncluded(job.jobId);
@@ -221,6 +225,25 @@ function HistoryRow({
           </label>
         ) : null}
       </span>
+      {/* Solo se ofrece borrar lo propio: la API filtra igual por dueño. */}
+      {job.uploadedByMe ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          aria-label={`Borrar ${job.sourceFileName ?? `el documento del ${formatProcessedAt(job.createdAt)}`}`}
+          title="Borrar del historial"
+          onClick={() => {
+            onDelete({
+              statementId: job.statementId,
+              name: job.sourceFileName ?? `el documento del ${formatProcessedAt(job.createdAt)}`,
+            });
+          }}
+          className="size-8 shrink-0 px-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+        >
+          <Trash2 aria-hidden className="size-4" />
+        </Button>
+      ) : null}
     </li>
   );
 }
@@ -233,7 +256,9 @@ export function JobHistory(): ReactNode {
   const [query, setQuery] = useState('');
   const [chosenCurrency, setChosenCurrency] = useState<Currency | null>(null);
   const [chosenAccountType, setChosenAccountType] = useState<AccountType | null>(null);
+  const [aBorrar, setABorrar] = useState<DeleteTarget | null>(null);
   const items = history.data?.items ?? NO_JOBS;
+  const propios = items.filter((job) => job.uploadedByMe).length;
   const labels = useStatementLabels(items);
   const hasConsolidable = items.some(isConsolidable);
 
@@ -271,7 +296,25 @@ export function JobHistory(): ReactNode {
 
   return (
     <Card>
-      <RetentionNotice />
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1 basis-72">
+          <RetentionNotice />
+        </div>
+        {propios > 0 ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setABorrar({ all: true, count: propios });
+            }}
+            className="shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+          >
+            <Trash2 aria-hidden />
+            Vaciar historial
+          </Button>
+        ) : null}
+      </div>
 
       {history.isPending ? (
         <p className="text-sm text-muted-foreground">Cargando el historial…</p>
@@ -335,6 +378,7 @@ export function JobHistory(): ReactNode {
                   job={job}
                   label={labels.get(job.jobId)}
                   selection={selection}
+                  onDelete={setABorrar}
                 />
               ))}
             </ul>
@@ -352,6 +396,13 @@ export function JobHistory(): ReactNode {
       ) : (
         <p className="text-sm text-muted-foreground">Todavía no has procesado ningún documento.</p>
       )}
+
+      <DeleteStatementsDialog
+        target={aBorrar}
+        onClose={() => {
+          setABorrar(null);
+        }}
+      />
     </Card>
   );
 }

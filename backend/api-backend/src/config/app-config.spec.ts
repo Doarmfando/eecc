@@ -39,6 +39,15 @@ describe('validateConfig', () => {
     );
   });
 
+  it('cuenta los días de vigencia en Lima salvo que se indique otra zona válida', () => {
+    expect(validateConfig({ ...BASE }).BUSINESS_TIMEZONE).toBe('America/Lima');
+    expect(validateConfig({ ...BASE, BUSINESS_TIMEZONE: 'UTC' }).BUSINESS_TIMEZONE).toBe('UTC');
+    // Una errata fallaría a medianoche, al calcular el primer vencimiento: mejor al arrancar.
+    expect(() => validateConfig({ ...BASE, BUSINESS_TIMEZONE: 'America/Lim' })).toThrow(
+      /BUSINESS_TIMEZONE/,
+    );
+  });
+
   it('no expone secretos en el mensaje de error', () => {
     try {
       validateConfig({ ...BASE, FINGERPRINT_SECRET: 'secreto-corto' });

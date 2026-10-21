@@ -38,6 +38,17 @@ export class SessionPlanDto {
   @ApiProperty({ nullable: true, type: Number, description: 'Páginas por PDF; nulo es sin límite' })
   maxPagesPerDocument!: number | null;
   @ApiProperty({ type: [String], example: ['HISTORY'] }) features!: string[];
+
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    example: '2026-11-20',
+    description: 'Último día de vigencia en la zona del negocio; nulo si no vence',
+  })
+  expiresOn!: string | null;
+
+  @ApiProperty({ description: 'Ya venció: no puede convertir hasta que la renueven' })
+  expired!: boolean;
 }
 
 export class SessionUserDto {

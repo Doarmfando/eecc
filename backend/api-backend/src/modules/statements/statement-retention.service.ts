@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -142,6 +142,49 @@ export class StatementRetentionService {
       await this.deleteStatement(organizationId, documento.id);
     }
     return documentos.length;
+  }
+
+  /**
+   * Borra documentos que la persona decidió quitar de su historial: uno, si se
+   * indica, o todos los suyos.
+   *
+   * La búsqueda filtra por organización y dueño, así que un identificador ajeno
+   * no coincide con nada. Idempotente: lo que ya no está no se cuenta ni falla.
+   * Si un borrado falla, se siguen intentando los demás y después se avisa: lo
+   * que quede se borra al repetir.
+   */
+  async removeOwn(
+    organizationId: string,
+    uploadedById: string | null,
+    statementId?: string,
+  ): Promise<RemovedStatement[]> {
+    const documentos = await this.prisma.statement.findMany({
+      where: {
+        organizationId,
+        uploadedById,
+        ...(statementId !== undefined ? { id: statementId } : {}),
+      },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      select: { id: true, sourceFileName: true },
+    });
+
+    const borrados: RemovedStatement[] = [];
+    let fallos = 0;
+    for (const documento of documentos) {
+      try {
+        await this.deleteStatement(organizationId, documento.id);
+        borrados.push({ statementId: documento.id, sourceFileName: documento.sourceFileName });
+      } catch (error) {
+        fallos += 1;
+        this.logger.warn(
+          `No se pudo borrar un documento a pedido de su dueño: ${error instanceof Error ? error.name : 'error desconocido'}`,
+        );
+      }
+    }
+    if (fallos > 0) {
+      throw new InternalServerErrorException({ code: 'STATEMENT_DELETE_FAILED' });
+    }
+    return borrados;
   }
 
   /** Borra los archivos de un documento y después su fila. */

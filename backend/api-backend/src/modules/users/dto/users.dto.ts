@@ -9,6 +9,7 @@ import {
   Matches,
   MaxLength,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
 
 import {
@@ -23,6 +24,8 @@ import { MEMBER_ACTIONS, type MemberAction } from '../member-rules';
 // Ejemplos para la documentación. Los valores válidos son los del catálogo de la
 // base (`GET /v1/roles` y `GET /v1/plans`): aquí solo se valida el formato.
 const ROLES = [SYSTEM_ROLE.ADMIN, SYSTEM_ROLE.MEMBER];
+/** Solo el formato: que la fecha exista lo comprueba el servicio. */
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const PLANES = [PLAN.BASICA, PLAN.ATLAS];
 
 /** Recorta antes de validar: un nombre de solo espacios no debe pasar por válido. */
@@ -60,6 +63,16 @@ export class CreateMemberDto {
   @IsString()
   @Matches(PLAN_CODE_PATTERN)
   planCode?: string;
+
+  @ApiPropertyOptional({
+    example: '2026-11-20',
+    description:
+      'Último día de vigencia (YYYY-MM-DD). Obligatorio para los roles que vencen (usuarios); se ignora para administradores.',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(ISO_DATE)
+  planExpiresOn?: string;
 
   @ApiPropertyOptional({
     minLength: MIN_PASSWORD_LENGTH,
@@ -106,6 +119,18 @@ export class UpdateMemberDto {
   @Matches(PLAN_CODE_PATTERN)
   planCode?: string;
 
+  @ApiPropertyOptional({
+    nullable: true,
+    type: String,
+    example: '2026-12-20',
+    description: 'Nueva vigencia (YYYY-MM-DD); null la quita. Solo para roles que vencen.',
+  })
+  @IsOptional()
+  @ValidateIf((_objeto, valor) => valor !== null)
+  @IsString()
+  @Matches(ISO_DATE)
+  planExpiresOn?: string | null;
+
   @ApiPropertyOptional({ enum: [MembershipStatus.ACTIVE, MembershipStatus.REVOKED] })
   @IsOptional()
   @IsEnum(MembershipStatus)
@@ -139,6 +164,14 @@ export class MemberDto {
   maxPagesPerDocument!: number | null;
   @ApiProperty({ description: 'Desde cuándo tiene la membresía actual' })
   planChangedAt!: string;
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    description: 'Último día de vigencia; nulo si no vence',
+  })
+  planExpiresOn!: string | null;
+  @ApiProperty({ description: 'Ya venció: no puede convertir' }) planExpired!: boolean;
+  @ApiProperty({ description: 'Si su rol lleva vencimiento' }) planExpiryRequired!: boolean;
   @ApiProperty() status!: string;
   @ApiProperty() membershipStatus!: string;
   @ApiProperty({ description: 'Documentos que conserva en la organización' })

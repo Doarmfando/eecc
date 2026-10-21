@@ -124,6 +124,7 @@ async function asegurarCuenta(
   const yaEsta =
     membresia?.roleCode === SYSTEM_ROLE.SUPER_ADMIN &&
     membresia.planCode === planCode &&
+    !membresia.planExpiresOn &&
     membresia.status === MembershipStatus.ACTIVE &&
     existente.status === UserStatus.ACTIVE;
 
@@ -140,6 +141,8 @@ async function asegurarCuenta(
         update: {
           roleCode: SYSTEM_ROLE.SUPER_ADMIN,
           status: MembershipStatus.ACTIVE,
+          // Un superadministrador no vence (ADR-0017).
+          planExpiresOn: null,
           ...(membresia?.planCode === planCode ? {} : { planCode, planChangedAt: new Date() }),
         },
       });
