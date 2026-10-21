@@ -13,6 +13,17 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-10-21 — Despliegue en Railway de roles, membresías, vigencia y borrado
+
+- Contexto: el responsable del producto pidió desplegarlo todo y completar la configuración con valores ficticios.
+- Hecho: worker y API (con el frontend) subidos con `railway up`. Railway no despliega al hacer push: producción seguía en el código del 17 de octubre, así que este despliegue llevó también lo del 17-19 (Excel BBVA con encabezado, hojas comunes, ADR-0012 a ADR-0015) y la migración `statement_source_file_name`, que estaba pendiente. Se aplicaron `roles_y_membresias` y `vigencia_de_membresia`. Variables de la API: `PROFILE_VERSION=statements-2026.10.18`, `BUSINESS_TIMEZONE=America/Lima` y `SUPPORT_PHONE=+51 900 000 000` (**ficticio**).
+- Hecho: superadministradores `brando@hotmail.com` y `fabio@hotmail.com` creados en producción. `railway ssh` exigía que una persona vinculara la clave en la web y la base sigue privada, así que el arranque los asegura desde `BOOTSTRAP_SUPER_ADMINS` (mismo patrón que `BOOTSTRAP_ADMIN_*`, idempotente, registra solo cuántos); la variable se retiró después. Las contraseñas iniciales se entregaron fuera del repositorio.
+- Hecho: los 5 usuarios normales de producción recibieron vigencia **ficticia** hasta el 31-12-2026 (quedaron en Básica, como fija la migración); el administrador existente quedó en Atlas y sin vencimiento.
+- Defecto encontrado y corregido: todas las subidas fallaban en producción con `INVALID_JOB_OPTIONS`. La imagen resuelve FastAPI 0.156, que lee un `bool` de formulario ausente como `False`; la API no envía `export_xlsx`/`export_csv`, así que el worker recibía «ningún formato». En local (0.141) no ocurría. Ahora se leen como texto con el valor por defecto en el código; probado con 0.141 y con 0.156 (suite completa en un entorno 3.12 con las dependencias de la imagen).
+- Respaldo: no se pudo tomar un volcado previo (sin SSH ni acceso público a la base, PITR desactivado). Las dos migraciones son transaccionales y no borran datos (el rol se copia antes de quitar la columna).
+- Verificación en producción (16 comprobaciones, solo PDF **sintéticos**): `/health`, la página, `GET /v1/support`, los dos superadmins con Atlas y sin vencimiento, catálogo de roles y planes, vigencia en todos los usuarios normales, conversión de un BBVA sintético, rechazo de un BCP sintético de 20 páginas en Básica (`PDF_PAGE_LIMIT_EXCEEDED`, 20 frente a 15), borrado y borrado repetido (0), y `MEMBERSHIP_EXPIRED` al vencer. El usuario temporal se eliminó con sus documentos.
+- Pendiente: que brando y fabio entren y cambien su contraseña; reemplazar el teléfono ficticio y las fechas ficticias por los reales; decidir quién pasa a Atlas; retirar `BOOTSTRAP_ADMIN_PASSWORD`, que sigue definida; activar copias de seguridad de PostgreSQL (PITR) o un respaldo periódico.
+
 ## 2026-10-21 — Vigencia de la membresía y borrado del historial
 
 - Contexto: respondiendo a las dudas de la entrada anterior, el responsable del producto pidió fecha de vencimiento para la membresía de los usuarios normales, visible a los administradores en cada cuenta, y poder borrar documentos del historial de lo cargado. El resto, a criterio. También pidió commit y push del trabajo anterior (`5307cb5`).

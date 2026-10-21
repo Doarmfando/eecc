@@ -238,15 +238,19 @@ Cada línea es una frase del pedido y la tarea que la cubre (§ = sección de ab
 
 ## 11. Despliegue en producción (mensaje 9)
 
-- [ ] Respaldo de la base de producción antes de migrar.
-- [ ] Worker primero (`max_pages` y las hojas comunes del 18-19 de octubre, que tampoco
-  estaban desplegadas).
-- [ ] Variables de la API: `SUPPORT_PHONE` ficticio, `BUSINESS_TIMEZONE`,
-  `PROFILE_VERSION=statements-2026.10.18` si está definida.
-- [ ] API (aplica `roles_y_membresias` y `vigencia_de_membresia` al arrancar) y frontend
-  (va en la misma imagen).
-- [ ] Superadmins `brando@hotmail.com` y `fabio@hotmail.com` en producción; contraseñas
-  guardadas fuera del repo.
-- [ ] Fecha de vencimiento ficticia a los usuarios normales existentes.
-- [ ] Prueba de humo en producción con un PDF sintético (subir, límite, borrar).
-- [ ] Bitácora, commit y push.
+- [~] Respaldo de la base de producción antes de migrar: **no posible** sin SSH (exige que
+  una persona vincule la clave en la web) ni acceso público a la base; PITR desactivado.
+  Migraciones transaccionales y sin borrado de datos. Pendiente: activar copias.
+- [x] Worker primero (`max_pages`, hojas comunes del 18-19 de octubre) y redespliegue con
+  la corrección de las banderas de exportación (FastAPI 0.156).
+- [x] Variables de la API: `SUPPORT_PHONE=+51 900 000 000` (ficticio),
+  `BUSINESS_TIMEZONE=America/Lima`, `PROFILE_VERSION=statements-2026.10.18`.
+- [x] API y frontend; migraciones `statement_source_file_name`, `roles_y_membresias` y
+  `vigencia_de_membresia` aplicadas al arrancar.
+- [x] Superadmins `brando@hotmail.com` y `fabio@hotmail.com` creados con
+  `BOOTSTRAP_SUPER_ADMINS` (variable retirada después); contraseñas fuera del repo.
+- [x] Vigencia ficticia (31-12-2026) a los 5 usuarios normales existentes.
+- [x] Prueba de humo en producción con PDF sintéticos: 16 comprobaciones.
+- [x] Bitácora, trampas, Railway; commit y push.
+- [ ] Del responsable: cambiar las contraseñas iniciales, poner teléfono y fechas reales,
+  decidir quién pasa a Atlas, retirar `BOOTSTRAP_ADMIN_PASSWORD`, activar copias.

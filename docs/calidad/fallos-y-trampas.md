@@ -173,6 +173,12 @@ El extractor se escribió **sin muestra**, adivinando la plantilla, y se corrigi
 - No usar `prisma db push` en producción ni editar migraciones ya aplicadas.
 - No almacenar texto crudo, números de cuenta completos o movimientos individuales sin una necesidad y política de retención aprobadas.
 
+## Despliegue y dependencias
+
+- **Desde FastAPI 0.15x un campo de formulario `bool` ausente vale `False`** (semántica de casilla HTML sin marcar), aunque se declare `= True`. La API no envía `export_xlsx` ni `export_csv`, así que la imagen de Railway —que resuelve las dependencias al construir y sacó 0.156— rechazaba todo trabajo con `INVALID_JOB_OPTIONS`; en local, con 0.141, no aparecía. Se leen como texto con el valor por defecto en el código. Lección: las versiones de la imagen no son las del entorno local; antes de desplegar, correr la suite del worker en un entorno con las dependencias recién resueltas (`py -3.12 -m venv …; pip install ".[pdf,excel,api]"`). Un archivo de bloqueo evitaría la deriva.
+- **`curl` sin `Accept: text/html` recibe 404 en `/`**: el respaldo del frontend solo entrega la página a un navegador. No es una caída.
+- **`railway up` no se dispara con un push**: los servicios se suben a mano. Un despliegue puede arrastrar cambios de días anteriores que nunca se subieron; revisarlos antes.
+
 ## Entorno Windows
 
 - **PowerShell 5.1 convierte en error cualquier línea de stderr de un ejecutable** cuando `$ErrorActionPreference = 'Stop'`, aunque termine bien. `pg_ctl` avisa en stderr de un PID huérfano tras un apagado brusco y arranca igual; `local-postgres.ps1` abortaba por ese aviso. Decidir por `$LASTEXITCODE`, no por stderr.
