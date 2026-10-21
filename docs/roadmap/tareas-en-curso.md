@@ -86,6 +86,16 @@ Cada línea es una frase del pedido y la tarea que la cubre (§ = sección de ab
 - «Puedes comitear y pushear» → §7: commit y push del trabajo verificado (fetch y rebase
   antes, porque otra persona sube a `main` en paralelo).
 
+**Mensaje 11**
+
+- «¿Qué pasó con la cuenta de Ronald?» / «¿No le quitamos ningún archivo?» → respondido:
+  pasó a Básica con vigencia ficticia; ningún archivo tocado.
+
+**Mensaje 12**
+
+- «¿Qué pasó aquí en Juanito Alimaña? Compara, revisa y analiza la carpeta de muestras:
+  qué tiene de malo ese archivo (BCP mayo, «Requiere revisión»)» → §13.
+
 **Mensaje 10**
 
 - «Esta raya del sidebar que está encima de la animación, quítala» → §12.
@@ -263,3 +273,16 @@ Cada línea es una frase del pedido y la tarea que la cubre (§ = sección de ab
 
 - [x] Quitar la línea horizontal sobre la animación del pie de la barra lateral
   (`border-t` de `SidebarConversionArt`) y desplegarlo.
+
+## 13. Análisis del BCP de mayo en «Requiere revisión» (mensaje 12)
+
+- [x] Reprocesado con el código actual: cargos cuadran al céntimo; abonos impresos y saldo
+  final superan a los movimientos en 4.540,00 exactos; la pág. 424 trae 16 movimientos
+  frente a 35 en todas las intermedias.
+- [x] La otra herramienta (`2026_MAYO_BCP.xlsx`) lee lo mismo (16.710 movimientos, mismos
+  totales, 16 en la pág. 424) pero no avisa, y su «último saldo» es el saldo anterior.
+- [x] Pág. 424: dos huecos en blanco (≈19 renglones) sin ningún carácter, ni oculto ni
+  fuera de página; pdfium también lee 16. Faltan en el PDF que entregó el banco.
+- [x] Conclusión: **fallo del documento, no del extractor**; «Requiere revisión» es correcto.
+  Acción: volver a descargar el estado de cuenta del banco. Mejora posible: un aviso que
+  señale la página incompleta y un mensaje propio para `BCP_BALANCE_MISMATCH`.
