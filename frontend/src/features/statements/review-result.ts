@@ -28,9 +28,11 @@ const ORDEN: readonly string[] = [
 ];
 
 /** Un resultado recién convertido que hay que decidir si se usa. */
-export function pideRevision(job: Pick<Job, 'status' | 'artifacts'>): boolean {
+export function pideRevision(job: Pick<Job, 'status' | 'artifacts' | 'reused'>): boolean {
   // Sin archivos no hay nada que conservar: eso ya lo dice la página como error.
-  return job.status === 'NEEDS_REVIEW' && job.artifacts.length > 0;
+  // Reutilizado es un documento que la persona ya tenía (y ya decidió conservar):
+  // preguntar de nuevo ofrecería borrar lo que no acaba de subir.
+  return job.status === 'NEEDS_REVIEW' && job.artifacts.length > 0 && !job.reused;
 }
 
 /** Si el problema es un descuadre con el banco y no una fila dudosa. */

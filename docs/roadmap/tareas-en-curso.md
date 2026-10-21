@@ -303,4 +303,6 @@ Cada línea es una frase del pedido y la tarea que la cubre (§ = sección de ab
   **Continuar** (Enter), **Volver a intentar** (otro PDF que reemplaza a este) y
   **Cancelar** (borra esta conversión).
 - [x] Mensajes claros para `BCP_BALANCE_MISMATCH` y el aviso nuevo.
-- [ ] Pruebas, prueba real con el BCP de mayo, despliegue, bitácora, commit y push.
+- [x] Pruebas, prueba real con el BCP de mayo, despliegue, bitácora, commit y push.
+- [x] Revisión independiente del cambio y sus correcciones (conteo de avisos, reutilizados,
+  consejo según el aviso, límites de página). BCP `0.5.2`, `statements-2026.10.21.2`.

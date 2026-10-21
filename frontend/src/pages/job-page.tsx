@@ -14,7 +14,7 @@ import { useJob } from '@/features/statements/queries';
 import { pideRevision } from '@/features/statements/review-result';
 import { ReviewResultDialog } from '@/features/statements/review-result-dialog';
 import { describeError } from '@/lib/api-error';
-import { isTerminal } from '@/types/job';
+import { isTerminal, jobSchema } from '@/types/job';
 
 export function JobPage(): ReactNode {
   const { jobId } = useParams<{ jobId: string }>();
@@ -25,7 +25,10 @@ export function JobPage(): ReactNode {
   const [revisado, setRevisado] = useState(false);
   const documento = query.data;
   // Solo al llegar desde la carga: abrir el enlace o recargar no vuelve a preguntar.
-  const recienConvertido = leerTrabajoRecibido(location.state) === jobId;
+  const recibido = leerTrabajoRecibido(location.state);
+  // Una subida reutilizada es un documento que la persona ya tenía: no se pregunta.
+  // Sale de la carga: al pedir el trabajo de nuevo, la API ya no lo marca así.
+  const recienConvertido = recibido !== null && recibido.jobId === jobId && !recibido.reused;
   const preguntar =
     recienConvertido && !revisado && documento !== undefined && pideRevision(documento);
 
@@ -100,6 +103,7 @@ export function JobPage(): ReactNode {
         <ReviewResultDialog
           job={documento}
           open={preguntar}
+          replaced={recibido?.reemplazados ?? []}
           onContinue={terminarRevision}
           onDiscarded={() => {
             setRevisado(true);
@@ -123,13 +127,24 @@ export function JobPage(): ReactNode {
   );
 }
 
-/** El trabajo que la carga dejó en el estado de la navegación, si lo hay. */
-function leerTrabajoRecibido(state: unknown): string | null {
+/**
+ * El trabajo que la carga dejó en el estado de la navegación, si lo hay, con los
+ * nombres de lo que el cupo reemplazó para guardarlo.
+ */
+function leerTrabajoRecibido(
+  state: unknown,
+): { jobId: string; reused: boolean; reemplazados: (string | null)[] } | null {
   if (typeof state !== 'object' || state === null || !('job' in state)) {
     return null;
   }
-  const { job } = state;
-  return typeof job === 'object' && job !== null && 'jobId' in job && typeof job.jobId === 'string'
-    ? job.jobId
+  const parsed = jobSchema.safeParse(state.job);
+  return parsed.success
+    ? {
+        jobId: parsed.data.jobId,
+        reused: parsed.data.reused,
+        reemplazados: (parsed.data.replacedStatements ?? []).map(
+          (documento) => documento.sourceFileName ?? null,
+        ),
+      }
     : null;
 }

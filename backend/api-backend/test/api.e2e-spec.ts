@@ -122,7 +122,8 @@ function buildPrismaDouble(): PrismaService {
             {
               extractorId: 'bcp-coordinate-v1',
               movementCount: 8,
-              _count: { warnings: 1, artifacts: 5 },
+              warnings: [{ code: 'BCP_AMOUNT_UNPARSEABLE' }],
+              _count: { artifacts: 5 },
             },
           ],
         },

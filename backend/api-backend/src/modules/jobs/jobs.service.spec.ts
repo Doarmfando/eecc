@@ -98,7 +98,13 @@ describe('JobsService.list', () => {
         {
           extractorId: 'bcp-coordinate-v1',
           movementCount: 5,
-          _count: { warnings: 2, artifacts: 6 },
+          // Tres filas, dos códigos: un aviso ubicado en dos páginas cuenta una vez.
+          warnings: [
+            { code: 'BCP_BALANCE_MISMATCH' },
+            { code: 'BCP_PAGE_INCOMPLETE' },
+            { code: 'BCP_PAGE_INCOMPLETE' },
+          ],
+          _count: { artifacts: 6 },
         },
       ],
     };

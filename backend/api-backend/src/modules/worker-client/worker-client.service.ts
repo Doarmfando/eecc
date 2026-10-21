@@ -191,8 +191,11 @@ function readCode(body: unknown): string | null {
   return null;
 }
 
-/** Código corto y página positiva; cualquier otra forma hace incoherente la respuesta. */
-function isWarningPages(value: unknown): value is WorkerWarningPage[] {
+/**
+ * Código corto y página dentro del documento; cualquier otra forma hace incoherente
+ * la respuesta.
+ */
+function isWarningPages(value: unknown, pageCount: unknown): value is WorkerWarningPage[] {
   return (
     Array.isArray(value) &&
     value.every((item: unknown) => {
@@ -204,8 +207,11 @@ function isWarningPages(value: unknown): value is WorkerWarningPage[] {
         typeof code === 'string' &&
         code.length > 0 &&
         code.length <= 64 &&
-        Number.isSafeInteger(page) &&
-        (page ?? 0) > 0
+        typeof page === 'number' &&
+        Number.isInteger(page) &&
+        page > 0 &&
+        typeof pageCount === 'number' &&
+        page <= pageCount
       );
     })
   );
@@ -225,7 +231,8 @@ function isWorkerPayload(body: unknown): body is WorkerJobPayload {
     typeof candidate.movement_count === 'number' &&
     typeof candidate.page_count === 'number' &&
     Array.isArray(candidate.warning_codes) &&
-    (candidate.warning_pages === undefined || isWarningPages(candidate.warning_pages)) &&
+    (candidate.warning_pages === undefined ||
+      isWarningPages(candidate.warning_pages, candidate.page_count)) &&
     Array.isArray(candidate.checks) &&
     Array.isArray(candidate.artifacts) &&
     typeof candidate.reused === 'boolean'

@@ -28,11 +28,14 @@ export type ReviewDiscard = 'reintentar' | 'cancelar';
 export function ReviewResultDialog({
   job,
   open,
+  replaced = [],
   onContinue,
   onDiscarded,
 }: {
   job: Job;
   open: boolean;
+  /** Lo que el cupo borró para guardar este: borrarlo no lo trae de vuelta. */
+  replaced?: readonly (string | null | undefined)[];
   onContinue: () => void;
   /** Ya borrada: quien la abrió decide adónde ir. */
   onDiscarded: (choice: ReviewDiscard) => void;
@@ -49,6 +52,9 @@ export function ReviewResultDialog({
   const moneda = figuras.data?.moneda ?? 'PEN';
   const nombre = job.sourceFileName ?? 'El documento';
   const ocupado = borrado.isPending;
+  // Solo un descuadre con el banco se arregla bajando otra vez el PDF; otros avisos
+  // traen su propia indicación (escribir el año, revisar una fila).
+  const descuadre = esDescuadre(job);
 
   function descartar(choice: ReviewDiscard): void {
     setEleccion(choice);
@@ -64,9 +70,11 @@ export function ReviewResultDialog({
                 ? `Sube otra vez ${job.sourceFileName ? `«${job.sourceFileName}»` : 'el PDF'}`
                 : 'Se canceló la conversión',
             description:
-              choice === 'reintentar'
-                ? 'Se borró la conversión anterior. Descarga el PDF de nuevo desde tu banca por internet: a veces sale con páginas incompletas.'
-                : 'Se borró con su Excel y sus CSV; no ocupa tu cupo.',
+              choice === 'cancelar'
+                ? 'Se borró con su Excel y sus CSV; no ocupa tu cupo.'
+                : descuadre
+                  ? 'Se borró la conversión anterior. Descarga el PDF de nuevo desde tu banca por internet: a veces sale con páginas incompletas.'
+                  : 'Se borró la conversión anterior. Revisa las advertencias que tenía antes de subirlo de nuevo.',
           });
           onDiscarded(choice);
         },
@@ -94,7 +102,7 @@ export function ReviewResultDialog({
       >
         <DialogTitle className="flex items-start gap-2 pr-6 leading-snug">
           <AlertTriangle aria-hidden className="mt-0.5 size-5 shrink-0 text-warning" />
-          {esDescuadre(job)
+          {descuadre
             ? 'El resultado no cuadra con los totales del banco'
             : 'El resultado requiere revisión'}
         </DialogTitle>
@@ -141,9 +149,18 @@ export function ReviewResultDialog({
         <p className="text-sm text-muted-foreground">
           <strong className="text-foreground">Continuar</strong> conserva el Excel con este aviso.{' '}
           <strong className="text-foreground">Volver a intentar</strong> borra esta conversión para
-          que subas el PDF otra vez, descargado de nuevo de tu banca por internet.{' '}
+          que subas el PDF otra vez
+          {descuadre ? ', descargado de nuevo de tu banca por internet' : ''}.{' '}
           <strong className="text-foreground">Cancelar conversión</strong> la borra sin subir otro.
         </p>
+
+        {replaced.length > 0 ? (
+          <p className="text-sm text-warning-foreground">
+            Para guardar este documento se reemplazó{' '}
+            {replaced.map((name) => (name ? `«${name}»` : 'un documento')).join(', ')}: borrar esta
+            conversión no lo trae de vuelta.
+          </p>
+        ) : null}
 
         {borrado.isError ? (
           <Alert variant="destructive" title={describeError(borrado.error)}>

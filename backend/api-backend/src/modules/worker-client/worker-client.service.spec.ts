@@ -177,6 +177,7 @@ describe('WorkerClientService', () => {
   it('acepta los avisos con página y rechaza los que tienen otra forma', async () => {
     const located = {
       ...PAYLOAD,
+      page_count: 478,
       status: 'NEEDS_REVIEW',
       warning_codes: ['BCP_PAGE_INCOMPLETE'],
       warning_pages: [{ code: 'BCP_PAGE_INCOMPLETE', page: 424 }],
@@ -192,6 +193,8 @@ describe('WorkerClientService', () => {
       'texto',
       [{ code: 'BCP_PAGE_INCOMPLETE', page: 0 }],
       [{ code: 'BCP_PAGE_INCOMPLETE', page: 1.5 }],
+      // Más allá del documento: además desbordaría la columna entera de la base.
+      [{ code: 'BCP_PAGE_INCOMPLETE', page: 2 ** 31 }],
       [{ code: '', page: 2 }],
       [{ code: 'X'.repeat(65), page: 2 }],
       [null],

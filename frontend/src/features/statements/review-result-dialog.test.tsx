@@ -155,6 +155,42 @@ describe('Aviso al terminar una conversión que no cuadra', () => {
     expect(screen.getByText('Se canceló la conversión')).toBeInTheDocument();
   });
 
+  it('si la carga reemplazó otro documento, dice que cancelar no lo devuelve', async () => {
+    api();
+    abrirTrasConvertir({
+      ...CON_HUECOS,
+      replacedStatements: [{ statementId: 'viejo', sourceFileName: 'Abril BCP.pdf' }],
+    });
+
+    const dialogo = await screen.findByRole('dialog');
+    expect(
+      within(dialogo).getByText(/se reemplazó «Abril BCP\.pdf»: borrar esta conversión no lo trae/),
+    ).toBeInTheDocument();
+  });
+
+  it('volver a subir un documento que ya tenía no pregunta ni ofrece borrarlo', async () => {
+    api();
+    abrirTrasConvertir({ ...CON_HUECOS, reused: true });
+
+    expect(await screen.findByRole('heading', { name: 'Advertencias' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('cuando no es un descuadre no manda a bajar otra vez el PDF', async () => {
+    const sinAnio = {
+      ...CON_HUECOS,
+      extractorId: 'bbva-account-v1',
+      warningCodes: ['BBVA_DATE_WITHOUT_YEAR'],
+      warningPages: [],
+    };
+    api(sinAnio);
+    abrirTrasConvertir(sinAnio);
+
+    const dialogo = await screen.findByRole('dialog', { name: 'El resultado requiere revisión' });
+    expect(within(dialogo).getByText(/escribe el año del periodo/)).toBeInTheDocument();
+    expect(within(dialogo).queryByText(/banca por internet/)).not.toBeInTheDocument();
+  });
+
   it('abrir el resultado desde un enlace o el historial no vuelve a preguntar', async () => {
     api();
     renderWithProviders(

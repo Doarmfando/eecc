@@ -40,12 +40,15 @@ describe('describirAviso', () => {
 });
 
 describe('pideRevision', () => {
-  it('solo un resultado con discrepancias que sí publicó archivos', () => {
+  it('solo un resultado nuevo con discrepancias que sí publicó archivos', () => {
     const archivo = [{ id: 'a', kind: 'RESULT_XLSX', byteSize: 1, name: 'statement.xlsx' }];
-    expect(pideRevision({ status: 'NEEDS_REVIEW', artifacts: archivo })).toBe(true);
-    expect(pideRevision({ status: 'SUCCEEDED', artifacts: archivo })).toBe(false);
-    expect(pideRevision({ status: 'NEEDS_REVIEW', artifacts: [] })).toBe(false);
-    expect(pideRevision({ status: 'FAILED', artifacts: [] })).toBe(false);
+    const nuevo = { reused: false };
+    expect(pideRevision({ ...nuevo, status: 'NEEDS_REVIEW', artifacts: archivo })).toBe(true);
+    expect(pideRevision({ ...nuevo, status: 'SUCCEEDED', artifacts: archivo })).toBe(false);
+    expect(pideRevision({ ...nuevo, status: 'NEEDS_REVIEW', artifacts: [] })).toBe(false);
+    expect(pideRevision({ ...nuevo, status: 'FAILED', artifacts: [] })).toBe(false);
+    // Volver a subir uno que ya se conservó no ofrece borrarlo.
+    expect(pideRevision({ status: 'NEEDS_REVIEW', artifacts: archivo, reused: true })).toBe(false);
   });
 });
 

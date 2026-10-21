@@ -51,7 +51,12 @@ export class JobsService {
         attempts: {
           orderBy: { attemptNumber: 'desc' },
           take: 1,
-          include: { _count: { select: { warnings: true, artifacts: true } } },
+          // Los códigos, no un conteo: un aviso ubicado en varias páginas son varias
+          // filas, y el historial debe decir lo mismo que la página del documento.
+          include: {
+            warnings: { select: { code: true } },
+            _count: { select: { artifacts: true } },
+          },
         },
       },
     });
@@ -115,7 +120,8 @@ interface JobRow {
   attempts: {
     extractorId: string | null;
     movementCount: number | null;
-    _count: { warnings: number; artifacts: number };
+    warnings: { code: string }[];
+    _count: { artifacts: number };
   }[];
 }
 
@@ -129,7 +135,7 @@ function toListItem(job: JobRow, viewerUserId: string | null): JobListItemDto {
     createdAt: job.createdAt.toISOString(),
     extractorId: attempt?.extractorId ?? '',
     movementCount: attempt?.movementCount ?? 0,
-    warningCount: attempt?._count.warnings ?? 0,
+    warningCount: new Set(attempt?.warnings.map((warning) => warning.code)).size,
     artifactCount: attempt?._count.artifacts ?? 0,
     // Nulo contra nulo no cuenta: un documento subido por una credencial de
     // servicio no es «mío» aunque quien mire tampoco tenga usuario.

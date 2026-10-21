@@ -190,15 +190,21 @@ def _validate_document_balance(
 def find_sparse_pages(page_metrics: Sequence[BcpPageReadMetrics]) -> tuple[int, ...]:
     """Páginas intermedias con bastantes menos filas que las demás.
 
-    Entre la primera (lleva la cabecera) y la última (acaba donde acaba el mes),
-    todas las páginas de un estado de cuenta BCP vienen llenas. Una que trae
-    muchas menos filas suele tener huecos en blanco: movimientos que el PDF no
-    muestra. Se compara con la mediana, que no se mueve por unas pocas páginas
-    raras, y se cuentan filas visuales: una descripción en dos líneas no hace
-    parecer corta una página llena.
+    Entre la primera página con filas (lleva la cabecera) y la última con filas
+    (acaba donde acaba el mes), todas las páginas de un estado de cuenta BCP
+    vienen llenas. Las páginas sin filas de los extremos (avisos, texto legal) no
+    mueven esos límites; una sin filas en medio de la tabla sí cuenta como
+    intermedia. Una que trae muchas menos filas suele tener huecos en blanco:
+    movimientos que el PDF no muestra. Se compara con la mediana, que no se mueve
+    por unas pocas páginas raras, y se cuentan filas visuales: una descripción en
+    dos líneas no hace parecer corta una página llena.
     """
 
-    intermediate = sorted(page_metrics, key=lambda metric: metric.page)[1:-1]
+    ordered = sorted(page_metrics, key=lambda metric: metric.page)
+    with_rows = [index for index, metric in enumerate(ordered) if metric.row_count > 0]
+    if not with_rows:
+        return ()
+    intermediate = ordered[with_rows[0] + 1 : with_rows[-1]]
     if len(intermediate) < _MIN_INTERMEDIATE_PAGES:
         return ()
     usual = median_low(metric.row_count for metric in intermediate)

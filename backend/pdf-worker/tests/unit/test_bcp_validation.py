@@ -358,6 +358,14 @@ class BcpIncompletePageTests(TestCase):
         # La primera lleva la cabecera y la última acaba con el mes.
         self.assertEqual(find_sparse_pages(page_metrics(3, 36, 36, 36, 2)), ())
 
+    def test_pages_without_rows_at_the_ends_do_not_move_the_bounds(self) -> None:
+        # Avisos o texto legal al principio o al final: la página 6 sigue siendo la
+        # última con movimientos y es corta por naturaleza.
+        self.assertEqual(find_sparse_pages(page_metrics(0, 20, 36, 36, 36, 9, 0, 0)), ())
+
+    def test_a_blank_page_inside_the_table_is_incomplete(self) -> None:
+        self.assertEqual(find_sparse_pages(page_metrics(20, 36, 36, 0, 36, 36, 9)), (4,))
+
     def test_a_slightly_shorter_page_is_not_incomplete(self) -> None:
         # Unas pocas filas menos son descripciones largas o un salto de página del banco.
         self.assertEqual(find_sparse_pages(page_metrics(20, 36, 30, 36, 36, 9)), ())
