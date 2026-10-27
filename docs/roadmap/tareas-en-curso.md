@@ -114,6 +114,10 @@ calendario en diciembre de 2026)
 - «Y también útil a dos más de contabilidad» → contexto: lo usarán dos personas más de
   contabilidad (§16).
 
+**Mensaje 15**
+
+- «Dale, pushea y el Railway también» → §15: commit, push y despliegue.
+
 **Mensaje 10**
 
 - «Esta raya del sidebar que está encima de la animación, quítala» → §12.
@@ -331,8 +335,9 @@ calendario en diciembre de 2026)
   `statements-2026.10.26`, para que volver a subir el PDF lo convierta de nuevo en vez
   de reutilizar el resultado con el año mal.
 - [x] Bitácora, trampas y nota de despliegue en Railway.
-- [ ] Commit y push.
-- [ ] Despliegue: worker y después la API con `PROFILE_VERSION=statements-2026.10.26`.
+- [x] Commit y push (`887871a`).
+- [x] Despliegue (mensaje 15, «dale pushea y el railway también»): worker y después la API
+  con `PROFILE_VERSION=statements-2026.10.26`. Los dos en línea; `/health` 200.
 - [ ] Del responsable: borrar del Historial los documentos de enero ya convertidos y
   volver a subirlos (si quedan los dos, el calendario cuenta los movimientos dos veces).
 
