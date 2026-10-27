@@ -5,7 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from statement_worker.parsing.amounts import parse_amount
-from statement_worker.parsing.dates import parse_statement_date
+from statement_worker.parsing.dates import StatementPeriod, parse_statement_date
 from statement_worker.parsing.text import normalize_spaces, normalized_upper
 
 from .layout import classify_bcp_column
@@ -73,6 +73,7 @@ def parse_bcp_visual_row(
     *,
     page: int,
     default_year: int | None,
+    period: StatementPeriod | None = None,
 ) -> BcpRowParseResult:
     if page < 1:
         raise ValueError("page must be positive")
@@ -141,8 +142,8 @@ def parse_bcp_visual_row(
             warning_codes=tuple(warning_codes),
         )
 
-    posting_date = parse_statement_date(posting_text, default_year=default_year)
-    value_date = parse_statement_date(value_text, default_year=default_year)
+    posting_date = parse_statement_date(posting_text, default_year=default_year, period=period)
+    value_date = parse_statement_date(value_text, default_year=default_year, period=period)
     date_text_present = bool(posting_text or value_text)
     if has_debit_and_credit:
         warning_codes.append(BcpWarningCode.BOTH_DEBIT_AND_CREDIT)

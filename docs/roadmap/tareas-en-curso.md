@@ -102,6 +102,18 @@ Cada línea es una frase del pedido y la tarea que la cubre (§ = sección de ab
   usuario pueda continuar rápidamente con un Enter, o cancelar, o volver a intentar, o
   proceder con la alerta» → §14.
 
+**Mensaje 14** (2026-10-26, conversación con quien hizo el calendario, con captura del
+calendario en diciembre de 2026)
+
+- «Supongamos que es enero: en el estado de cuenta de enero 2026 vino un movimiento que
+  recién procesa del 31 de diciembre de 2025, y lo marca como si fuese del 31 de
+  diciembre de 2026» → §15.
+- «Pendiente», «acumulado» «y una vista en tabla»: «eso es front, lo armo y lo arreglas,
+  así como cuando hice el calendario» → §16. Lo arma la otra persona; aquí se revisa y se
+  corrige después.
+- «Y también útil a dos más de contabilidad» → contexto: lo usarán dos personas más de
+  contabilidad (§16).
+
 **Mensaje 10**
 
 - «Esta raya del sidebar que está encima de la animación, quítala» → §12.
@@ -306,3 +318,29 @@ Cada línea es una frase del pedido y la tarea que la cubre (§ = sección de ab
 - [x] Pruebas, prueba real con el BCP de mayo, despliegue, bitácora, commit y push.
 - [x] Revisión independiente del cambio y sus correcciones (conteo de avisos, reutilizados,
   consejo según el aviso, límites de página). BCP `0.5.2`, `statements-2026.10.21.2`.
+
+## 15. Año de un movimiento del mes anterior (mensaje 14)
+
+- [x] Worker: una fecha sin año toma el año que la deja más cerca del periodo del
+  documento, no el año del cierre. BCP y Banco de la Nación (BBVA ya lo resolvía con la
+  fecha de emisión; Interbank imprime el año).
+- [x] Pruebas con PDF sintético: periodo de enero con un movimiento del 31 de diciembre.
+  Fallan con el código anterior (salía 31-12-2026) y pasan con el arreglo. Worker 393
+  pruebas, API 268.
+- [x] Versiones nuevas: BCP `0.5.3`, Banco de la Nación `0.4.1`,
+  `statements-2026.10.26`, para que volver a subir el PDF lo convierta de nuevo en vez
+  de reutilizar el resultado con el año mal.
+- [x] Bitácora, trampas y nota de despliegue en Railway.
+- [ ] Commit y push.
+- [ ] Despliegue: worker y después la API con `PROFILE_VERSION=statements-2026.10.26`.
+- [ ] Del responsable: borrar del Historial los documentos de enero ya convertidos y
+  volver a subirlos (si quedan los dos, el calendario cuenta los movimientos dos veces).
+
+## 16. Vistas «pendiente», «acumulado» y tabla (mensaje 14)
+
+- [ ] Las arma en el frontend la otra persona, como el calendario. Al llegar a `main`:
+  revisarlas, corregirlas y pasar `npm run check`.
+- [?] Qué es «pendiente» y «acumulado»: confirmar con el diseño cuando llegue. Lectura
+  provisional: «pendiente», los movimientos que un documento trae de otro periodo (como
+  el del 31 de diciembre en el de enero); «acumulado», el saldo que se arrastra día a
+  día; la tabla, los movimientos del mes en filas.

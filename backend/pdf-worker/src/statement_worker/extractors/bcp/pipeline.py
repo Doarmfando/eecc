@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass
 
+from statement_worker.parsing.dates import StatementPeriod
+
 from .continuations import merge_bcp_continuations
 from .models import BcpParsedRow, BcpVisualRow, BcpWarningCode
 from .row_parser import parse_bcp_visual_row
@@ -21,6 +23,7 @@ def process_bcp_visual_rows(
     page_rows: Iterable[tuple[int, BcpVisualRow]],
     *,
     default_year: int | None,
+    period: StatementPeriod | None = None,
 ) -> BcpCoreResult:
     parsed_rows: list[BcpParsedRow] = []
     warning_codes: list[BcpWarningCode] = []
@@ -30,6 +33,7 @@ def process_bcp_visual_rows(
             visual_row,
             page=page,
             default_year=default_year,
+            period=period,
         )
         warning_codes.extend(parsed.warning_codes)
         if parsed.row is not None:

@@ -85,6 +85,7 @@ El extractor se escribió **sin muestra**, adivinando la plantilla, y se corrigi
 - Distinguir separadores `1,234.56` y `1.234,56` por formato detectado. Los casos ambiguos requieren advertencia.
 - No convertir cuentas a números: se almacenan y exportan como texto para conservar ceros y guiones.
 - El año no debe depender solo del nombre. Considerar periodo del documento y transiciones diciembre/enero.
+- **El año del cierre no es el año de cada movimiento.** El estado de cuenta de enero puede traer un movimiento que el banco procesó con fecha 31 de diciembre; con el año del cierre aplicado a todas las fechas `dd/mm` quedaba el 31-12-2026, once meses en el futuro, y el calendario lo mostraba en diciembre del año siguiente. Lo mismo pasaba en la herramienta Python anterior. Una fecha sin año se coloca en el año que la deja más cerca del periodo declarado (`StatementPeriod.place` en `parsing/dates.py`): dentro del periodo la distancia es cero, un movimiento tardío o una fecha valor posterior al cierre quedan a días, y el mismo día de otro año a meses. BCP y Banco de la Nación lo usan desde `0.5.3` y `0.4.1`; BBVA, que no declara periodo, sigue con su regla de la fecha de emisión.
 
 ## Excel
 

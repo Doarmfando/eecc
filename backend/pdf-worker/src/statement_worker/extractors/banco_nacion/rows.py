@@ -30,7 +30,7 @@ from enum import StrEnum
 from itertools import pairwise
 
 from statement_worker.parsing.amounts import parse_amount
-from statement_worker.parsing.dates import parse_statement_date
+from statement_worker.parsing.dates import StatementPeriod, parse_statement_date
 from statement_worker.parsing.text import normalized_upper
 
 from .models import (
@@ -161,12 +161,6 @@ def _explicitly_signed(word: BancoNacionWord) -> bool:
     return word.text.startswith(("+", "-"))
 
 
-@dataclass(frozen=True, slots=True)
-class StatementPeriod:
-    start: date
-    end: date
-
-
 def statement_period(first_page_text: str) -> StatementPeriod | None:
     """`DEL 01/06/2026 AL 30/06/2026`: da el año a las fechas que no lo traen."""
 
@@ -192,29 +186,6 @@ def detect_currency(first_page_text: str) -> str | None:
     if soles == dollars:
         return None
     return "PEN" if soles else "USD"
-
-
-def _resolve_date(
-    token: str, period: StatementPeriod | None, default_year: int | None
-) -> date | None:
-    if _HAS_YEAR.search(normalized_upper(token)):
-        return parse_statement_date(token)
-    # Sin año: el mes se lee con un año bisiesto cualquiera y el año sale del periodo.
-    provisional = parse_statement_date(token, default_year=2000)
-    if provisional is None:
-        return None
-    if period is not None:
-        same_year = period.start.year == period.end.year
-        on_start_side = provisional.month >= period.start.month
-        year = period.start.year if same_year or on_start_side else period.end.year
-    elif default_year is not None:
-        year = default_year
-    else:
-        return None
-    try:
-        return provisional.replace(year=year)
-    except ValueError:
-        return None
 
 
 @dataclass(frozen=True, slots=True)
@@ -681,7 +652,9 @@ def read_banco_nacion_rows(
                 value_date: date | None = None
                 # La fecha valor solo existe pegada a la de proceso, al abrir la fila.
                 if date_index == 0 and rest and _DATE_TOKEN.match(normalized_upper(rest[0].text)):
-                    value_date = _resolve_date(rest[0].text, period, default_year)
+                    value_date = parse_statement_date(
+                        rest[0].text, default_year=default_year, period=period
+                    )
                     rest = rest[1:]
                 has_money = any(_is_money(word) for word in rest)
                 labels = _find_labels(rest)
@@ -703,7 +676,9 @@ def read_banco_nacion_rows(
                         warnings.append(BancoNacionWarningCode.ROW_UNCLASSIFIED)
                     target = None
                     continue
-                posting_date = _resolve_date(date_word.text, period, default_year)
+                posting_date = parse_statement_date(
+                    date_word.text, default_year=default_year, period=period
+                )
                 if posting_date is None:
                     warnings.append(
                         BancoNacionWarningCode.DATE_WITHOUT_YEAR

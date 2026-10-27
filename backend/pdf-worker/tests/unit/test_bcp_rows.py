@@ -10,6 +10,7 @@ from statement_worker.extractors.bcp import (
     is_bcp_noise,
     parse_bcp_visual_row,
 )
+from statement_worker.parsing.dates import StatementPeriod
 
 
 def word(text: str, center_x: str, *, top: str = "250") -> PdfWord:
@@ -47,6 +48,25 @@ class BcpRowParserTests(TestCase):
         self.assertEqual(result.row.debit, Decimal("1234.56"))
         self.assertIsNone(result.row.credit)
         self.assertEqual(result.warning_codes, ())
+
+    def test_a_december_movement_in_a_january_statement_keeps_its_year(self) -> None:
+        row = visual_row(
+            word("31DIC", "45"),
+            word("02ENE", "95"),
+            word("ABONO SINTETICO", "200"),
+            word("50.00", "520"),
+        )
+
+        result = parse_bcp_visual_row(
+            row,
+            page=1,
+            default_year=2026,
+            period=StatementPeriod(date(2026, 1, 1), date(2026, 1, 31)),
+        )
+
+        assert result.row is not None
+        self.assertEqual(result.row.posting_date, date(2025, 12, 31))
+        self.assertEqual(result.row.value_date, date(2026, 1, 2))
 
     def test_parses_credit_movement(self) -> None:
         row = visual_row(

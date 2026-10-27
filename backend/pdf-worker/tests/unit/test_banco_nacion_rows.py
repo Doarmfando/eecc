@@ -364,6 +364,35 @@ class BancoNacionRowsTests(TestCase):
             [row.posting_date for row in document.rows], [date(2025, 12, 28), date(2026, 1, 3)]
         )
 
+    def test_a_december_movement_in_a_january_statement_is_from_the_year_before(self) -> None:
+        document = read_banco_nacion_rows(
+            (
+                _page(
+                    1,
+                    _HEADER,
+                    _row(
+                        130,
+                        ("fecha", "31/12"),
+                        ("descripcion", "ABONO"),
+                        ("abonos", "50.00"),
+                        ("saldo", "150.00"),
+                    ),
+                    _row(
+                        145,
+                        ("fecha", "15/01"),
+                        ("descripcion", "PAGO"),
+                        ("cargos", "10.00"),
+                        ("saldo", "140.00"),
+                    ),
+                ),
+            ),
+            first_page_text="DEL 01/01/2026 AL 31/01/2026",
+        )
+
+        self.assertEqual(
+            [row.posting_date for row in document.rows], [date(2025, 12, 31), date(2026, 1, 15)]
+        )
+
 
 class BancoNacionValidationTests(TestCase):
     def test_a_statement_that_reconciles_to_the_cent_succeeds(self) -> None:

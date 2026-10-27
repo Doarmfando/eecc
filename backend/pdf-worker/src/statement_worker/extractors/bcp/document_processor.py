@@ -11,7 +11,11 @@ from statement_worker.services.pdf_sanitizer import sanitized_pdf_path
 
 from .detector import BcpTemplateDetector
 from .header import read_bcp_header
-from .metadata import extract_bcp_currency, extract_bcp_statement_year
+from .metadata import (
+    extract_bcp_currency,
+    extract_bcp_statement_period,
+    extract_bcp_statement_year,
+)
 from .models import BcpPageReadMetrics, BcpParsedRow, BcpStatementHeader
 from .pdfplumber_adapter import probe_bcp_pdf_with_pdfplumber, read_bcp_pdf_with_pdfplumber
 from .pipeline import process_bcp_visual_rows
@@ -50,6 +54,7 @@ def process_bcp_pdf(
     core_result = process_bcp_visual_rows(
         read_result.page_rows,
         default_year=resolved_year,
+        period=extract_bcp_statement_period(probe.first_page_text),
     )
     return BcpPdfProcessingResult(
         detection=detection,

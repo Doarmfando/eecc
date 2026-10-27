@@ -3,11 +3,16 @@
 El formato numérico se interpreta como día/mes, que es el uso local. `mm/dd` no se
 soporta a propósito: sin una señal del documento sería indistinguible y produciría
 fechas equivocadas en silencio. El formato ISO sí se acepta porque es inequívoco.
+
+Una fecha sin año toma el año del periodo que declara el documento, y no el de su
+cierre: el estado de cuenta de enero puede traer un movimiento del 31 de diciembre,
+que es del año anterior.
 """
 
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from datetime import date
 
 from .text import normalized_upper
@@ -48,6 +53,38 @@ _MONTHS = {
 }
 
 
+@dataclass(frozen=True, slots=True)
+class StatementPeriod:
+    """`DEL 01/01/2026 AL 31/01/2026`: lo que cubre un estado de cuenta."""
+
+    start: date
+    end: date
+
+    def place(self, month: int, day: int) -> date | None:
+        """El día y mes en el año que lo deja más cerca del periodo.
+
+        Dentro del periodo la distancia es cero; fuera, un movimiento que llega con
+        retraso o una fecha valor posterior al cierre quedan a días, y el mismo día de
+        otro año, a meses.
+        """
+
+        candidates = [
+            candidate
+            for year in range(self.start.year - 1, self.end.year + 2)
+            if (candidate := _safe_date(year, month, day)) is not None
+        ]
+        if not candidates:
+            return None
+        return min(candidates, key=lambda candidate: (self._distance(candidate), candidate))
+
+    def _distance(self, value: date) -> int:
+        if value < self.start:
+            return (self.start - value).days
+        if value > self.end:
+            return (value - self.end).days
+        return 0
+
+
 def _expand_year(value: str | None, default_year: int | None) -> int | None:
     if not value:
         return default_year
@@ -66,7 +103,27 @@ def _safe_date(year: int | None, month: int, day: int) -> date | None:
         return None
 
 
-def parse_statement_date(value: str | None, *, default_year: int | None = None) -> date | None:
+def _resolve(
+    year_text: str | None,
+    month: int,
+    day: int,
+    *,
+    default_year: int | None,
+    period: StatementPeriod | None,
+) -> date | None:
+    # El año impreso manda; sin él, el periodo del documento y, a falta de periodo,
+    # el año indicado al subirlo.
+    if not year_text and period is not None:
+        return period.place(month, day)
+    return _safe_date(_expand_year(year_text, default_year), month, day)
+
+
+def parse_statement_date(
+    value: str | None,
+    *,
+    default_year: int | None = None,
+    period: StatementPeriod | None = None,
+) -> date | None:
     """Interpreta fechas numéricas o con abreviatura española de mes."""
 
     raw = normalized_upper(value).replace(".", "/").replace("-", "/")
@@ -80,10 +137,12 @@ def parse_statement_date(value: str | None, *, default_year: int | None = None) 
 
     numeric = re.fullmatch(r"(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?", raw)
     if numeric:
-        return _safe_date(
-            _expand_year(numeric.group(3), default_year),
+        return _resolve(
+            numeric.group(3),
             int(numeric.group(2)),
             int(numeric.group(1)),
+            default_year=default_year,
+            period=period,
         )
 
     month_names = "|".join(sorted(_MONTHS, key=len, reverse=True))
@@ -92,10 +151,12 @@ def parse_statement_date(value: str | None, *, default_year: int | None = None) 
         raw,
     )
     if textual:
-        return _safe_date(
-            _expand_year(textual.group(3), default_year),
+        return _resolve(
+            textual.group(3),
             _MONTHS[textual.group(2)],
             int(textual.group(1)),
+            default_year=default_year,
+            period=period,
         )
 
     return None

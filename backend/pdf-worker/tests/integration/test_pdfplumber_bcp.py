@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
 from shutil import rmtree
@@ -41,6 +42,23 @@ class PdfPlumberBcpIntegrationTests(TestCase):
         self.assertEqual(
             movements[0].description,
             "OPERACION SINTETICA | DETALLE SINTETICO",
+        )
+
+    def test_a_january_statement_dates_its_december_movement_in_the_year_before(self) -> None:
+        january_path = self.directory / "synthetic-bcp-january.pdf"
+        create_synthetic_bcp_pdf(
+            january_path,
+            page_count=2,
+            period_label="DEL 01/01/26 AL 31/01/26",
+            movement_days=("31DIC", "15ENE"),
+        )
+
+        result = process_bcp_pdf(january_path, temporary_parent=self.directory)
+
+        movements = [row for row in result.rows if row.row_type is BcpRowType.MOVEMENT]
+        self.assertEqual(
+            [(row.posting_date, row.value_date) for row in movements],
+            [(date(2025, 12, 31), date(2025, 12, 31)), (date(2026, 1, 15), date(2026, 1, 15))],
         )
 
     def test_the_account_currency_reaches_the_summary_sheet(self) -> None:

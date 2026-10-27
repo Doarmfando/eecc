@@ -4,18 +4,36 @@ from __future__ import annotations
 
 import re
 
-from statement_worker.parsing.dates import parse_statement_date
+from statement_worker.parsing.dates import StatementPeriod, parse_statement_date
 from statement_worker.parsing.text import normalized_upper
+
+_PERIOD = re.compile(r"DEL\s+(\d{1,2}/\d{1,2}/\d{2,4})\s+AL\s+(\d{1,2}/\d{1,2}/\d{2,4})")
+
+
+def extract_bcp_statement_period(first_page_text: str) -> StatementPeriod | None:
+    """`DEL 31/12/25 AL 31/01/26`: los movimientos solo traen día y mes.
+
+    Con el periodo, un `31DIC` del estado de cuenta de enero es del año anterior;
+    con solo el año del cierre quedaría once meses en el futuro.
+    """
+
+    match = _PERIOD.search(normalized_upper(first_page_text))
+    if match is None:
+        return None
+    start = parse_statement_date(match.group(1))
+    end = parse_statement_date(match.group(2))
+    if start is None or end is None or start > end:
+        return None
+    return StatementPeriod(start, end)
 
 
 def extract_bcp_statement_year(first_page_text: str) -> int | None:
+    """El año de respaldo cuando la página no declara un periodo legible."""
+
     text = normalized_upper(first_page_text)
-    period = re.search(
-        r"DEL\s+\d{1,2}/\d{1,2}/\d{2,4}\s+AL\s+(\d{1,2}/\d{1,2}/\d{2,4})",
-        text,
-    )
+    period = _PERIOD.search(text)
     if period:
-        parsed = parse_statement_date(period.group(1))
+        parsed = parse_statement_date(period.group(2))
         return parsed.year if parsed is not None else None
 
     explicit_date = re.search(r"\b(\d{1,2}/\d{1,2}/\d{2,4})\b", text)

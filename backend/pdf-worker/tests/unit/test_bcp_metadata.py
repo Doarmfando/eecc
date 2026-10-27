@@ -1,7 +1,9 @@
+from datetime import date
 from unittest import TestCase
 
 from statement_worker.extractors.bcp.metadata import (
     extract_bcp_currency,
+    extract_bcp_statement_period,
     extract_bcp_statement_year,
 )
 
@@ -18,6 +20,16 @@ class BcpMetadataTests(TestCase):
 
     def test_returns_none_without_explicit_year(self) -> None:
         self.assertIsNone(extract_bcp_statement_year("PERIODO ABRIL"))
+
+    def test_reads_the_statement_period(self) -> None:
+        period = extract_bcp_statement_period("FECHA DE ESTADO DE CUENTA DEL 31/12/25 AL 31/01/26")
+
+        assert period is not None
+        self.assertEqual((period.start, period.end), (date(2025, 12, 31), date(2026, 1, 31)))
+
+    def test_ignores_a_missing_or_reversed_period(self) -> None:
+        self.assertIsNone(extract_bcp_statement_period("FECHA 01/04/2026"))
+        self.assertIsNone(extract_bcp_statement_period("DEL 31/01/26 AL 01/01/26"))
 
 
 class BcpCurrencyTests(TestCase):

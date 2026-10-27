@@ -10,6 +10,7 @@ from reportlab.lib.pdfencrypt import StandardEncryption
 from reportlab.pdfgen.canvas import Canvas
 
 _MAXIMUM_SYNTHETIC_PAGES = 28
+_DEFAULT_PERIOD = "DEL 01/04/26 AL 30/04/26"
 
 
 # Datos ficticios de la cabecera de la cuenta; las pruebas los buscan en el Excel.
@@ -24,6 +25,7 @@ def _draw_account_header(
     page_number: int,
     page_count: int,
     currency_label: str,
+    period_label: str,
 ) -> None:
     """La cabecera con la disposición de los estados de cuenta reales.
 
@@ -45,7 +47,7 @@ def _draw_account_header(
     canvas.drawString(31, 647, SYNTHETIC_ADDRESS_LINES[1])
     canvas.drawString(409, 647, "FECHA DE ESTADO DE CUENTA")
     canvas.drawString(60, 637, "1,234")
-    canvas.drawString(361, 637, "DEL 01/04/26 AL 30/04/26")
+    canvas.drawString(361, 637, period_label)
 
 
 def _draw_page(
@@ -59,6 +61,8 @@ def _draw_page(
     currency_label: str,
     include_account_header: bool,
     with_gap: bool = False,
+    period_label: str = _DEFAULT_PERIOD,
+    movement_day: str | None = None,
 ) -> None:
     canvas.setFillColor(HexColor("#17365D"))
     canvas.rect(25, 704, width - 50, 60, fill=1, stroke=0)
@@ -67,7 +71,7 @@ def _draw_page(
     titulo = "BCP - ESTADO DE CUENTA SINTETICO" if include_bank_marker else "ESTADO DE CUENTA"
     canvas.drawString(42, 740, titulo)
     canvas.setFont("Helvetica", 9)
-    canvas.drawString(42, 720, "DEL 01/04/26 AL 30/04/26")
+    canvas.drawString(42, 720, period_label)
     canvas.drawRightString(width - 42, 720, f"CUENTA 000-00000000-0-00 - {currency_label}")
 
     if include_account_header:
@@ -76,6 +80,7 @@ def _draw_page(
             page_number=page_number,
             page_count=page_count,
             currency_label=currency_label,
+            period_label=period_label,
         )
 
     table_left = 25
@@ -110,7 +115,7 @@ def _draw_page(
     if include_movements:
         # Cada página lleva su propio día para que una lectura que mezcle el orden
         # produzca un resultado distinto en vez de pasar desapercibida.
-        day = f"{page_number:02d}ABR"
+        day = movement_day or f"{page_number:02d}ABR"
         canvas.setFillColor(HexColor("#111111"))
         canvas.setFont("Helvetica", 9)
         canvas.drawString(130, 570, "SALDO ANTERIOR")
@@ -151,6 +156,8 @@ def create_synthetic_bcp_pdf(
     password: str | None = None,
     include_account_header: bool = True,
     pages_with_gaps: tuple[int, ...] = (),
+    period_label: str = _DEFAULT_PERIOD,
+    movement_days: tuple[str, ...] = (),
 ) -> None:
     """Crea un documento ficticio sin datos derivados de clientes reales.
 
@@ -173,10 +180,16 @@ def create_synthetic_bcp_pdf(
     Con `pages_with_gaps` esas páginas dejan en blanco su movimiento pero conservan
     el total impreso: el documento no cuadra y la página queda más corta que las
     demás, como un PDF con huecos.
+
+    Con `period_label` y `movement_days` (uno por página, `31DIC`) se arma el estado
+    de cuenta de otro mes, por ejemplo uno de enero con un movimiento del 31 de
+    diciembre.
     """
 
     if not 1 <= page_count <= _MAXIMUM_SYNTHETIC_PAGES:
         raise ValueError("page_count is outside the synthetic document range")
+    if movement_days and len(movement_days) != page_count:
+        raise ValueError("movement_days needs one day per page")
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     width, _ = letter
@@ -199,6 +212,8 @@ def create_synthetic_bcp_pdf(
             currency_label=currency_label,
             include_account_header=include_account_header,
             with_gap=page_number in pages_with_gaps,
+            period_label=period_label,
+            movement_day=movement_days[page_number - 1] if movement_days else None,
         )
         canvas.showPage()
 
