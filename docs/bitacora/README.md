@@ -13,6 +13,13 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-10-29 — Video promocional vertical con Remotion
+
+- Hecho: nueva carpeta `video-promo/`, proyecto Remotion independiente (no comparte dependencias con el frontend ni con los backends). Composición `PromoVertical`: 1080×1920, 30 fps, 50 s, seis escenas (gancho, cuatro pasos y cierre) con Anton y Poppins, azul `#0056C6` y coral `#D97757`. `render.ps1` lo renderiza en local a `out/video-promo/`; `scripts/generar-voz.ps1` crea una voz provisional con el sintetizador de Windows, sin servicios externos. El guion vive en `video-promo/src/guion.json`.
+- Decisión: el guion se ciñe a lo que hace el código: cuatro bancos validados y Scotiabank «próximamente»; el banco se marca pero el worker detecta la plantilla; «Requiere revisión» cuando no cuadra; CTA «Pide tu acceso» porque no hay registro abierto. Se escriben los nombres de los bancos, no sus logotipos. Las cifras son sintéticas.
+- Verificación: `tsc --noEmit`; render completo con voz y subtítulos (ffprobe: H.264 1080×1920, 30 fps, 50,0 s, AAC) y revisión visual de fotogramas de cada escena.
+- Pendiente: sustituir la voz provisional por una locución final y elegir música con licencia; fijar el contacto real con `-Contacto`.
+
 ## 2026-10-26 — Un movimiento de diciembre en el estado de cuenta de enero ya no salta al año siguiente
 
 - Contexto: el calendario mostraba en diciembre de 2026 un abono que era del 31 de diciembre de 2025. Venía en el estado de cuenta de enero de 2026: el banco lo procesó tarde y lo imprimió con su fecha, `31DIC`, sin año. BCP le ponía a todas las fechas el año del cierre del periodo, y Banco de la Nación, con un periodo dentro de un solo año, también. La herramienta Python anterior tenía el mismo fallo. Pedido y vistas nuevas del frontend en §15 y §16 de la lista viva.

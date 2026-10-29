@@ -70,3 +70,10 @@ artifacts/
 *_TEMP_LIMPIO.pdf
 tmp/
 temp/
+
+# Video promocional (video-promo/): el render y los audios no se versionan.
+# La voz puede ser una grabación propia y la música tiene su propia licencia.
+out/
+video-promo/public/voz/*
+!video-promo/public/voz/.gitkeep
+video-promo/public/musica.mp3

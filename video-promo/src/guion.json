@@ -1,0 +1,40 @@
+{
+  "lineas": [
+    {
+      "escena": "gancho",
+      "desde": 0.3,
+      "hasta": 4.7,
+      "texto": "¿Sigues pasando a mano tus estados de cuenta a Excel?"
+    },
+    {
+      "escena": "paso1",
+      "desde": 5.4,
+      "hasta": 13.2,
+      "texto": "Paso uno: elige tu banco. Y si marcas otro, igual reconoce el formato."
+    },
+    {
+      "escena": "paso2",
+      "desde": 14.1,
+      "hasta": 21.9,
+      "texto": "Paso dos: sube tu PDF con tu propio usuario. Si el PDF tiene contraseña, también lo abre."
+    },
+    {
+      "escena": "paso3",
+      "desde": 22.9,
+      "hasta": 30.8,
+      "texto": "Paso tres: extrae cada movimiento y comprueba que el saldo cuadre con el banco."
+    },
+    {
+      "escena": "paso4",
+      "desde": 31.7,
+      "hasta": 39.2,
+      "texto": "Paso cuatro: descarga tu Excel o tu CSV, listo para trabajar."
+    },
+    {
+      "escena": "cierre",
+      "desde": 40.4,
+      "hasta": 48.6,
+      "texto": "ATLAS. Automatiza tu contabilidad en segundos. Pide tu acceso."
+    }
+  ]
+}
