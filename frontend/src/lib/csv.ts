@@ -121,3 +121,13 @@ export function readCell(
   }
   return '';
 }
+
+/**
+ * El primero de los rótulos que la tabla trae como columna, o `null`.
+ *
+ * Sirve para saber *qué* columna se leyó, no solo su valor: `Fecha proceso` y
+ * `Fecha oper.` no significan lo mismo aunque las dos sean «la fecha».
+ */
+export function findColumn(table: CsvTable, ...headers: readonly string[]): string | null {
+  return headers.find((header) => table.columns.has(normalizeHeader(header))) ?? null;
+}

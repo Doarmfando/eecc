@@ -70,21 +70,27 @@ export interface OpeningBalance {
 }
 
 /**
- * El saldo inicial que declara el estado de cuenta más antiguo de cada banco.
+ * El saldo inicial que declara el estado de cuenta más antiguo de cada cuenta.
  *
  * Es el punto de partida del arrastre: los meses siguientes se obtienen sumando
  * movimientos. Tomar el de cada documento duplicaría el saldo, porque el inicial
- * de setiembre ya es el final de agosto. Si un banco tiene varios documentos en
- * su mes más antiguo (otra cuenta), se suman.
+ * de setiembre ya es el final de agosto.
+ *
+ * `accountKeyOf` dice qué documento es de qué cuenta (lo resuelve `buildLedger`).
+ * Sin él, cada banco es una sola cuenta y sus documentos del mes más antiguo se
+ * suman, que es lo que se hacía antes de identificar cuentas. Con él, una
+ * segunda cuenta que empieza un mes después aporta su propio saldo inicial.
  */
 export function computeOpeningBalances(
   statements: readonly FinancialStatement[],
+  accountKeyOf: (statement: FinancialStatement) => string = (statement) => statement.bancoOrigen,
 ): OpeningBalance[] {
-  const byBank = new Map<SourceBankId, OpeningBalance>();
+  const byAccount = new Map<string, OpeningBalance>();
   for (const statement of statements) {
-    const current = byBank.get(statement.bancoOrigen);
+    const key = accountKeyOf(statement);
+    const current = byAccount.get(key);
     if (!current || statement.fechaPeriodo < current.monthKey) {
-      byBank.set(statement.bancoOrigen, {
+      byAccount.set(key, {
         bankId: statement.bancoOrigen,
         monthKey: statement.fechaPeriodo,
         cents: statement.saldoInicial,
@@ -93,7 +99,7 @@ export function computeOpeningBalances(
       current.cents += statement.saldoInicial;
     }
   }
-  return [...byBank.values()];
+  return [...byAccount.values()];
 }
 
 /** Primer y último mes con datos: el periodo de cada documento y las fechas de sus movimientos. */
@@ -192,6 +198,8 @@ export interface FinancialCalendarState {
   setViewMode: (mode: ViewMode) => void;
   calendarMonth: string;
   goToMonth: (monthKey: string) => void;
+  /** Abre el mes de `date` con ese día elegido: así se llega desde un resultado. */
+  goToDate: (date: string) => void;
   selectedDate: string | null;
   selectDate: (date: string) => void;
   clearSelectedDate: () => void;
@@ -201,6 +209,11 @@ export interface FinancialCalendarState {
   /** Flujo diario solo de los movimientos que coinciden; `null` sin búsqueda. */
   matchFlows: Map<string, DailyFlow> | null;
   searchSummary: SearchSummary | null;
+  /**
+   * Lo que coincide con la búsqueda en **todos** los meses y años, más reciente
+   * primero; `null` sin búsqueda. Respeta el filtro de bancos.
+   */
+  globalMatches: FinancialTransaction[] | null;
   monthlyBalances: Map<string, number>;
   monthSummary: MonthSummary;
   dayTransactions: FinancialTransaction[];
@@ -237,6 +250,11 @@ export function useFinancialCalendar(
   const goToMonth = (monthKey: string): void => {
     setCalendarMonth(monthKey);
     setSelectedDate(null);
+  };
+
+  const goToDate = (date: string): void => {
+    setCalendarMonth(date.slice(0, 7));
+    setSelectedDate(date);
   };
 
   const selectDate = (date: string): void => {
@@ -306,6 +324,18 @@ export function useFinancialCalendar(
     [matches],
   );
 
+  // Por la fecha del movimiento, que es la que manda en el calendario; un
+  // movimiento sin fecha legible no tiene día al que llevar.
+  const globalMatches = useMemo(
+    () =>
+      searching
+        ? filterBySearch(bankFiltered, search)
+            .filter((transaction) => transaction.date !== '')
+            .sort((a, b) => b.date.localeCompare(a.date))
+        : null,
+    [searching, bankFiltered, search],
+  );
+
   const dayTransactions = useMemo(() => {
     const day = selectedDate ? filterByDate(bankFiltered, selectedDate) : [];
     return searching ? filterBySearch(day, search) : day;
@@ -320,6 +350,7 @@ export function useFinancialCalendar(
     setViewMode,
     calendarMonth,
     goToMonth,
+    goToDate,
     selectedDate,
     selectDate,
     clearSelectedDate,
@@ -328,6 +359,7 @@ export function useFinancialCalendar(
     setSearch,
     matchFlows,
     searchSummary,
+    globalMatches,
     monthlyBalances,
     monthSummary,
     dayTransactions,

@@ -1,4 +1,5 @@
 import { screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { JOB_LIST, jsonResponse, stubApi } from '@/test/financial-api';
@@ -28,6 +29,23 @@ describe('FinancialCenterPage', () => {
     expect(screen.getByRole('link', { name: 'Elegir documentos en el Historial' })).toHaveAttribute(
       'href',
       '/historial',
+    );
+  });
+
+  it('lee la cuenta de la hoja `Encabezado` por la misma descarga autorizada', async () => {
+    stubApi(
+      JOB_LIST,
+      'Campo,Valor\r\nTitular,PERSONA DE PRUEBA\r\nCódigo de cuenta,191-0000-2345\r\n',
+    );
+    const user = userEvent.setup();
+    renderWithProviders(<FinancialCenterPage />);
+
+    await user.click(await screen.findByRole('button', { name: 'Tabla' }));
+    expect(screen.getAllByText('···2345').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/PERSONA DE PRUEBA/)).not.toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/v1/jobs/job-1/artifacts/art-enc/content'),
+      expect.anything(),
     );
   });
 

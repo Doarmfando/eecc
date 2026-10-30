@@ -2,11 +2,13 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
+import { statementFixture, transactionFixture } from '@/test/financial-fixtures';
+
 import { FinancialCenter } from './financial-center';
 import type { FinancialStatement, FinancialTransaction } from './types';
 
 function tx(overrides: Partial<FinancialTransaction>): FinancialTransaction {
-  return {
+  return transactionFixture({
     id: 'tx-1',
     bankId: 'bcp',
     currency: 'PEN',
@@ -17,11 +19,11 @@ function tx(overrides: Partial<FinancialTransaction>): FinancialTransaction {
     amountCents: 10000,
     reconciled: true,
     ...overrides,
-  };
+  });
 }
 
 function statement(overrides: Partial<FinancialStatement>): FinancialStatement {
-  return {
+  return statementFixture({
     id: 'bcp-2026-02',
     bancoOrigen: 'bcp',
     moneda: 'PEN',
@@ -33,7 +35,7 @@ function statement(overrides: Partial<FinancialStatement>): FinancialStatement {
     saldoFinal: 0,
     movimientos: [],
     ...overrides,
-  };
+  });
 }
 
 // Feb 2026 (el mes más reciente, la vista por defecto) trae 11 movimientos entre

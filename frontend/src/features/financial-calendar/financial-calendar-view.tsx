@@ -3,6 +3,7 @@ import { useMemo, type ReactNode } from 'react';
 import { Card } from '@/components/ui/card';
 import { useCurrencyFilter } from '@/features/financial-center/currency-filter';
 import { CurrencySwitch } from '@/features/financial-center/currency-switch';
+import { buildLedger } from '@/features/financial-center/ledger';
 import { MovementsSearch } from '@/features/financial-center/movements-search';
 import type { FinancialStatement } from '@/features/financial-center/types';
 import { formatCount, formatMoney, type Currency } from '@/lib/format';
@@ -11,6 +12,7 @@ import { BankFilterMenu } from './bank-filter-menu';
 import { CalendarMonthHeader } from './calendar-month-header';
 import { DayDetailPanel } from './day-detail-panel';
 import { FinancialCalendarGrid } from './financial-calendar-grid';
+import { GlobalSearchResults } from './global-search-results';
 import { MonthSummaryFooter } from './month-summary-footer';
 import {
   computeMonthRange,
@@ -71,12 +73,27 @@ function CurrencyCalendar({
   statements: readonly FinancialStatement[];
   currency: Currency;
 }): ReactNode {
+  // La misma consolidación que el Centro Financiero: una copia exacta no cuenta
+  // dos veces, y el saldo inicial se toma por cuenta, no por banco.
+  const ledger = useMemo(() => buildLedger(statements), [statements]);
+  const included = ledger.statements;
   const transactions = useMemo(
-    () => statements.flatMap((statement) => statement.movimientos),
-    [statements],
+    () => included.flatMap((statement) => statement.movimientos),
+    [included],
   );
-  const openings = useMemo(() => computeOpeningBalances(statements), [statements]);
-  const range = useMemo(() => computeMonthRange(statements), [statements]);
+  const openings = useMemo(
+    () =>
+      computeOpeningBalances(
+        included,
+        (statement) => ledger.accountOf(statement.id)?.key ?? statement.bancoOrigen,
+      ),
+    [included, ledger],
+  );
+  const periodOf = useMemo(() => {
+    const periods = new Map(included.map((statement) => [statement.id, statement.fechaPeriodo]));
+    return (statementId: string) => periods.get(statementId);
+  }, [included]);
+  const range = useMemo(() => computeMonthRange(included), [included]);
   const minMonth = range?.min ?? '';
   const maxMonth = range?.max ?? '';
 
@@ -89,6 +106,7 @@ function CurrencyCalendar({
     setViewMode,
     calendarMonth,
     goToMonth,
+    goToDate,
     selectedDate,
     selectDate,
     clearSelectedDate,
@@ -97,6 +115,7 @@ function CurrencyCalendar({
     setSearch,
     matchFlows,
     searchSummary,
+    globalMatches,
     monthlyBalances,
     monthSummary,
     dayTransactions,
@@ -150,7 +169,18 @@ function CurrencyCalendar({
       </div>
 
       {/* En escritorio el panel arranca a la altura de la tarjeta, no de la cabecera del mes. */}
-      <div className="xl:pt-14">
+      <div className="space-y-4 xl:pt-14">
+        {globalMatches ? (
+          // La clave vuelve a la primera página de resultados con cada búsqueda nueva.
+          <GlobalSearchResults
+            key={search.trim()}
+            search={search}
+            matches={globalMatches}
+            periodOf={periodOf}
+            selectedDate={selectedDate}
+            onGoToDate={goToDate}
+          />
+        ) : null}
         <DayDetailPanel
           selectedDate={selectedDate}
           transactions={dayTransactions}

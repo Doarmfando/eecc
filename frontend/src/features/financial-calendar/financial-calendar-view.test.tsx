@@ -2,6 +2,8 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
+import { statementFixture, transactionFixture } from '@/test/financial-fixtures';
+
 import type { FinancialStatement, FinancialTransaction } from '@/features/financial-center/types';
 import { daysInMonth, getMonthLabel } from '@/lib/month';
 
@@ -14,7 +16,7 @@ function tx(
   type: FinancialTransaction['type'],
   amountCents: number,
 ): FinancialTransaction {
-  return {
+  return transactionFixture({
     id,
     bankId,
     currency: 'PEN',
@@ -24,11 +26,11 @@ function tx(
     type,
     amountCents,
     reconciled: true,
-  };
+  });
 }
 
 const STATEMENTS: FinancialStatement[] = [
-  {
+  statementFixture({
     id: 'job-bcp',
     bancoOrigen: 'bcp',
     moneda: 'PEN',
@@ -42,8 +44,8 @@ const STATEMENTS: FinancialStatement[] = [
       tx('bcp-1', 'bcp', '2026-08-03', 'ABONO', 50000),
       tx('bcp-2', 'bcp', '2026-08-10', 'CARGO', 20000),
     ],
-  },
-  {
+  }),
+  statementFixture({
     id: 'job-ibk',
     bancoOrigen: 'interbank',
     moneda: 'PEN',
@@ -54,7 +56,7 @@ const STATEMENTS: FinancialStatement[] = [
     cargos: 4240,
     saldoFinal: 421,
     movimientos: [tx('ibk-1', 'interbank', '2026-08-31', 'CARGO', 4240)],
-  },
+  }),
 ];
 
 const LAST_MONTH = '2026-08';
@@ -189,7 +191,7 @@ describe('FinancialCalendarView', () => {
 });
 
 /** Una cuenta en dólares de otro mes: no debe sumarse a los soles de agosto. */
-const DOLLAR_STATEMENT: FinancialStatement = {
+const DOLLAR_STATEMENT: FinancialStatement = statementFixture({
   id: 'job-bbva',
   bancoOrigen: 'bbva',
   moneda: 'USD',
@@ -200,7 +202,7 @@ const DOLLAR_STATEMENT: FinancialStatement = {
   cargos: 0,
   saldoFinal: 230000,
   movimientos: [{ ...tx('bbva-1', 'bbva', '2026-07-15', 'ABONO', 30000), currency: 'USD' }],
-};
+});
 
 /** Un importe en soles: «S/ 1,304.21», no el «S/ Soles» del selector. */
 const SOLES_AMOUNT = /^-?S\/ \d/;

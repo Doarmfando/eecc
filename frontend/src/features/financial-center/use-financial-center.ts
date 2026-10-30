@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { orderBanks, type SourceBankId } from './bank-accent';
+import type { Scope } from './ledger-filters';
 import type { FinancialStatement, FinancialTransaction } from './types';
 
 /** Cuántas filas se muestran de entrada; "Cargar más" las suma de a una página. */
@@ -59,19 +60,28 @@ export function computeAvailableMonths(statements: readonly FinancialStatement[]
   return Array.from(new Set(statements.map((statement) => statement.fechaPeriodo))).sort();
 }
 
+/** Minúsculas y sin acentos: «deposito» encuentra «Depósito». */
+export function foldText(text: string): string {
+  return text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+}
+
+/** `query` ya plegado con {@link foldText}. Busca en la descripción original y en la categoría. */
+export function matchesSearch(transaction: FinancialTransaction, query: string): boolean {
+  return (
+    foldText(transaction.description).includes(query) ||
+    foldText(transaction.category).includes(query)
+  );
+}
+
 export function filterBySearch(
   transactions: readonly FinancialTransaction[],
   search: string,
 ): FinancialTransaction[] {
-  const query = search.trim().toLowerCase();
+  const query = foldText(search.trim());
   if (!query) {
     return [...transactions];
   }
-  return transactions.filter(
-    (transaction) =>
-      transaction.description.toLowerCase().includes(query) ||
-      transaction.category.toLowerCase().includes(query),
-  );
+  return transactions.filter((transaction) => matchesSearch(transaction, query));
 }
 
 /**
@@ -99,35 +109,52 @@ export function computePeriodSummary(statements: readonly FinancialStatement[]):
   return { saldoInicial, abonos, cargos, saldoFinal, movementCount, reconciledCount };
 }
 
+/** Sin otra información, todos los documentos de un banco son una sola cuenta. */
+export function bankAccountKey(statement: FinancialStatement): string {
+  return statement.bancoOrigen;
+}
+
 /**
- * Un saldo por banco: el del EECC más reciente entre los cargados para ese banco,
- * no una suma de movimientos. Es el mismo criterio que declara el estado de
- * cuenta real, y no "salta" al filtrar por mes o buscar.
+ * Un saldo por banco: el del EECC más reciente de **cada cuenta** del banco, no
+ * una suma de movimientos. Es el mismo criterio que declara el estado de cuenta
+ * real, y no "salta" al filtrar por mes o buscar.
+ *
+ * Con dos cuentas del mismo banco se suman sus últimos saldos (son cuentas
+ * distintas, no periodos distintos). `accountKeyOf` dice qué documento es de qué
+ * cuenta; sin él, todo el banco cuenta como una.
  */
-export function computeBankBalances(statements: readonly FinancialStatement[]): BankBalance[] {
-  const byBank = new Map<
-    SourceBankId,
-    { balanceCents: number; movementCount: number; latestPeriod: string }
-  >();
+export function computeBankBalances(
+  statements: readonly FinancialStatement[],
+  accountKeyOf: (statement: FinancialStatement) => string = bankAccountKey,
+): BankBalance[] {
+  const latestByAccount = new Map<string, FinancialStatement>();
+  const movementsByBank = new Map<SourceBankId, number>();
 
   for (const statement of statements) {
-    const bucket = byBank.get(statement.bancoOrigen) ?? {
-      balanceCents: 0,
-      movementCount: 0,
-      latestPeriod: '',
-    };
-    bucket.movementCount += statement.movimientos.length;
-    if (statement.fechaPeriodo >= bucket.latestPeriod) {
-      bucket.latestPeriod = statement.fechaPeriodo;
-      bucket.balanceCents = statement.saldoFinal;
+    const key = accountKeyOf(statement);
+    const latest = latestByAccount.get(key);
+    if (!latest || statement.fechaPeriodo >= latest.fechaPeriodo) {
+      latestByAccount.set(key, statement);
     }
-    byBank.set(statement.bancoOrigen, bucket);
+    movementsByBank.set(
+      statement.bancoOrigen,
+      (movementsByBank.get(statement.bancoOrigen) ?? 0) + statement.movimientos.length,
+    );
   }
 
-  return orderBanks(byBank.keys()).map((bankId) => {
-    const bucket = byBank.get(bankId) ?? { balanceCents: 0, movementCount: 0, latestPeriod: '' };
-    return { bankId, balanceCents: bucket.balanceCents, movementCount: bucket.movementCount };
-  });
+  const balanceByBank = new Map<SourceBankId, number>();
+  for (const latest of latestByAccount.values()) {
+    balanceByBank.set(
+      latest.bancoOrigen,
+      (balanceByBank.get(latest.bancoOrigen) ?? 0) + latest.saldoFinal,
+    );
+  }
+
+  return orderBanks(movementsByBank.keys()).map((bankId) => ({
+    bankId,
+    balanceCents: balanceByBank.get(bankId) ?? 0,
+    movementCount: movementsByBank.get(bankId) ?? 0,
+  }));
 }
 
 export function groupByDate(transactions: readonly FinancialTransaction[]): TransactionGroup[] {
@@ -146,6 +173,9 @@ export function groupByDate(transactions: readonly FinancialTransaction[]): Tran
 }
 
 export interface FinancialCenterState {
+  /** Mes elegido (`periodo`) o todos los documentos marcados (`acumulado`). */
+  scope: Scope;
+  setScope: (scope: Scope) => void;
   /** Bancos presentes en los estados de cuenta cargados, en orden de presentación. */
   banks: SourceBankId[];
   selectedBanks: ReadonlySet<SourceBankId>;
@@ -173,7 +203,9 @@ export interface FinancialCenterState {
 
 export function useFinancialCenter(
   statements: readonly FinancialStatement[],
+  accountKeyOf: (statement: FinancialStatement) => string = bankAccountKey,
 ): FinancialCenterState {
+  const [scope, setScope] = useState<Scope>('periodo');
   const [selectedBanks, setSelectedBanks] = useState<ReadonlySet<SourceBankId>>(new Set());
   const [search, setSearch] = useState('');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -244,23 +276,29 @@ export function useFinancialCenter(
   // Las cuentas registradas son un catálogo de todos los EECC cargados, no del
   // filtro activo: seleccionar "solo BCP" no debe hacer "desaparecer" las otras
   // cuentas, y el mes elegido no cambia el saldo actual de una cuenta.
-  const bankBalances = useMemo(() => computeBankBalances(statements), [statements]);
-
-  const monthMovements = useMemo(
-    () =>
-      monthStatements
-        .flatMap((statement) => statement.movimientos)
-        .sort((a, b) => b.date.localeCompare(a.date)),
-    [monthStatements],
+  const bankBalances = useMemo(
+    () => computeBankBalances(statements, accountKeyOf),
+    [statements, accountKeyOf],
   );
 
-  const filtered = useMemo(() => filterBySearch(monthMovements, search), [monthMovements, search]);
+  // En acumulado, la búsqueda y la lista recorren todos los periodos marcados.
+  const scopeStatements = scope === 'acumulado' ? bankFilteredStatements : monthStatements;
+
+  const scopeMovements = useMemo(
+    () =>
+      scopeStatements
+        .flatMap((statement) => statement.movimientos)
+        .sort((a, b) => b.date.localeCompare(a.date)),
+    [scopeStatements],
+  );
+
+  const filtered = useMemo(() => filterBySearch(scopeMovements, search), [scopeMovements, search]);
 
   // Un filtro nuevo vuelve a arrancar desde la primera página: si no, "Cargar más"
   // seguiría en un punto que ya no corresponde a lo que se está mirando.
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [selectedBanks, search, calendarMonth]);
+  }, [selectedBanks, search, calendarMonth, scope]);
 
   const shown = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
   const movementGroups = useMemo(() => groupByDate(shown), [shown]);
@@ -274,6 +312,8 @@ export function useFinancialCenter(
   };
 
   return {
+    scope,
+    setScope,
     banks: bankBalances.map((balance) => balance.bankId),
     selectedBanks,
     toggleBank,

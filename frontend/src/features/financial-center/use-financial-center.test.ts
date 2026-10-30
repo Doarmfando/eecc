@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { statementFixture, transactionFixture } from '@/test/financial-fixtures';
+
 import type { FinancialStatement, FinancialTransaction } from './types';
 import {
   computeAvailableMonths,
@@ -13,7 +15,7 @@ import {
 } from './use-financial-center';
 
 function tx(overrides: Partial<FinancialTransaction>): FinancialTransaction {
-  return {
+  return transactionFixture({
     id: 'tx-1',
     bankId: 'bcp',
     currency: 'PEN',
@@ -24,7 +26,7 @@ function tx(overrides: Partial<FinancialTransaction>): FinancialTransaction {
     amountCents: 10000,
     reconciled: true,
     ...overrides,
-  };
+  });
 }
 
 const SAMPLE_MOVEMENTS: FinancialTransaction[] = [
@@ -53,7 +55,7 @@ const SAMPLE_MOVEMENTS: FinancialTransaction[] = [
 ];
 
 function statement(overrides: Partial<FinancialStatement>): FinancialStatement {
-  return {
+  return statementFixture({
     id: 'bcp-2026-02',
     bancoOrigen: 'bcp',
     moneda: 'PEN',
@@ -65,7 +67,7 @@ function statement(overrides: Partial<FinancialStatement>): FinancialStatement {
     saldoFinal: 0,
     movimientos: [],
     ...overrides,
-  };
+  });
 }
 
 const SAMPLE_STATEMENTS: FinancialStatement[] = [

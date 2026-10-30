@@ -1,11 +1,19 @@
-import { readCell, readCsvTable, type CsvTable } from '@/lib/csv';
+import { findColumn, readCell, readCsvTable, type CsvTable } from '@/lib/csv';
 import type { Currency } from '@/lib/format';
 import { parseCents } from '@/lib/money';
 import { getMonthLabel } from '@/lib/month';
 import type { Artifact } from '@/types/job';
 
+import { readAccountHeader } from './account-header';
 import { bankFromExtractor } from './bank-accent';
-import type { AccountType, FinancialStatement, FinancialTransaction } from './types';
+import type {
+  AccountType,
+  DateKind,
+  FinancialStatement,
+  FinancialTransaction,
+  MovementIssue,
+  StatementStatus,
+} from './types';
 
 /**
  * Arma un estado de cuenta del Centro Financiero con los CSV que el worker ya
@@ -33,34 +41,89 @@ const PREVIOUS_BALANCE_ROW_TYPES: ReadonlySet<string> = new Set([
 ]);
 
 interface MovementRow {
+  /** Posición entre las filas de datos de la hoja, desde 1. */
+  index: number;
+  page: number | null;
   rowType: string;
   date: string;
+  valueDate: string;
   description: string;
   debitCents: number;
   creditCents: number;
   /** Impuesto a las Transacciones Financieras que el BBVA imprime aparte; 0 si no hay. */
   itfCents: number;
   balanceCents: number | null;
+  issues: MovementIssue[];
 }
 
 /** Cómo se muestra el ITF cuando el banco lo cobra en columna propia. */
 export const ITF_DESCRIPTION = 'ITF';
 
-function readMovementRow(table: CsvTable, row: readonly string[]): MovementRow {
-  // El BBVA imprime cargo y abono en una sola columna con signo.
+/** Rótulos de la fecha principal de cada exportador y lo que significan. */
+const DATE_COLUMNS: readonly (readonly [string, DateKind])[] = [
+  ['Fecha proceso', 'PROCESO'],
+  ['Fecha oper.', 'OPERACION'],
+  ['Fecha', 'NO_DECLARADA'],
+];
+const DEBIT_COLUMNS = ['Cargo', 'Cargos', 'Gastos'] as const;
+const CREDIT_COLUMNS = ['Abono', 'Abonos', 'Ingresos'] as const;
+
+function readDateKind(table: CsvTable): DateKind {
+  const column = findColumn(table, ...DATE_COLUMNS.map(([header]) => header));
+  return DATE_COLUMNS.find(([header]) => header === column)?.[1] ?? 'NO_DECLARADA';
+}
+
+/**
+ * Cargo y abono de la fila, por separado.
+ *
+ * Hoy todos los bancos publican la columna con signo `Cargo/Abono` junto a sus
+ * columnas `Cargo` y `Abono` (ADR-0013); los Excel BBVA anteriores solo la con
+ * signo. Si están las separadas, mandan ellas — son las que imprime el banco
+ * salvo en BBVA, donde se derivan de la firmada — y la firmada se usa para
+ * comprobarlas. Lo que no cuadra no se corrige: se señala.
+ */
+function readAmounts(
+  table: CsvTable,
+  row: readonly string[],
+  hasSplitColumns: boolean,
+): { debitCents: number; creditCents: number; issues: MovementIssue[] } {
   const signed = parseCents(readCell(table, row, 'Cargo/Abono'));
+  if (!hasSplitColumns) {
+    return {
+      debitCents: signed === null ? 0 : Math.max(-signed, 0),
+      creditCents: signed === null ? 0 : Math.max(signed, 0),
+      issues: [],
+    };
+  }
+  const debit = parseCents(readCell(table, row, ...DEBIT_COLUMNS)) ?? 0;
+  const credit = parseCents(readCell(table, row, ...CREDIT_COLUMNS)) ?? 0;
+  const debitCents = Math.abs(debit);
+  const creditCents = Math.abs(credit);
+  const issues: MovementIssue[] = [];
+  if (debit < 0 || credit < 0) {
+    issues.push('IMPORTE_NEGATIVO');
+  }
+  if (signed !== null && signed !== creditCents - debitCents) {
+    issues.push('SIGNO_INCONSISTENTE');
+  }
+  return { debitCents, creditCents, issues };
+}
+
+function readMovementRow(
+  table: CsvTable,
+  row: readonly string[],
+  index: number,
+  hasSplitColumns: boolean,
+): MovementRow {
+  const page = Number.parseInt(readCell(table, row, 'Página'), 10);
   return {
+    index: index + 1,
+    page: Number.isSafeInteger(page) && page > 0 ? page : null,
     rowType: readCell(table, row, 'Tipo de fila').trim(),
-    date: readCell(table, row, 'Fecha proceso', 'Fecha oper.', 'Fecha').trim(),
+    date: readCell(table, row, ...DATE_COLUMNS.map(([header]) => header)).trim(),
+    valueDate: readCell(table, row, 'Fecha valor').trim(),
     description: readCell(table, row, 'Descripción', 'Concepto').trim(),
-    debitCents:
-      signed === null
-        ? Math.abs(parseCents(readCell(table, row, 'Cargo', 'Cargos', 'Gastos')) ?? 0)
-        : Math.max(-signed, 0),
-    creditCents:
-      signed === null
-        ? Math.abs(parseCents(readCell(table, row, 'Abono', 'Abonos', 'Ingresos')) ?? 0)
-        : Math.max(signed, 0),
+    ...readAmounts(table, row, hasSplitColumns),
     itfCents: Math.abs(parseCents(readCell(table, row, 'ITF')) ?? 0),
     balanceCents: parseCents(readCell(table, row, 'Saldo', 'Saldo contable')),
   };
@@ -109,6 +172,8 @@ export function inferCategory(description: string): string {
 }
 
 export interface DeclaredSummary {
+  /** `Archivo`: el nombre del PDF que el trabajo escribe al publicar. */
+  archivo: string | null;
   moneda: Currency | null;
   tipoCuenta: AccountType | null;
   saldoInicial: number | null;
@@ -146,6 +211,7 @@ export function findSheetCsv(artifacts: readonly Artifact[], sheet: string): Art
 /** Lee la hoja `Resumen`, que no todos los extractores llenan igual. */
 export function readSummary(csv: string | null): DeclaredSummary {
   const empty: DeclaredSummary = {
+    archivo: null,
     moneda: null,
     tipoCuenta: null,
     saldoInicial: null,
@@ -162,6 +228,7 @@ export function readSummary(csv: string | null): DeclaredSummary {
     return empty;
   }
   return {
+    archivo: readCell(table, row, 'Archivo').trim() || null,
     moneda: readCurrency(readCell(table, row, 'Moneda')),
     tipoCuenta: readAccountType(readCell(table, row, 'Tipo de cuenta')),
     saldoInicial: parseCents(readCell(table, row, 'Saldo inicial', 'Saldo anterior')),
@@ -215,15 +282,25 @@ export interface StatementCsvSource {
   summaryCsv: string | null;
   /** Se usa solo si el documento no trae ninguna fecha legible. */
   fallbackPeriod: string;
+  /** Contenido del CSV de la hoja `Encabezado`; los documentos anteriores a ADR-0012 no la tienen. */
+  headerCsv?: string | null;
+  /** El nombre que el historial muestra para el documento. */
+  documentName?: string | null;
+  status?: StatementStatus | null;
+  extractorVersion?: string | null;
 }
 
 export function buildFinancialStatement(source: StatementCsvSource): FinancialStatement {
   const table = readCsvTable(source.movementsCsv);
-  const rows = table.rows.map((row) => readMovementRow(table, row));
+  const hasSplitColumns =
+    findColumn(table, ...DEBIT_COLUMNS) !== null || findColumn(table, ...CREDIT_COLUMNS) !== null;
+  const rows = table.rows.map((row, index) => readMovementRow(table, row, index, hasSplitColumns));
   const movementRows = rows.filter(isMovement);
   const summary = readSummary(source.summaryCsv);
+  const header = readAccountHeader(source.headerCsv ?? null);
   const bancoOrigen = bankFromExtractor(source.extractorId);
   const moneda = summary.moneda ?? UNDECLARED_CURRENCY;
+  const periodo = header.periodo;
 
   // El ITF sale de la cuenta igual que un cargo, y aquí se muestra aparte.
   const sumaAbonos = movementRows.reduce((total, row) => total + row.creditCents, 0);
@@ -256,30 +333,44 @@ export function buildFinancialStatement(source: StatementCsvSource): FinancialSt
     // no cuadra entera: el movimiento y su ITF comparten la marca.
     const reconciled = row.balanceCents !== null && row.balanceCents === expected;
     const date = ISO_DATE.test(row.date) ? row.date : '';
-    movimientos.push({
-      id: `${source.jobId}-${String(index)}`,
+    const common = {
+      statementId: source.jobId,
       bankId: bancoOrigen,
       currency: moneda,
       date,
+      valueDate: ISO_DATE.test(row.valueDate) ? row.valueDate : null,
+      reconciled,
+      outsidePeriod:
+        periodo !== null && date !== '' && (date < periodo.start || date > periodo.end),
+      issues: row.issues,
+      source: { page: row.page, row: row.index },
+    };
+    const hasItf = row.itfCents !== 0;
+    movimientos.push({
+      ...common,
+      id: `${source.jobId}-${String(index)}`,
       description: row.description,
       category: inferCategory(row.description),
       type: netCents >= 0 ? 'ABONO' : 'CARGO',
       amountCents: Math.abs(netCents),
-      reconciled,
+      debitCents: row.debitCents,
+      creditCents: row.creditCents,
+      // El saldo impreso ya descuenta el ITF: lo lleva la fila del ITF, que va después.
+      balanceCents: hasItf ? null : row.balanceCents,
     });
-    if (row.itfCents !== 0) {
+    if (hasItf) {
       // Aparte, como lo imprime el banco: el movimiento conserva su importe y el
       // impuesto se ve como el cargo que es.
       movimientos.push({
+        ...common,
         id: `${source.jobId}-${String(index)}-itf`,
-        bankId: bancoOrigen,
-        currency: moneda,
-        date,
         description: ITF_DESCRIPTION,
         category: inferCategory(ITF_DESCRIPTION),
         type: 'CARGO',
         amountCents: row.itfCents,
-        reconciled,
+        debitCents: row.itfCents,
+        creditCents: 0,
+        balanceCents: row.balanceCents,
       });
     }
     // Se sigue desde el saldo que declara la fila: un descuadre puntual no debe
@@ -292,11 +383,18 @@ export function buildFinancialStatement(source: StatementCsvSource): FinancialSt
 
   return {
     id: source.jobId,
+    nombreDocumento: source.documentName ?? summary.archivo,
+    estado: source.status ?? null,
+    versionExtractor: source.extractorVersion ?? null,
     bancoOrigen,
     moneda,
+    monedaDeclarada: summary.moneda !== null,
+    cuenta: header.cuenta,
     ...(summary.tipoCuenta ? { tipoCuenta: summary.tipoCuenta } : {}),
+    tipoFecha: readDateKind(table),
     fechaPeriodo,
     periodoLabel: getMonthLabel(fechaPeriodo),
+    periodoDeclarado: periodo,
     saldoInicial,
     abonos,
     cargos,

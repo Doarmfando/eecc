@@ -63,8 +63,21 @@ export function jsonResponse(body: unknown): Response {
   });
 }
 
-/** Responde como la API real: lista, detalle y contenido de cada artefacto. */
-export function stubApi(list: unknown = JOB_LIST): void {
+/**
+ * Responde como la API real: lista, detalle y contenido de cada artefacto.
+ * `encabezadoCsv` publica además la hoja `Encabezado`, como los documentos
+ * convertidos desde ADR-0012; sin él, el trabajo no la tiene.
+ */
+export function stubApi(list: unknown = JOB_LIST, encabezadoCsv?: string): void {
+  const detail = encabezadoCsv
+    ? {
+        ...JOB_DETAIL,
+        artifacts: [
+          ...JOB_DETAIL.artifacts,
+          { id: 'art-enc', kind: 'RESULT_CSV', byteSize: 30, name: 'statement_Encabezado.csv' },
+        ],
+      }
+    : JOB_DETAIL;
   vi.stubGlobal(
     'fetch',
     vi.fn((input: string) => {
@@ -75,8 +88,11 @@ export function stubApi(list: unknown = JOB_LIST): void {
       if (url.includes('/artifacts/art-res/content')) {
         return Promise.resolve(new Response(RESUMEN_CSV));
       }
+      if (encabezadoCsv && url.includes('/artifacts/art-enc/content')) {
+        return Promise.resolve(new Response(encabezadoCsv));
+      }
       if (/\/v1\/jobs\/job-1$/.test(url)) {
-        return Promise.resolve(jsonResponse(JOB_DETAIL));
+        return Promise.resolve(jsonResponse(detail));
       }
       if (url.includes('/v1/jobs')) {
         return Promise.resolve(jsonResponse(list));

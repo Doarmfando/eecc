@@ -7,10 +7,10 @@ import { isConsolidable, useStatementSelection } from '@/features/statements/sta
 import { fetchArtifactText, fetchJob, type ApiClientOptions } from '@/lib/api-client';
 import { ApiError, isRetriable } from '@/lib/api-error';
 import { toMonthKey } from '@/lib/month';
-import type { JobListItem } from '@/types/job';
+import type { Artifact, Job, JobListItem } from '@/types/job';
 
 import { buildFinancialStatement, findSheetCsv } from './statement-from-csv';
-import type { FinancialStatement } from './types';
+import type { FinancialStatement, StatementStatus } from './types';
 
 const MAX_ATTEMPTS = 3;
 
@@ -36,10 +36,16 @@ async function loadStatement(
     throw new ApiError('STATEMENT_NOT_CONSOLIDABLE', 200);
   }
   const summary = findSheetCsv(job.artifacts, 'Resumen');
+  // Cuenta y periodo declarados. Los documentos anteriores a ADR-0012 y el
+  // respaldo genérico no la publican: entonces la cuenta queda sin identificar.
+  const header = findSheetCsv(job.artifacts, 'Encabezado');
+  const optionalText = (artifact: Artifact | undefined): Promise<string | null> =>
+    artifact ? fetchArtifactText(options, item.jobId, artifact.id, signal) : Promise.resolve(null);
 
-  const [movementsCsv, summaryCsv] = await Promise.all([
+  const [movementsCsv, summaryCsv, headerCsv] = await Promise.all([
     fetchArtifactText(options, item.jobId, movements.id, signal),
-    summary ? fetchArtifactText(options, item.jobId, summary.id, signal) : Promise.resolve(null),
+    optionalText(summary),
+    optionalText(header),
   ]);
 
   return buildFinancialStatement({
@@ -47,10 +53,18 @@ async function loadStatement(
     extractorId: job.extractorId,
     movementsCsv,
     summaryCsv,
+    headerCsv,
+    documentName: item.sourceFileName ?? null,
+    status: toStatementStatus(job.status),
+    extractorVersion: job.extractorVersion || null,
     // Solo se usa si el documento no trae ni una fecha legible: al menos ubica
     // el estado de cuenta en el mes en que se procesó.
     fallbackPeriod: toMonthKey(new Date(item.createdAt)),
   });
+}
+
+function toStatementStatus(status: Job['status']): StatementStatus | null {
+  return status === 'SUCCEEDED' || status === 'NEEDS_REVIEW' ? status : null;
 }
 
 export interface FinancialStatementsState {

@@ -8,6 +8,7 @@ import {
   readSummary,
   type StatementCsvSource,
 } from './statement-from-csv';
+import type { FinancialStatement } from './types';
 
 /**
  * Los CSV de estas pruebas reproducen las cabeceras reales de cada exportador
@@ -300,9 +301,22 @@ describe('buildFinancialStatement con la hoja BBVA que incluye el saldo anterior
   );
 
   it('no convierte el saldo anterior en un movimiento', () => {
-    const { tipoCuenta, ...withoutType } = current;
-    expect(withoutType).toEqual(previous);
-    expect(tipoCuenta).toBe('CORRIENTE');
+    // La hoja nueva trae una fila más arriba (el saldo anterior) y el nombre del
+    // PDF: cambia dónde está cada fila, no lo que dice.
+    const withoutTrace = (statement: FinancialStatement): FinancialStatement => ({
+      ...statement,
+      tipoCuenta: undefined,
+      nombreDocumento: null,
+      movimientos: statement.movimientos.map((movement) => ({
+        ...movement,
+        source: { page: movement.source.page, row: 0 },
+      })),
+    });
+    expect(withoutTrace(current)).toEqual(withoutTrace(previous));
+    expect(current.tipoCuenta).toBe('CORRIENTE');
+    expect(current.nombreDocumento).toBe('Julio.pdf');
+    expect(current.movimientos[0]?.source).toEqual({ page: 1, row: 2 });
+    expect(previous.movimientos[0]?.source).toEqual({ page: 1, row: 1 });
   });
 
   it('sin resumen, toma el saldo inicial de la fila de saldo anterior', () => {
@@ -435,6 +449,7 @@ describe('pickPeriod', () => {
 describe('readSummary', () => {
   it('devuelve nulos cuando el trabajo no publicó resumen', () => {
     expect(readSummary(null)).toEqual({
+      archivo: null,
       moneda: null,
       tipoCuenta: null,
       saldoInicial: null,
@@ -474,5 +489,213 @@ describe('inferCategory', () => {
 
   it('no fuerza una etiqueta cuando no reconoce nada', () => {
     expect(inferCategory('ABC123')).toBe('Otros movimientos');
+  });
+});
+
+/** Hoja `Encabezado` como la publica el worker: pares `Campo`/`Valor`. Datos inventados. */
+function encabezado(...fields: readonly (readonly [string, string])[]): string {
+  return csv('Campo,Valor', ...fields.map(([field, value]) => `${field},${value}`));
+}
+
+describe('normalización: lo que se conserva de cada fila', () => {
+  const BCP_V3_MOVEMENTS = csv(
+    'Página,Tipo de fila,Fecha proceso,Fecha valor,Descripción,Cargo/Abono,Cargo,Abono,Saldo',
+    '1,SALDO_ANTERIOR,,,SALDO ANTERIOR,,,,1000.00',
+    '1,MOVIMIENTO,2025-12-31,2025-12-31,YAPE recibido tarde,25.00,,25.00,1025.00',
+    '2,MOVIMIENTO,2026-01-05,2026-01-06,PAGO SUNAT,-200.00,200.00,,825.00',
+    '2,MOVIMIENTO,2026-01-09,2026-01-09,TRANSFERENCIA A TERCEROS,-100.00,100.00,,725.00',
+    '2,SALDO,,,SALDO FINAL,,,,725.00',
+  );
+  const BCP_V3_HEADER = encabezado(
+    ['Banco', 'BCP'],
+    ['Titular', 'PERSONA DE PRUEBA'],
+    ['Código de cuenta', '191-00000012-3-45'],
+    ['Moneda', 'Soles'],
+    ['Periodo', 'DEL 31/12/25 AL 31/01/26'],
+    ['Fecha inicio', '31/12/2025'],
+    ['Fecha fin', '31/01/2026'],
+  );
+  const statement = buildFinancialStatement(
+    source({
+      jobId: 'job-ene',
+      movementsCsv: BCP_V3_MOVEMENTS,
+      headerCsv: BCP_V3_HEADER,
+      documentName: 'Enero.pdf',
+      status: 'NEEDS_REVIEW',
+      extractorVersion: '0.5.3',
+    }),
+  );
+
+  it('separa cargo y abono, conserva el saldo impreso, la fecha valor y la fila de origen', () => {
+    expect(statement.movimientos[1]).toMatchObject({
+      statementId: 'job-ene',
+      date: '2026-01-05',
+      valueDate: '2026-01-06',
+      debitCents: 20000,
+      creditCents: 0,
+      type: 'CARGO',
+      amountCents: 20000,
+      balanceCents: 82500,
+      issues: [],
+      source: { page: 2, row: 3 },
+    });
+  });
+
+  it('dice qué fecha es la principal: BCP imprime la de proceso', () => {
+    expect(statement.tipoFecha).toBe('PROCESO');
+  });
+
+  it('identifica la cuenta sin guardar su número ni nada del titular', () => {
+    expect(statement.cuenta?.terminacion).toBe('2345');
+    expect(statement.cuenta?.clave).toMatch(/^[0-9a-f]{8}$/);
+    const serialized = JSON.stringify(statement);
+    expect(serialized).not.toContain('00000012');
+    expect(serialized).not.toContain('PERSONA DE PRUEBA');
+  });
+
+  it('el periodo declarado cruza el año; el mes del documento sigue siendo enero', () => {
+    expect(statement.periodoDeclarado).toEqual({ start: '2025-12-31', end: '2026-01-31' });
+    expect(statement.fechaPeriodo).toBe('2026-01');
+    // El 31 de diciembre está dentro del periodo `DEL 31/12/25`: no se marca.
+    expect(statement.movimientos.every((movement) => !movement.outsidePeriod)).toBe(true);
+  });
+
+  it('conserva nombre, estado y versión del documento', () => {
+    expect(statement).toMatchObject({
+      nombreDocumento: 'Enero.pdf',
+      estado: 'NEEDS_REVIEW',
+      versionExtractor: '0.5.3',
+      monedaDeclarada: false,
+    });
+  });
+
+  it('marca la fecha que cae fuera del periodo que declara el banco', () => {
+    const late = buildFinancialStatement(
+      source({
+        movementsCsv: BCP_V3_MOVEMENTS,
+        headerCsv: encabezado(['Fecha inicio', '01/01/2026'], ['Fecha fin', '31/01/2026']),
+      }),
+    );
+    expect(late.movimientos.map((movement) => movement.outsidePeriod)).toEqual([
+      true,
+      false,
+      false,
+    ]);
+  });
+});
+
+describe('normalización: importes que no cuadran entre sí', () => {
+  it('si `Cargo/Abono` contradice las columnas separadas, mandan estas y se señala', () => {
+    const statement = buildFinancialStatement(
+      source({
+        movementsCsv: csv(
+          'Fecha proceso,Descripción,Cargo/Abono,Cargo,Abono,Saldo',
+          '2026-01-05,Pago,100.00,100.00,,900.00',
+        ),
+      }),
+    );
+    expect(statement.movimientos[0]).toMatchObject({
+      debitCents: 10000,
+      creditCents: 0,
+      type: 'CARGO',
+      issues: ['SIGNO_INCONSISTENTE'],
+    });
+  });
+
+  it('un cargo impreso con signo se toma por su magnitud y se señala, sin volverlo abono', () => {
+    const statement = buildFinancialStatement(
+      source({
+        movementsCsv: csv(
+          'Fecha proceso,Descripción,Cargo/Abono,Cargo,Abono',
+          '2026-01-05,Pago,200.00,-200.00,',
+        ),
+      }),
+    );
+    expect(statement.movimientos[0]).toMatchObject({
+      debitCents: 20000,
+      type: 'CARGO',
+      issues: ['IMPORTE_NEGATIVO', 'SIGNO_INCONSISTENTE'],
+    });
+  });
+
+  it('una fila con cargo y abono a la vez los conserva por separado; el neto da el tipo', () => {
+    const statement = buildFinancialStatement(
+      source({
+        movementsCsv: csv(
+          'Fecha proceso,Descripción,Cargo/Abono,Cargo,Abono',
+          '2026-01-05,Abono con comisión,90.00,10.00,100.00',
+        ),
+      }),
+    );
+    expect(statement.movimientos[0]).toMatchObject({
+      debitCents: 1000,
+      creditCents: 10000,
+      type: 'ABONO',
+      amountCents: 9000,
+      issues: [],
+    });
+  });
+});
+
+describe('normalización por banco', () => {
+  it('BBVA: fecha de operación; el ITF lleva el saldo impreso y no se cuenta dos veces', () => {
+    const statement = buildFinancialStatement(
+      source({ extractorId: 'bbva-account-v1', movementsCsv: BBVA_MOVEMENTS }),
+    );
+    expect(statement.tipoFecha).toBe('OPERACION');
+    const [abono, itf] = statement.movimientos;
+    expect(abono).toMatchObject({ creditCents: 50000, debitCents: 0, balanceCents: null });
+    expect(itf).toMatchObject({ debitCents: 2, creditCents: 0, balanceCents: 149998 });
+    const debits = statement.movimientos.reduce(
+      (total, movement) => total + movement.debitCents,
+      0,
+    );
+    expect(debits).toBe(statement.cargos);
+  });
+
+  it('Interbank: «Fecha» sin decir cuál, sin fecha valor; Ingresos y Gastos son abono y cargo', () => {
+    const statement = buildFinancialStatement(
+      source({
+        extractorId: 'interbank-savings-v1',
+        movementsCsv: INTERBANK_MOVEMENTS,
+        summaryCsv: INTERBANK_SUMMARY,
+        headerCsv: encabezado(
+          ['Número de cuenta', '200-3000111222'],
+          ['Periodo', '01/08/2026 al 31/08/2026'],
+        ),
+      }),
+    );
+    expect(statement.tipoFecha).toBe('NO_DECLARADA');
+    expect(statement.movimientos[0]).toMatchObject({ creditCents: 30000, valueDate: null });
+    expect(statement.movimientos[1]).toMatchObject({ debitCents: 5000 });
+    expect(statement.cuenta?.terminacion).toBe('1222');
+    expect(statement.periodoDeclarado).toEqual({ start: '2026-08-01', end: '2026-08-31' });
+  });
+
+  it('Banco de la Nación: número de cuenta del encabezado y fecha valor', () => {
+    const statement = buildFinancialStatement(
+      source({
+        extractorId: 'banco-nacion-v1',
+        movementsCsv: NACION_MOVEMENTS,
+        headerCsv: encabezado(['Número de cuenta', '04-000-111111']),
+      }),
+    );
+    expect(statement.cuenta?.terminacion).toBe('1111');
+    expect(statement.periodoDeclarado).toBeNull();
+    expect(statement.movimientos[0]?.valueDate).toBe('2026-07-04');
+  });
+
+  it('genérico: sin encabezado ni moneda, la cuenta queda sin identificar y la moneda supuesta', () => {
+    const statement = buildFinancialStatement(
+      source({ extractorId: 'generic-table-v1', movementsCsv: GENERIC_MOVEMENTS }),
+    );
+    expect(statement).toMatchObject({
+      cuenta: null,
+      monedaDeclarada: false,
+      moneda: 'PEN',
+      periodoDeclarado: null,
+      tipoFecha: 'NO_DECLARADA',
+    });
+    expect(statement.movimientos[0]?.balanceCents).toBeNull();
   });
 });

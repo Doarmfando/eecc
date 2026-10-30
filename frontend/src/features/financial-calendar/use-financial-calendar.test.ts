@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { statementFixture, transactionFixture } from '@/test/financial-fixtures';
+
 import type { FinancialStatement, FinancialTransaction } from '@/features/financial-center/types';
 
 import {
@@ -14,7 +16,7 @@ import {
 } from './use-financial-calendar';
 
 function tx(overrides: Partial<FinancialTransaction>): FinancialTransaction {
-  return {
+  return transactionFixture({
     id: 'tx-1',
     bankId: 'bcp',
     currency: 'PEN',
@@ -25,7 +27,7 @@ function tx(overrides: Partial<FinancialTransaction>): FinancialTransaction {
     amountCents: 10000,
     reconciled: true,
     ...overrides,
-  };
+  });
 }
 
 const SAMPLE: FinancialTransaction[] = [
@@ -124,7 +126,7 @@ describe('computeMonthSummary', () => {
 });
 
 function statement(overrides: Partial<FinancialStatement>): FinancialStatement {
-  return {
+  return statementFixture({
     id: 'job-1',
     bancoOrigen: 'bcp',
     moneda: 'PEN',
@@ -136,7 +138,7 @@ function statement(overrides: Partial<FinancialStatement>): FinancialStatement {
     saldoFinal: 0,
     movimientos: [],
     ...overrides,
-  };
+  });
 }
 
 describe('computeOpeningBalances', () => {
@@ -159,6 +161,23 @@ describe('computeOpeningBalances', () => {
       ]),
     );
     expect(openings).toHaveLength(2);
+  });
+
+  it('con cuentas identificadas, una segunda cuenta que empieza después aporta su propio inicial', () => {
+    const statements = [
+      statement({ id: 'a-ene', fechaPeriodo: '2026-01', saldoInicial: 100 }),
+      statement({ id: 'a-feb', fechaPeriodo: '2026-02', saldoInicial: 130 }),
+      statement({ id: 'b-feb', fechaPeriodo: '2026-02', saldoInicial: 900 }),
+    ];
+    const accountOf = (item: FinancialStatement): string => (item.id.startsWith('a') ? 'A' : 'B');
+    expect(computeOpeningBalances(statements, accountOf)).toEqual([
+      { bankId: 'bcp', monthKey: '2026-01', cents: 100 },
+      { bankId: 'bcp', monthKey: '2026-02', cents: 900 },
+    ]);
+    // Por banco, la cuenta B quedaba sin saldo inicial: el arrastre empezaba 900 abajo.
+    expect(computeOpeningBalances(statements)).toEqual([
+      { bankId: 'bcp', monthKey: '2026-01', cents: 100 },
+    ]);
   });
 
   it('suma dos cuentas del mismo banco en su mes más antiguo', () => {

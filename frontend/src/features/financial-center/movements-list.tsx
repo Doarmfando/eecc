@@ -24,7 +24,14 @@ function formatGroupDate(isoDate: string): string {
   return GROUP_DATE_FORMATTER.format(new Date(year, month - 1, day));
 }
 
-function TransactionRow({ transaction }: { transaction: FinancialTransaction }): ReactNode {
+function TransactionRow({
+  transaction,
+  periodLabel,
+}: {
+  transaction: FinancialTransaction;
+  /** El periodo del documento, cuando la lista mezcla varios. */
+  periodLabel?: string | undefined;
+}): ReactNode {
   const isIncome = transaction.type === 'ABONO';
 
   return (
@@ -38,7 +45,10 @@ function TransactionRow({ transaction }: { transaction: FinancialTransaction }):
         <p className="truncate text-[15px] font-medium text-foreground">
           {transaction.description}
         </p>
-        <p className="text-xs text-muted-foreground">{transaction.category}</p>
+        <p className="text-xs text-muted-foreground">
+          {transaction.category}
+          {periodLabel ? ` · EECC ${periodLabel}` : ''}
+        </p>
       </div>
       {transaction.reconciled ? (
         <CheckCircle2
@@ -67,8 +77,11 @@ export function MovementsList({
   canShowLess,
   onShowMore,
   onShowLess,
+  periodLabelOf,
 }: {
   groups: readonly TransactionGroup[];
+  /** En acumulado: el periodo del documento de cada movimiento. */
+  periodLabelOf?: (statementId: string) => string | undefined;
   totalCount: number;
   shownCount: number;
   search: string;
@@ -83,8 +96,10 @@ export function MovementsList({
         <CardTitle>Movimientos</CardTitle>
         <CardDescription>
           {search.trim()
-            ? `Coincidencias con "${search.trim()}", más recientes primero.`
-            : 'Del mes y los bancos que tienes filtrados, más recientes primero.'}
+            ? `Coincidencias con "${search.trim()}"${periodLabelOf ? ' en todos los periodos' : ''}, más recientes primero.`
+            : periodLabelOf
+              ? 'De todos los periodos y los bancos que tienes filtrados, más recientes primero.'
+              : 'Del mes y los bancos que tienes filtrados, más recientes primero.'}
         </CardDescription>
       </CardHeader>
 
@@ -97,7 +112,11 @@ export function MovementsList({
               </p>
               <ul className="divide-y divide-border">
                 {group.items.map((transaction) => (
-                  <TransactionRow key={transaction.id} transaction={transaction} />
+                  <TransactionRow
+                    key={transaction.id}
+                    transaction={transaction}
+                    periodLabel={periodLabelOf?.(transaction.statementId)}
+                  />
                 ))}
               </ul>
             </div>

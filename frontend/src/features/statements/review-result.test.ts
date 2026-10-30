@@ -6,6 +6,7 @@ import type { DeclaredSummary } from '@/features/financial-center/statement-from
 import { diferenciaDeSaldo, esDescuadre, motivosDeRevision, pideRevision } from './review-result';
 
 const RESUMEN: DeclaredSummary = {
+  archivo: null,
   moneda: 'PEN',
   tipoCuenta: null,
   saldoInicial: 100_000,
