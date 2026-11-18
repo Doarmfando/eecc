@@ -1,7 +1,9 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
+  Get,
   Headers,
   HttpCode,
   HttpStatus,
@@ -11,7 +13,6 @@ import {
   UploadedFile,
   UseGuards,
   UseInterceptors,
-  BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes, ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
@@ -25,7 +26,9 @@ import {
   CreateStatementDto,
   DeletedStatementsDto,
   JobResponseDto,
+  MonthlyUsageDto,
 } from './dto/create-statement.dto';
+import { StatementUsageService } from './statement-usage.service';
 import { StatementsService } from './statements.service';
 
 interface UploadedPdf {
@@ -43,7 +46,32 @@ interface UploadedPdf {
 @Controller('statements')
 @UseGuards(AuthGuard, PermissionsGuard)
 export class StatementsController {
-  constructor(private readonly statements: StatementsService) {}
+  constructor(
+    private readonly statements: StatementsService,
+    private readonly usage: StatementUsageService,
+  ) {}
+
+  /**
+   * Cuánto lleva consumido del acumulado de 30 días, antes de subir un documento
+   * nuevo. La interfaz lo usa para avisar si un PDF se va a pasar del cupo del
+   * mes, sin tener que esperar al rechazo del servidor (ADR-0018).
+   */
+  @Get('usage')
+  @RequirePermissions(PERMISSION.STATEMENTS_CONVERT)
+  @ApiOperation({ summary: 'Páginas acumuladas en los últimos 30 días y el tope del plan' })
+  @ApiResponse({ status: HttpStatus.OK, type: MonthlyUsageDto })
+  async usageThisPeriod(
+    @CurrentOrganization() organization: OrganizationContext,
+  ): Promise<MonthlyUsageDto> {
+    if (!organization.userId || !organization.plan) {
+      return { pagesUsed: 0, monthlyPageQuota: null };
+    }
+    const pagesUsed = await this.usage.pagesUsedInCurrentPeriod(
+      organization.organizationId,
+      organization.userId,
+    );
+    return { pagesUsed, monthlyPageQuota: organization.plan.monthlyPageQuota };
+  }
 
   @Post()
   @RequirePermissions(PERMISSION.STATEMENTS_CONVERT)

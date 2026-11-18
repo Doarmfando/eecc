@@ -242,36 +242,49 @@ describe('UploadPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('avisa del cupo antes de subir, que es cuando el aviso sirve de algo', async () => {
-    // Después de subir el más antiguo ya se ha borrado: el aviso solo evita una
-    // pérdida si se lee junto al formulario.
-    const propios = {
-      items: Array.from({ length: 3 }, (_, indice) => ({
-        jobId: `3333333${String(indice)}-3333-4333-8333-333333333333`,
-        statementId: '22222222-2222-4222-8222-222222222222',
-        status: 'SUCCEEDED',
-        createdAt: '2026-08-26T15:30:00.000Z',
-        extractorId: 'bcp-coordinate-v1',
-        movementCount: 8,
-        warningCount: 0,
-        artifactCount: 5,
-        uploadedByMe: true,
-      })),
-      nextCursor: null,
+  it('avisa cuánto lleva del acumulado mensual antes de subir, que es cuando sirve de algo (ADR-0018)', async () => {
+    // El modelo de cobro es por páginas acumuladas, no por documentos: el aviso
+    // tiene que hablar de páginas, y leerse junto al formulario, antes de enviar.
+    const sesionConPlan = {
+      ...SESION,
+      plan: {
+        code: 'BASICA',
+        name: 'Básica',
+        maxRetainedStatements: 3,
+        maxPagesPerDocument: 1000,
+        monthlyPageQuota: 10,
+        trialOneTime: false,
+        trialAvailable: true,
+        features: [],
+      },
     };
     vi.stubGlobal(
       'fetch',
       vi.fn().mockImplementation((url: string) => {
         if (url.includes('/v1/auth/me')) {
-          return Promise.resolve(jsonResponse(200, SESION));
+          return Promise.resolve(jsonResponse(200, sesionConPlan));
         }
-        return Promise.resolve(jsonResponse(200, propios));
+        if (url.includes('/v1/statements/usage')) {
+          return Promise.resolve(jsonResponse(200, { pagesUsed: 7, monthlyPageQuota: 10 }));
+        }
+        return Promise.resolve(jsonResponse(200, { items: [], nextCursor: null }));
       }),
     );
     renderApp();
     await esperarSesion();
 
-    expect(await screen.findByText(/elegirás cuál reemplazar/)).toBeInTheDocument();
+    // El texto va partido entre varios nodos (`<strong>7</strong>`, etc.): se
+    // busca el nodo más específico cuyo texto completo coincide, para no
+    // encontrar también a sus contenedores.
+    const coincide = (nodo: Element | null): boolean =>
+      /llevas 7 de 10 páginas acumuladas este mes/.test(nodo?.textContent ?? '');
+    expect(
+      await screen.findByText(
+        (_, elemento) =>
+          coincide(elemento) &&
+          Array.from(elemento?.children ?? []).every((hijo) => !coincide(hijo)),
+      ),
+    ).toBeInTheDocument();
   });
 
   it('rechaza en el borde un archivo vacío, sin llamar al servidor', async () => {

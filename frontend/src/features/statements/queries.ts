@@ -18,9 +18,11 @@ import {
   fetchArtifactText,
   fetchJob,
   fetchJobHistory,
+  fetchMonthlyUsage,
   uploadStatement,
   type DeletedStatements,
   type DownloadedArtifact,
+  type MonthlyUsage,
   type UploadStatementInput,
 } from '@/lib/api-client';
 import { ApiError, isRetriable } from '@/lib/api-error';
@@ -70,7 +72,30 @@ export function useUploadStatement(): UseMutationResult<Job, ApiError, UploadSta
     onSuccess: () => {
       // Un documento recién publicado debe aparecer en el historial sin recargar.
       void queryClient.invalidateQueries({ queryKey: jobHistoryQueryKey() });
+      // Y el acumulado del mes, para que el aviso de la próxima subida no quede viejo.
+      void queryClient.invalidateQueries({ queryKey: monthlyUsageQueryKey() });
     },
+  });
+}
+
+export function monthlyUsageQueryKey(): readonly unknown[] {
+  return ['statements-monthly-usage'];
+}
+
+/** Páginas acumuladas en los últimos 30 días y el tope del plan (ADR-0018). */
+export function useMonthlyUsage(): UseQueryResult<MonthlyUsage, ApiError> {
+  const options = useOpcionesDeApi();
+
+  return useQuery<MonthlyUsage, ApiError>({
+    queryKey: monthlyUsageQueryKey(),
+    enabled: options !== null,
+    queryFn: async ({ signal }) => {
+      if (!options) {
+        throw new ApiError('AUTHENTICATION_REQUIRED', 401);
+      }
+      return fetchMonthlyUsage(options, signal);
+    },
+    retry: (attempt, error) => attempt < MAX_ATTEMPTS - 1 && isRetriable(error),
   });
 }
 

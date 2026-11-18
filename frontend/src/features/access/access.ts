@@ -65,23 +65,20 @@ export function paginasAlMes(usuario: SessionUser | null): number | null {
 }
 
 /**
- * «Básica: 3 documentos guardados · 10 páginas acumuladas al mes». Sin
- * `monthlyPageQuota` (sesión de una API anterior a ADR-0018) se asume sin tope
- * fijo, igual que antes de tener este campo.
+ * «10 páginas acumuladas al mes». El modelo de cobro es solo por páginas
+ * (ADR-0018): el cupo de documentos guardados sigue existiendo por
+ * almacenamiento, pero deja de anunciarse como límite del plan. Sin
+ * `monthlyPageQuota` (sesión de una API anterior a ADR-0018) se asume sin
+ * tope fijo, igual que antes de tener este campo.
  */
 export function resumenDePlan(plan: {
-  maxRetainedStatements: number;
   monthlyPageQuota?: number | null;
   trialOneTime?: boolean;
 }): string {
-  const documentos = `${String(plan.maxRetainedStatements)} ${
-    plan.maxRetainedStatements === 1 ? 'documento guardado' : 'documentos guardados'
-  }`;
-  const paginas =
-    plan.monthlyPageQuota === null || plan.monthlyPageQuota === undefined
-      ? 'volumen de páginas a cotizar'
-      : plan.trialOneTime
-        ? `${String(plan.monthlyPageQuota)} páginas de prueba, una sola vez`
-        : `${String(plan.monthlyPageQuota)} páginas acumuladas al mes`;
-  return `${documentos} · ${paginas}`;
+  if (plan.monthlyPageQuota === null || plan.monthlyPageQuota === undefined) {
+    return 'volumen de páginas a cotizar, sin tope fijo';
+  }
+  return plan.trialOneTime
+    ? `${String(plan.monthlyPageQuota)} páginas de prueba, una sola vez`
+    : `${String(plan.monthlyPageQuota)} páginas acumuladas al mes`;
 }

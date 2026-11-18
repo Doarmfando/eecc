@@ -86,7 +86,10 @@ function posts(mock: ReturnType<typeof vi.fn>): FormData[] {
     .map(([, init]) => (init as RequestInit).body as FormData);
 }
 
-async function subir(nombre = 'Setiembre.pdf'): Promise<ReturnType<typeof userEvent.setup>> {
+async function subir(
+  fetchMock: ReturnType<typeof vi.fn>,
+  nombre = 'Setiembre.pdf',
+): Promise<ReturnType<typeof userEvent.setup>> {
   render(
     <MemoryRouter initialEntries={['/']}>
       <App queryClient={createQueryClient()} />
@@ -97,8 +100,11 @@ async function subir(nombre = 'Setiembre.pdf'): Promise<ReturnType<typeof userEv
     await screen.findByLabelText('Estado de cuenta en PDF'),
     new File(['%PDF-1.7'], nombre, { type: 'application/pdf' }),
   );
-  // El aviso del cupo confirma que el historial ya llegó.
-  await screen.findByText(/usados|ya los tienes todos/);
+  // Antes de enviar, que el historial ya haya respondido: si no, el cupo se
+  // evalúa contra una lista vacía y nunca pregunta qué reemplazar.
+  await waitFor(() => {
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/v1/jobs'), expect.anything());
+  });
   await user.click(screen.getByRole('button', { name: /Procesar estado de cuenta/ }));
   return user;
 }
@@ -110,7 +116,7 @@ afterEach(() => {
 describe('UploadPage: elegir qué documento reemplazar al llegar al cupo', () => {
   it('propone el más antiguo y con un Enter lo reemplaza', async () => {
     const fetchMock = stub(propios());
-    const user = await subir();
+    const user = await subir(fetchMock);
 
     const dialog = await screen.findByRole('dialog', { name: /Ya tienes tus 3 documentos/ });
     expect(within(dialog).getByText('Setiembre.pdf')).toBeInTheDocument();
@@ -130,7 +136,7 @@ describe('UploadPage: elegir qué documento reemplazar al llegar al cupo', () =>
 
   it('reemplaza el que la persona elige', async () => {
     const fetchMock = stub(propios());
-    const user = await subir();
+    const user = await subir(fetchMock);
     const dialog = await screen.findByRole('dialog');
 
     await user.click(within(dialog).getByRole('radio', { name: /Agosto\.pdf/ }));
@@ -144,7 +150,7 @@ describe('UploadPage: elegir qué documento reemplazar al llegar al cupo', () =>
 
   it('cancelar no sube nada', async () => {
     const fetchMock = stub(propios());
-    const user = await subir();
+    const user = await subir(fetchMock);
     const dialog = await screen.findByRole('dialog');
 
     await user.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
@@ -155,7 +161,7 @@ describe('UploadPage: elegir qué documento reemplazar al llegar al cupo', () =>
 
   it('sin llegar al cupo sube directamente, sin preguntar', async () => {
     const fetchMock = stub({ items: [], nextCursor: null });
-    await subir();
+    await subir(fetchMock);
 
     await waitFor(() => {
       expect(posts(fetchMock)).toHaveLength(1);

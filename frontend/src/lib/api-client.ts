@@ -162,6 +162,36 @@ export async function deleteStatements(
   return parseDeleted(await request(options, path, { method: 'DELETE' }));
 }
 
+export interface MonthlyUsage {
+  pagesUsed: number;
+  /** Nulo: sin tope fijo, se cotiza (Atlas). */
+  monthlyPageQuota: number | null;
+}
+
+function parseMonthlyUsage(payload: unknown): MonthlyUsage {
+  if (
+    typeof payload === 'object' &&
+    payload !== null &&
+    'pagesUsed' in payload &&
+    typeof payload.pagesUsed === 'number' &&
+    'monthlyPageQuota' in payload &&
+    (typeof payload.monthlyPageQuota === 'number' || payload.monthlyPageQuota === null)
+  ) {
+    return { pagesUsed: payload.pagesUsed, monthlyPageQuota: payload.monthlyPageQuota };
+  }
+  throw new ApiError('RESPONSE_CONTRACT_MISMATCH', 200);
+}
+
+/** Páginas acumuladas en los últimos 30 días, para avisar antes de subir (ADR-0018). */
+export async function fetchMonthlyUsage(
+  options: ApiClientOptions,
+  signal?: AbortSignal,
+): Promise<MonthlyUsage> {
+  return parseMonthlyUsage(
+    await request(options, 'v1/statements/usage', { method: 'GET', ...(signal ? { signal } : {}) }),
+  );
+}
+
 export async function fetchJobHistory(
   options: ApiClientOptions,
   params: { limit?: number; cursor?: string } = {},

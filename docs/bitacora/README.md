@@ -13,6 +13,35 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-11-18 — El mensaje de membresía pasa a ser solo por páginas, y aviso antes de subir
+
+- Contexto: el responsable del producto pidió que el modelo se comunique **solo por
+  páginas, no por documentos guardados** (ese cupo sigue existiendo por almacenamiento,
+  pero deja de anunciarse como límite del plan), y que al elegir un PDF la interfaz
+  avise **antes de enviarlo** cuántas páginas trae y si se pasaría del acumulado del
+  mes. También compartió una referencia de filas por hoja observadas por banco: BCP
+  ~35, Interbank ~15, Banco de la Nación ~50. Con el conteo real de páginas en el
+  navegador (este cambio), esa tabla deja de hacer falta para estimar páginas —ya se
+  cuentan de verdad, no se infieren por movimientos—, pero queda anotada aquí por si
+  sirve para otra estimación futura.
+- Hecho (API): `GET /v1/statements/usage` (nuevo), devuelve `pagesUsed` y
+  `monthlyPageQuota` de quien tiene sesión, leyendo el mismo acumulado de 30 días que
+  ya usa la subida. Sin sesión de persona (credencial de servicio) responde ceros.
+- Hecho (frontend): `pdfjs-dist` nuevo, cuenta las páginas de un PDF en el navegador al
+  elegirlo (`lib/pdf-pages.ts`), sin mandar nada al servidor todavía. `PageQuotaNotice`
+  reemplaza a `RetentionNotice` en la pantalla de subida: dice cuántas páginas lleva el
+  mes, y si el archivo elegido se pasaría del cupo, en rojo y con el número exacto. Un
+  PDF con contraseña no se puede contar sin ella (pdf.js no lee ni el número de
+  páginas): el aviso lo omite sin bloquear la subida, el worker decide al procesar.
+  `resumenDePlan` y el resto de la interfaz dejaron de mencionar documentos guardados;
+  el Historial conserva su propio aviso de cupo, porque ahí sí es el tema de la vista.
+- Verificación automática: API `npm run check` (292 pruebas), frontend `npm run check`
+  (376 pruebas, cobertura 96 %); `statement-usage.service.spec.ts`,
+  `page-quota-notice.test.tsx` y `pdf-pages.test.ts` nuevos.
+- Desplegado en el Railway de Fortex (el de DioBrando quedó con el trial vencido; ver
+  más abajo). Pendiente: revisar si conviene mover también el cupo de documentos a un
+  número alto por plan en vez de dejarlo en 3/10/20, ahora que no se comunica.
+
 ## 2026-11-17 — Cobro por páginas acumuladas al mes, prueba única y planes Gratuito/Especial
 
 - Contexto: el responsable del producto va a monetizar con cobro manual por Yape (todavía en

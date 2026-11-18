@@ -32,12 +32,15 @@ export function UploadForm({
   pending,
   passwordProblem = null,
   onSubmit,
+  onFileSelected,
 }: {
   /** Reservado para estados en los que el envío no procede; por defecto, activo. */
   disabled?: boolean;
   pending: boolean;
   passwordProblem?: PasswordProblem | null;
   onSubmit: (values: UploadFormValues) => void;
+  /** El archivo recién elegido, para avisar cuántas páginas trae antes de enviarlo. */
+  onFileSelected?: (file: File | null) => void;
 }): ReactNode {
   const fileInputId = useId();
   const yearInputId = useId();
@@ -69,6 +72,14 @@ export function UploadForm({
 
   const selected = watch('document')?.item(0) ?? null;
   const hasError = Boolean(errors.document);
+
+  useEffect(() => {
+    onFileSelected?.(selected);
+    // `onFileSelected` no entra en las dependencias: lo normal es pasar una
+    // función nueva en cada render, y volver a avisar por eso dispararía un
+    // conteo de páginas en bucle sin que el archivo haya cambiado.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected]);
   const passwordMessage =
     errors.pdfPassword?.message ??
     (passwordProblem ? PASSWORD_PROBLEM_MESSAGES[passwordProblem] : null);

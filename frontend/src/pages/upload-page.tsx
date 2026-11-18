@@ -16,10 +16,10 @@ import {
   type BankId,
 } from '@/features/statements/bank-selector';
 import { JobSummary } from '@/features/statements/job-summary';
+import { PageQuotaNotice } from '@/features/statements/page-quota-notice';
 import { ReplaceStatementDialog } from '@/features/statements/replace-statement-dialog';
 import { pideRevision } from '@/features/statements/review-result';
 import { replaceableStatements } from '@/features/statements/replaceable-statements';
-import { RetentionNotice } from '@/features/statements/retention-notice';
 import {
   UploadForm,
   type PasswordProblem,
@@ -111,6 +111,8 @@ export function UploadPage(): ReactNode {
   const notifyError = useNotifyError();
   const history = useJobHistory();
   const [selectedBank, setSelectedBank] = useState<BankId>('bcp');
+  // El archivo recién elegido, para avisar cuántas páginas trae antes de enviarlo.
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   // Envío en espera de que la persona elija qué documento reemplazar.
   const [awaitingChoice, setAwaitingChoice] = useState<UploadFormValues | null>(null);
 
@@ -233,6 +235,7 @@ export function UploadPage(): ReactNode {
                     pending={upload.isPending}
                     passwordProblem={passwordProblemOf(upload.error)}
                     onSubmit={handleSubmit}
+                    onFileSelected={setSelectedFile}
                   />
                 </div>
               </>
@@ -245,7 +248,7 @@ export function UploadPage(): ReactNode {
         </div>
 
         <div className="mt-3">
-          <RetentionNotice />
+          <PageQuotaNotice selectedFile={selectedFile} />
         </div>
       </Card>
 

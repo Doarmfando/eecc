@@ -56,16 +56,14 @@ describe('acceso según rol y membresía', () => {
     expect(cupoDe(null)).toBe(0);
   });
 
-  it('resume un plan en una línea', () => {
-    expect(resumenDePlan({ maxRetainedStatements: 3, monthlyPageQuota: 10 })).toBe(
-      '3 documentos guardados · 10 páginas acumuladas al mes',
+  it('resume un plan en una línea, solo por páginas (ADR-0018)', () => {
+    expect(resumenDePlan({ monthlyPageQuota: 10 })).toBe('10 páginas acumuladas al mes');
+    expect(resumenDePlan({ monthlyPageQuota: null })).toBe(
+      'volumen de páginas a cotizar, sin tope fijo',
     );
-    expect(resumenDePlan({ maxRetainedStatements: 20, monthlyPageQuota: null })).toBe(
-      '20 documentos guardados · volumen de páginas a cotizar',
+    expect(resumenDePlan({ monthlyPageQuota: 3, trialOneTime: true })).toBe(
+      '3 páginas de prueba, una sola vez',
     );
-    expect(
-      resumenDePlan({ maxRetainedStatements: 1, monthlyPageQuota: 3, trialOneTime: true }),
-    ).toBe('1 documento guardado · 3 páginas de prueba, una sola vez');
   });
 });
 

@@ -158,13 +158,20 @@ function posts(mock: ReturnType<typeof vi.fn>): FormData[] {
     .map(([, init]) => (init as RequestInit).body as FormData);
 }
 
-async function subir(nombre: string): Promise<ReturnType<typeof userEvent.setup>> {
+async function subir(
+  nombre: string,
+  fetchMock: ReturnType<typeof vi.fn>,
+): Promise<ReturnType<typeof userEvent.setup>> {
   const user = userEvent.setup();
   await user.upload(
     await screen.findByLabelText('Estado de cuenta en PDF'),
     new File(['%PDF-1.7'], nombre, { type: 'application/pdf' }),
   );
-  await screen.findByText(/usados|ya los tienes todos/);
+  // Antes de enviar, que el historial ya haya respondido: si no, el cupo se
+  // evalúa contra una lista vacía y nunca pregunta qué reemplazar.
+  await waitFor(() => {
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/v1/jobs'), expect.anything());
+  });
   await user.click(screen.getByRole('button', { name: /Procesar estado de cuenta/ }));
   return user;
 }
@@ -197,7 +204,7 @@ describe('Membresía Básica', () => {
   });
 
   it('un PDF largo se rechaza diciendo cuántas páginas tiene y cuántas admite', async () => {
-    stub(SESION_BASICA, propios(0), () =>
+    const fetchMock = stub(SESION_BASICA, propios(0), () =>
       jsonResponse(422, {
         code: 'PDF_PAGE_LIMIT_EXCEEDED',
         requestId: 'req-paginas',
@@ -205,7 +212,7 @@ describe('Membresía Básica', () => {
       }),
     );
     abrir();
-    await subir('Mayo BCP.pdf');
+    await subir('Mayo BCP.pdf', fetchMock);
 
     const aviso = await screen.findByRole('alert');
     expect(within(aviso).getByText('No se pudo procesar «Mayo BCP.pdf»')).toBeInTheDocument();
@@ -225,7 +232,7 @@ describe('Membresía Atlas', () => {
       }),
     );
     abrir();
-    const user = await subir('Setiembre.pdf');
+    const user = await subir('Setiembre.pdf', fetchMock);
 
     const dialogo = await screen.findByRole('dialog', { name: /Ya tienes tus 20 documentos/ });
     expect(within(dialogo).getByText(/Tu membresía Atlas guarda 20/)).toBeInTheDocument();
