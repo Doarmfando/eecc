@@ -1,4 +1,5 @@
 import {
+  ForbiddenException,
   PayloadTooLargeException,
   UnprocessableEntityException,
   UnsupportedMediaTypeException,
@@ -12,6 +13,7 @@ import type { ObjectStorageService } from '../storage/object-storage.service';
 import type { WorkerClientService } from '../worker-client/worker-client.service';
 import type { WorkerJobPayload } from '../worker-client/worker-client.types';
 import type { StatementRetentionService } from './statement-retention.service';
+import type { StatementUsageService } from './statement-usage.service';
 import { StatementsService } from './statements.service';
 
 const CONFIG: Record<string, unknown> = {
@@ -111,6 +113,7 @@ function buildService(
   worker: Partial<WorkerClientService> = {},
   enforceForUploader: jest.Mock = jest.fn().mockResolvedValue([]),
   discardUnregisteredWorkerJob: jest.Mock = jest.fn().mockResolvedValue(undefined),
+  usageOverrides: Partial<StatementUsageService> = {},
 ): StatementsService {
   const storage = {
     buildObjectKey: jest.fn(() => 'organizations/o/statements/s/object.pdf'),
@@ -137,7 +140,16 @@ function buildService(
     discardUnregisteredWorkerJob,
   } as unknown as StatementRetentionService;
 
-  return new StatementsService(prisma, storage, workerClient, retention, config);
+  // Igual que la retención: su propia especificación cubre el cálculo real. Por
+  // defecto no limita nada, como las pruebas que no fijan un plan nuevo.
+  const usage = {
+    assertWithinMonthlyQuota: jest.fn().mockResolvedValue(undefined),
+    assertTrialAvailable: jest.fn(),
+    markTrialUsed: jest.fn().mockResolvedValue(undefined),
+    ...usageOverrides,
+  } as unknown as StatementUsageService;
+
+  return new StatementsService(prisma, storage, workerClient, retention, usage, config);
 }
 
 describe('StatementsService', () => {
@@ -528,6 +540,149 @@ describe('StatementsService', () => {
     expect(processStatement.mock.calls[0]?.[0]).not.toHaveProperty('maxPages');
   });
 
+  it('con tope de cobro mensual, el worker recibe lo que queda del mes, no el tope técnico (ADR-0018)', async () => {
+    const recorder: TransactionRecorder = { created: [] };
+    const { prisma } = buildPrisma(null, recorder);
+    const processStatement = jest.fn().mockResolvedValue(workerPayload({ page_count: 3 }));
+    const assertWithinMonthlyQuota = jest.fn().mockResolvedValue(3);
+    const service = buildService(prisma, { processStatement }, undefined, undefined, {
+      assertWithinMonthlyQuota,
+    });
+
+    await service.process({
+      organizationId: ORGANIZATION_ID,
+      userId: USER_ID,
+      content: pdfBuffer(),
+      fileName: 'estado.pdf',
+      mimeType: 'application/pdf',
+      maxPagesPerDocument: 1000,
+      monthlyPageQuota: 10,
+    });
+
+    expect(assertWithinMonthlyQuota).toHaveBeenCalledWith(ORGANIZATION_ID, USER_ID, {
+      maxPagesPerDocument: 1000,
+      monthlyPageQuota: 10,
+    });
+    expect(processStatement).toHaveBeenCalledWith(expect.objectContaining({ maxPages: 3 }));
+  });
+
+  it('agotado el acumulado del mes, rechaza sin llegar a llamar al worker (ADR-0018)', async () => {
+    const recorder: TransactionRecorder = { created: [] };
+    const { prisma } = buildPrisma(null, recorder);
+    const processStatement = jest.fn();
+    const assertWithinMonthlyQuota = jest.fn().mockRejectedValue(
+      new UnprocessableEntityException({
+        code: 'MONTHLY_PAGE_QUOTA_EXCEEDED',
+        meta: { used: 10, quota: 10 },
+      }),
+    );
+    const service = buildService(prisma, { processStatement }, undefined, undefined, {
+      assertWithinMonthlyQuota,
+    });
+
+    await expect(
+      service.process({
+        organizationId: ORGANIZATION_ID,
+        userId: USER_ID,
+        content: pdfBuffer(),
+        fileName: 'estado.pdf',
+        mimeType: 'application/pdf',
+        maxPagesPerDocument: 1000,
+        monthlyPageQuota: 10,
+      }),
+    ).rejects.toMatchObject({
+      response: { code: 'MONTHLY_PAGE_QUOTA_EXCEEDED', meta: { used: 10, quota: 10 } },
+    });
+    expect(processStatement).not.toHaveBeenCalled();
+  });
+
+  it('una conversión nueva con prueba única marca la prueba como gastada; reutilizar una ya subida no (ADR-0018)', async () => {
+    const recorder: TransactionRecorder = { created: [] };
+    const { prisma, findUnique } = buildPrisma(null, recorder);
+    const processStatement = jest.fn().mockResolvedValue(workerPayload({ page_count: 2 }));
+    const markTrialUsed = jest.fn().mockResolvedValue(undefined);
+    const service = buildService(prisma, { processStatement }, undefined, undefined, {
+      markTrialUsed,
+    });
+
+    await service.process({
+      organizationId: ORGANIZATION_ID,
+      userId: USER_ID,
+      content: pdfBuffer(),
+      fileName: 'estado.pdf',
+      mimeType: 'application/pdf',
+      maxPagesPerDocument: 1000,
+      monthlyPageQuota: 3,
+      trialOneTime: true,
+      trialAvailable: true,
+    });
+
+    expect(markTrialUsed).toHaveBeenCalledWith(ORGANIZATION_ID, USER_ID);
+
+    markTrialUsed.mockClear();
+    findUnique.mockResolvedValue({
+      id: 'job-id',
+      statementId: 'statement-id',
+      createdAt: CREATED_AT,
+      status: JobStatus.SUCCEEDED,
+      attempts: [
+        {
+          attemptNumber: 1,
+          extractorId: 'bcp-coordinate-v1',
+          extractorVersion: '0.1.0',
+          rowCount: 4,
+          movementCount: 1,
+          pageCount: 2,
+          checks: [{ code: 'BCP_ROWS_PRESENT', status: 'PASSED' }],
+          warnings: [],
+          artifacts: [],
+        },
+      ],
+    });
+
+    await service.process({
+      organizationId: ORGANIZATION_ID,
+      userId: USER_ID,
+      content: pdfBuffer(),
+      fileName: 'estado.pdf',
+      mimeType: 'application/pdf',
+      maxPagesPerDocument: 1000,
+      monthlyPageQuota: 3,
+      trialOneTime: true,
+      trialAvailable: true,
+    });
+
+    expect(markTrialUsed).not.toHaveBeenCalled();
+  });
+
+  it('si la prueba única ya se gastó, rechaza antes de llamar al worker (ADR-0018)', async () => {
+    const recorder: TransactionRecorder = { created: [] };
+    const { prisma } = buildPrisma(null, recorder);
+    const processStatement = jest.fn();
+    const assertTrialAvailable = jest.fn().mockImplementation(() => {
+      throw new ForbiddenException({ code: 'TRIAL_ALREADY_USED' });
+    });
+    const service = buildService(prisma, { processStatement }, undefined, undefined, {
+      assertTrialAvailable,
+    });
+
+    await expect(
+      service.process({
+        organizationId: ORGANIZATION_ID,
+        userId: USER_ID,
+        content: pdfBuffer(),
+        fileName: 'estado.pdf',
+        mimeType: 'application/pdf',
+        maxPagesPerDocument: 1000,
+        monthlyPageQuota: 3,
+        trialOneTime: true,
+        trialAvailable: false,
+      }),
+    ).rejects.toMatchObject({ response: { code: 'TRIAL_ALREADY_USED' } });
+    expect(assertTrialAvailable).toHaveBeenCalledWith(true, false);
+    expect(processStatement).not.toHaveBeenCalled();
+  });
+
   it('si el worker no aplicó el límite, la API no registra el documento y lo descarta', async () => {
     // Un worker anterior ignora `max_pages`: el límite del plan no puede depender
     // de que el otro lado lo cumpla.
@@ -599,6 +754,7 @@ describe('StatementsService', () => {
       {} as ObjectStorageService,
       {} as WorkerClientService,
       retention,
+      {} as StatementUsageService,
       { get: (key: string): unknown => CONFIG[key] } as unknown as ConfigService<AppConfig, true>,
     );
 

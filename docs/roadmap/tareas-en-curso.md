@@ -341,6 +341,36 @@ calendario en diciembre de 2026)
 - [ ] Del responsable: borrar del Historial los documentos de enero ya convertidos y
   volver a subirlos (si quedan los dos, el calendario cuenta los movimientos dos veces).
 
+## 17. Cobro por páginas acumuladas al mes (conversación de pricing, 2026-11-17)
+
+- Pedido, resumido: diseñar cómo cobrar por membresía pensando en cobro manual por Yape,
+  con el riesgo de que un PDF «ilimitado» de Atlas tuviera un número de páginas absurdo;
+  separar el tope de seguridad del tope de cobro; modelar el acumulado mensual en vez del
+  tope por PDF; ajustar los planes (Gratuito, Básico, Especial, Atlas) con datos reales de
+  documentos de prueba y de comportamiento financiero de dos perfiles de consumidor
+  peruano; implementar el cambio en back y front. Detalle completo de las cifras y el
+  razonamiento en [`ADR-0018`](../decisiones/ADR-0018-cobro-por-paginas-acumuladas-y-tope-tecnico.md).
+- [x] Separar `max_pages_per_document` (tope técnico, 1000 para los cuatro planes) de
+  `monthly_page_quota` (tope de cobro, acumulado de 30 días).
+- [x] Planes: Gratuito (1 documento, 3 páginas, prueba única sin renovación), Básica (3
+  documentos, 10 páginas/mes), Especial (10 documentos, 20 páginas/mes, suma Historial),
+  Atlas (20 documentos, sin tope fijo de páginas, se cotiza).
+- [x] `StatementUsageService`: acumulado móvil de 30 días sobre `job_attempts.page_count`,
+  sin tarea programada; rechazo antes de llamar al worker si ya no queda cupo; el worker
+  recibe lo que queda del mes como `max_pages`, sin cambios en el worker mismo.
+- [x] Prueba única: `trial_used_at` por persona, verificada antes de procesar y marcada
+  después de una conversión nueva (no al reutilizar un documento ya subido).
+- [x] Migración de datos `cobro_por_paginas_acumuladas`, idempotente; nadie con membresía
+  existente cambia de plan.
+- [x] Frontend: resumen de membresía y avisos de página en términos de acumulado mensual;
+  mensajes nuevos para `MONTHLY_PAGE_QUOTA_EXCEEDED` y `TRIAL_ALREADY_USED`.
+- [x] Pruebas y verificación: API `npm run check` (292, con cobertura), frontend
+  `npm run check` (369). Migración probada en Postgres local.
+- [ ] Pendiente, fuera de este cambio: precio en soles de cada plan (sigue sin pasarela de
+  pago), validar 10/20 con datos reales de uso, decidir si Especial necesita otra vista,
+  desplegar en Railway (worker sin cambios; API aplica la migración; frontend), commit y
+  push.
+
 ## 16. Vistas «pendiente», «acumulado» y tabla (mensaje 14)
 
 - [ ] Las arma en el frontend la otra persona, como el calendario. Al llegar a `main`:

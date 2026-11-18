@@ -162,6 +162,10 @@ model OrganizationMembership {
   /// Último día de vigencia, en la zona horaria del negocio. Nulo: no vence. Solo
   /// la llevan los roles con `plan_expiry_required`; vencida, no se convierte (ADR-0017).
   planExpiresOn  DateTime?        @map("plan_expires_on") @db.Date
+  /// Cuándo consumió la prueba gratuita de un plan `trial_one_time`. Nulo: no la
+  /// ha usado. No se reinicia al cambiar de plan y nunca se vuelve a poner en
+  /// nulo (ADR-0018).
+  trialUsedAt    DateTime?        @map("trial_used_at") @db.Timestamptz(6)
   status         MembershipStatus @default(ACTIVE)
   createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -236,8 +240,17 @@ model MembershipPlan {
   /// Documentos que conserva cada persona; al superarlo elige cuál reemplazar
   /// (ADR-0007, ADR-0014).
   maxRetainedStatements Int      @map("max_retained_statements")
-  /// Páginas admitidas por PDF. Nulo: sin límite.
+  /// Tope técnico por PDF: protege al worker de un archivo absurdo. Nulo: sin
+  /// tope (no usarlo en catálogos nuevos; se prefiere un número alto, p. ej.
+  /// 1000). No es el límite de cobro — ver `monthlyPageQuota` (ADR-0018).
   maxPagesPerDocument   Int?     @map("max_pages_per_document")
+  /// Páginas acumuladas que admite el plan cada 30 días, sumando todos los PDF
+  /// que la persona sube. Esto es lo que decide el cobro. Nulo: sin tope fijo,
+  /// se cotiza (hoy solo Atlas). Ver ADR-0018.
+  monthlyPageQuota      Int?     @map("monthly_page_quota")
+  /// La prueba gratuita se consume una sola vez por persona y no se renueva
+  /// cada mes, a diferencia de `monthlyPageQuota` (ADR-0018).
+  trialOneTime          Boolean  @default(false) @map("trial_one_time")
   /// Plan de las cuentas nuevas cuando no se indica otro.
   isDefault             Boolean  @default(false) @map("is_default")
   /// Un plan retirado no se ofrece en altas ni cambios; quien lo tiene lo conserva.
@@ -318,6 +331,7 @@ model Statement {
   @@unique([organizationId, id])
   @@index([organizationId, createdAt(sort: Desc)])
   @@index([organizationId, contentFingerprint])
+  @@index([organizationId, uploadedById])
   @@map("statements")
 }
 
@@ -368,6 +382,7 @@ model JobAttempt {
   @@unique([jobId, attemptNumber])
   @@unique([organizationId, id])
   @@index([organizationId, status])
+  @@index([organizationId, startedAt])
   @@map("job_attempts")
 }
 

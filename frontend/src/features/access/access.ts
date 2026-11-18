@@ -55,22 +55,33 @@ export function cupoDe(usuario: SessionUser | null): number {
   return usuario?.plan?.maxRetainedStatements ?? usuario?.retainedStatementsPerUser ?? 0;
 }
 
-/** Páginas por PDF que admite su membresía; `null` sin límite. */
-export function paginasPorDocumento(usuario: SessionUser | null): number | null {
-  return usuario?.plan?.maxPagesPerDocument ?? null;
+/**
+ * Páginas acumuladas al mes que admite su membresía, sumando todos los PDF que
+ * sube; `null` sin tope fijo (se cotiza). No es el tope por archivo: ese es solo
+ * una protección técnica y ya no se muestra (ADR-0018).
+ */
+export function paginasAlMes(usuario: SessionUser | null): number | null {
+  return usuario?.plan?.monthlyPageQuota ?? null;
 }
 
-/** «Básica: 3 documentos guardados · hasta 15 páginas por PDF». */
+/**
+ * «Básica: 3 documentos guardados · 10 páginas acumuladas al mes». Sin
+ * `monthlyPageQuota` (sesión de una API anterior a ADR-0018) se asume sin tope
+ * fijo, igual que antes de tener este campo.
+ */
 export function resumenDePlan(plan: {
   maxRetainedStatements: number;
-  maxPagesPerDocument: number | null;
+  monthlyPageQuota?: number | null;
+  trialOneTime?: boolean;
 }): string {
   const documentos = `${String(plan.maxRetainedStatements)} ${
     plan.maxRetainedStatements === 1 ? 'documento guardado' : 'documentos guardados'
   }`;
   const paginas =
-    plan.maxPagesPerDocument === null
-      ? 'sin límite de páginas'
-      : `hasta ${String(plan.maxPagesPerDocument)} páginas por PDF`;
+    plan.monthlyPageQuota === null || plan.monthlyPageQuota === undefined
+      ? 'volumen de páginas a cotizar'
+      : plan.trialOneTime
+        ? `${String(plan.monthlyPageQuota)} páginas de prueba, una sola vez`
+        : `${String(plan.monthlyPageQuota)} páginas acumuladas al mes`;
   return `${documentos} · ${paginas}`;
 }

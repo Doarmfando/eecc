@@ -38,6 +38,8 @@ const PLAN_SELECT = {
   description: true,
   maxRetainedStatements: true,
   maxPagesPerDocument: true,
+  monthlyPageQuota: true,
+  trialOneTime: true,
   isDefault: true,
   features: { select: { featureCode: true }, orderBy: { featureCode: 'asc' } },
 } as const;

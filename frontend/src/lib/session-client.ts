@@ -11,8 +11,14 @@ export interface SessionPlan {
   code: string;
   name: string;
   maxRetainedStatements: number;
-  /** Páginas por PDF. Nulo: sin límite. */
+  /** Tope técnico de seguridad por PDF. Nulo: sin tope. */
   maxPagesPerDocument: number | null;
+  /** Páginas acumuladas al mes que decide el cobro. Nulo: sin tope fijo, se cotiza. */
+  monthlyPageQuota?: number | null;
+  /** La prueba se consume una sola vez y no se renueva cada mes. */
+  trialOneTime?: boolean;
+  /** Si todavía puede consumir esa prueba única. */
+  trialAvailable?: boolean;
   features: string[];
   /** Último día de vigencia (`YYYY-MM-DD`); nulo si no vence (ADR-0017). */
   expiresOn?: string | null;
@@ -59,6 +65,7 @@ export interface Member {
   planName?: string;
   maxRetainedStatements?: number;
   maxPagesPerDocument?: number | null;
+  monthlyPageQuota?: number | null;
   planChangedAt?: string;
   /** Último día de vigencia (`YYYY-MM-DD`); nulo si no vence. */
   planExpiresOn?: string | null;
@@ -92,6 +99,8 @@ export interface PlanOption {
   description: string;
   maxRetainedStatements: number;
   maxPagesPerDocument: number | null;
+  monthlyPageQuota: number | null;
+  trialOneTime: boolean;
   features: string[];
   isDefault: boolean;
 }

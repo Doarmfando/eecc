@@ -20,10 +20,13 @@ const USUARIO: AuthenticatedUser = {
     code: 'ATLAS',
     name: 'Atlas',
     maxRetainedStatements: 20,
-    maxPagesPerDocument: null,
+    maxPagesPerDocument: 1000,
+    monthlyPageQuota: null,
+    trialOneTime: false,
     features: ['HISTORY'],
     expiresOn: null,
     expired: false,
+    trialAvailable: true,
   },
 };
 

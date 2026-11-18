@@ -59,14 +59,18 @@ Cada persona entra con **su propio usuario y contraseña**. No hay registro abie
 
 Solo se gestionan cuentas de rango inferior; entre iguales, solo lo reversible (datos, membresía, acceso, contraseña). Un administrador no elimina ni degrada a otro; un superadministrador sí. Eliminar un usuario borra también sus documentos.
 
-| Membresía | Vistas | Documentos guardados | Páginas por PDF |
+| Membresía | Vistas | Documentos guardados | Páginas acumuladas al mes |
 | --- | --- | --- | --- |
-| **Básica** | Solo conversión | 3 | 15 |
-| **Atlas** | Conversión, Historial, Centro Financiero, Calendario | 20 | Sin límite |
+| **Gratuito** | Solo conversión | 1 | 3, una sola vez (no se renueva) |
+| **Básica** | Solo conversión | 3 | 10 |
+| **Especial** | Conversión, Historial | 10 | 20 |
+| **Atlas** | Conversión, Historial, Centro Financiero, Calendario | 20 | Sin tope fijo, se cotiza |
+
+El límite de páginas ya no es por PDF: es la suma de todas las páginas que la persona procesa en una ventana móvil de 30 días (sin tarea programada, igual que el cupo de documentos). Por PDF solo queda un tope técnico de seguridad, alto e igual para todos los planes (protege al worker, no decide el cobro). Ver [`ADR-0018`](docs/decisiones/ADR-0018-cobro-por-paginas-acumuladas-y-tope-tecnico.md).
 
 La membresía de un usuario normal tiene **fecha de vencimiento**, que el administrador fija al darlo de alta y ve en cada cuenta; al vencer, la persona entra y conserva lo suyo, pero no convierte hasta que la renueven. Los administradores no vencen. Cada persona puede **borrar** sus documentos del historial (uno o todos), con sus archivos. Ver [`ADR-0017`](docs/decisiones/ADR-0017-vigencia-de-la-membresia-y-borrado-del-historial.md).
 
-Roles, permisos, membresías y sus límites son **catálogos en la base**: crear o mejorar uno es una migración de datos, sin cambiar código. Detalles en [`ADR-0016`](docs/decisiones/ADR-0016-roles-y-membresias-como-catalogo.md) (que amplía [`ADR-0008`](docs/decisiones/ADR-0008-administrador-y-usuario.md)).
+Roles, permisos, membresías y sus límites son **catálogos en la base**: crear o mejorar uno es una migración de datos, sin cambiar código. Detalles en [`ADR-0016`](docs/decisiones/ADR-0016-roles-y-membresias-como-catalogo.md) (que amplía [`ADR-0008`](docs/decisiones/ADR-0008-administrador-y-usuario.md)) y en [`ADR-0018`](docs/decisiones/ADR-0018-cobro-por-paginas-acumuladas-y-tope-tecnico.md).
 
 Cuando algo pasa, la pantalla lo avisa: qué pasó, por qué, qué hacer y, si es un error, su tipo, código, referencia y hora, con el teléfono de soporte (`SUPPORT_PHONE`) para dictarlos.
 
@@ -80,7 +84,7 @@ Existió un modo sin base de datos que no guardaba nada. Se retiró al añadir i
 
 El esquema aplica minimización: **no existe tabla de movimientos bancarios**. Se guardan identificadores, estados, conteos y códigos, nunca los importes ni las descripciones extraídas ([`ADR-0002`](docs/decisiones/ADR-0002-postgresql-prisma-y-minimizacion-financiera.md)).
 
-Y los archivos no se acumulan: **cada persona conserva los documentos que permite su membresía** (Básica 3, Atlas 20); al superarlo elige cuál se reemplaza —por defecto, el más antiguo— y se borra entero: PDF de origen, resultados y fila. Ver [`ADR-0007`](docs/decisiones/ADR-0007-cupo-de-documentos-por-persona.md) y [`ADR-0016`](docs/decisiones/ADR-0016-roles-y-membresias-como-catalogo.md).
+Y los archivos no se acumulan: **cada persona conserva los documentos que permite su membresía** (Gratuito 1, Básica 3, Especial 10, Atlas 20); al superarlo elige cuál se reemplaza —por defecto, el más antiguo— y se borra entero: PDF de origen, resultados y fila. Ver [`ADR-0007`](docs/decisiones/ADR-0007-cupo-de-documentos-por-persona.md) y [`ADR-0016`](docs/decisiones/ADR-0016-roles-y-membresias-como-catalogo.md).
 
 ## Estructura
 

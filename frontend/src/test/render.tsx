@@ -26,7 +26,10 @@ export const TEST_USER: SessionUser = {
     code: 'ATLAS',
     name: 'Atlas',
     maxRetainedStatements: 3,
-    maxPagesPerDocument: null,
+    maxPagesPerDocument: 1000,
+    monthlyPageQuota: null,
+    trialOneTime: false,
+    trialAvailable: true,
     features: ['FINANCIAL_CALENDAR', 'FINANCIAL_CENTER', 'HISTORY'],
   },
   retainedStatementsPerUser: 3,
@@ -34,7 +37,7 @@ export const TEST_USER: SessionUser = {
   allowedEmailDomains: ['hotmail.com', 'empresa.pe', 'eecc.local'],
 };
 
-/** Una persona con la membresía Básica: solo convierte, 3 documentos, 15 páginas. */
+/** Una persona con la membresía Básica: solo convierte, 3 documentos, 10 páginas al mes. */
 export const BASIC_USER: SessionUser = {
   ...TEST_USER,
   role: 'MEMBER',
@@ -45,7 +48,10 @@ export const BASIC_USER: SessionUser = {
     code: 'BASICA',
     name: 'Básica',
     maxRetainedStatements: 3,
-    maxPagesPerDocument: 15,
+    maxPagesPerDocument: 1000,
+    monthlyPageQuota: 10,
+    trialOneTime: false,
+    trialAvailable: true,
     features: [],
   },
 };

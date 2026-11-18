@@ -101,7 +101,7 @@ npm run access:super-admins -- brando@hotmail.com fabio@hotmail.com
 
 Crea las cuentas que falten con una contraseña generada (se muestra una sola vez) y promueve las que existan sin tocar su contraseña. Repetirlo no cambia nada; `--restablecer` genera contraseñas nuevas.
 
-**Membresías.** *Básica*: solo conversión, 3 documentos, 15 páginas por PDF. *Atlas*: todo el producto, 20 documentos, sin límite de páginas. Para crear o mejorar una, ver la guía de [`ADR-0016`](docs/decisiones/ADR-0016-roles-y-membresias-como-catalogo.md#cómo-crear-o-mejorar-un-plan-o-un-rol).
+**Membresías.** *Gratuito*: solo conversión, 1 documento, 3 páginas de prueba (una sola vez). *Básica*: solo conversión, 3 documentos, 10 páginas acumuladas al mes. *Especial*: conversión e Historial, 10 documentos, 20 páginas al mes. *Atlas*: todo el producto, 20 documentos, sin tope fijo de páginas (se cotiza). El límite de páginas es el acumulado de 30 días, no por PDF individual; ver [`ADR-0018`](docs/decisiones/ADR-0018-cobro-por-paginas-acumuladas-y-tope-tecnico.md). Para crear o mejorar un plan, ver la guía de [`ADR-0016`](docs/decisiones/ADR-0016-roles-y-membresias-como-catalogo.md#cómo-crear-o-mejorar-un-plan-o-un-rol).
 
 **Teléfono de soporte.** Ponlo en `SUPPORT_PHONE` del `.env` de la API: los avisos de error lo muestran junto al código y la referencia que hay que dictar.
 
@@ -133,7 +133,7 @@ Sin `SEED_ADMIN_PASSWORD` la semilla nunca toca una contraseña existente.
 
 **Cada persona puede borrar sus documentos** desde el *Historial* (uno a uno o «Vaciar historial») o desde el resultado de una conversión («Borrar este documento»). Se van con su PDF, Excel y CSV; no se puede deshacer.
 
-**Los archivos no se acumulan.** Cada persona conserva los documentos de su membresía (Básica 3, Atlas 20); al superarlo, la carga pregunta cuál reemplazar —viene elegido el más antiguo, basta Enter— y ese se borra entero: PDF de origen, resultados y fila del historial. Detalles y lo que se pierde a cambio, en [`ADR-0007`](docs/decisiones/ADR-0007-cupo-de-documentos-por-persona.md) y [`ADR-0016`](docs/decisiones/ADR-0016-roles-y-membresias-como-catalogo.md).
+**Los archivos no se acumulan.** Cada persona conserva los documentos de su membresía (Gratuito 1, Básica 3, Especial 10, Atlas 20); al superarlo, la carga pregunta cuál reemplazar —viene elegido el más antiguo, basta Enter— y ese se borra entero: PDF de origen, resultados y fila del historial. Detalles y lo que se pierde a cambio, en [`ADR-0007`](docs/decisiones/ADR-0007-cupo-de-documentos-por-persona.md) y [`ADR-0016`](docs/decisiones/ADR-0016-roles-y-membresias-como-catalogo.md).
 
 Esa última fila no es un descuido, es la minimización que fija [`ADR-0002`](docs/decisiones/ADR-0002-postgresql-prisma-y-minimizacion-financiera.md): se guardan identificadores, estados, conteos y códigos, nunca los importes ni las descripciones extraídas.
 

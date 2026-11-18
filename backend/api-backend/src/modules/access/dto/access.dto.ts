@@ -8,8 +8,22 @@ export class PlanDto {
   @ApiProperty({ description: 'Documentos que conserva cada persona antes de reemplazar uno' })
   maxRetainedStatements!: number;
 
-  @ApiProperty({ nullable: true, type: Number, description: 'Páginas por PDF; nulo es sin límite' })
+  @ApiProperty({
+    nullable: true,
+    type: Number,
+    description: 'Tope técnico de seguridad por PDF; nulo es sin tope',
+  })
   maxPagesPerDocument!: number | null;
+
+  @ApiProperty({
+    nullable: true,
+    type: Number,
+    description: 'Páginas acumuladas al mes que decide el cobro; nulo es sin tope fijo, se cotiza',
+  })
+  monthlyPageQuota!: number | null;
+
+  @ApiProperty({ description: 'La prueba se consume una sola vez y no se renueva cada mes' })
+  trialOneTime!: boolean;
 
   @ApiProperty({ type: [String], example: ['HISTORY', 'FINANCIAL_CENTER', 'FINANCIAL_CALENDAR'] })
   features!: string[];

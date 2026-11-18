@@ -48,7 +48,11 @@ const MESSAGES: Record<string, string> = {
   RESPONSE_CONTRACT_MISMATCH: 'La respuesta del servidor no es compatible con esta versión.',
   NETWORK_ERROR: 'No se pudo contactar al servidor.',
   PDF_PAGE_LIMIT_EXCEEDED:
-    'El PDF tiene más páginas de las que admite tu membresía. Divídelo en partes más cortas o pide a un administrador una membresía sin ese límite.',
+    'El PDF tiene más páginas de las que te quedan este mes. Divídelo en partes más cortas, espera a que se renueve tu cupo o pide a un administrador otra membresía.',
+  MONTHLY_PAGE_QUOTA_EXCEEDED:
+    'Ya usaste todas las páginas de tu membresía este mes. Espera a que se renueve tu cupo o pide a un administrador otra membresía.',
+  TRIAL_ALREADY_USED:
+    'Ya usaste tu prueba gratuita; no se renueva. Pide a un administrador una membresía de pago para seguir convirtiendo.',
   ROLE_ABOVE_YOURS: 'Esa cuenta o ese rol están por encima del tuyo.',
   ROLE_NOT_FOUND: 'Ese rol ya no existe. Recarga la página.',
   PLAN_NOT_FOUND: 'Esa membresía ya no está disponible. Recarga la página y elige otra.',
@@ -58,20 +62,37 @@ const MESSAGES: Record<string, string> = {
     'No se pudieron borrar todos los documentos. Vuelve a intentarlo: lo que ya se borró no se repite.',
 };
 
-/** Con los números del rechazo, el mensaje dice exactamente qué sobra. */
+/**
+ * Con los números del rechazo, el mensaje dice exactamente qué sobra. Desde
+ * ADR-0018, `maxPages` ya no es un tope fijo por documento: es lo que le queda
+ * del mes a esa persona en el momento de subir.
+ */
 function describePageLimit(meta: Record<string, number> | undefined): string | null {
   const paginas = meta?.pageCount;
-  const limite = meta?.maxPages;
-  if (paginas === undefined || limite === undefined) {
+  const restante = meta?.maxPages;
+  if (paginas === undefined || restante === undefined) {
     return null;
   }
-  return `El PDF tiene ${String(paginas)} páginas y tu membresía admite hasta ${String(limite)} por documento. Divídelo en partes de ${String(limite)} páginas o menos, o pide a un administrador una membresía sin ese límite.`;
+  return `El PDF tiene ${String(paginas)} páginas y este mes te quedan ${String(restante)}. Divídelo en partes de ${String(restante)} páginas o menos, espera a que se renueve tu cupo, o pide a un administrador otra membresía.`;
+}
+
+/** Cuánto llevas usado y cuánto admite tu plan, cuando el rechazo trae ambos números. */
+function describeMonthlyQuota(meta: Record<string, number> | undefined): string | null {
+  const usado = meta?.used;
+  const cupo = meta?.quota;
+  if (usado === undefined || cupo === undefined) {
+    return null;
+  }
+  return `Ya usaste ${String(usado)} de las ${String(cupo)} páginas que admite tu membresía este mes. Espera a que se renueve tu cupo o pide a un administrador otra membresía.`;
 }
 
 export function describeError(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.code === 'PDF_PAGE_LIMIT_EXCEEDED') {
       return describePageLimit(error.meta) ?? (MESSAGES[error.code] as string);
+    }
+    if (error.code === 'MONTHLY_PAGE_QUOTA_EXCEEDED') {
+      return describeMonthlyQuota(error.meta) ?? (MESSAGES[error.code] as string);
     }
     return MESSAGES[error.code] ?? 'Ocurrió un error inesperado al procesar la solicitud.';
   }
@@ -100,6 +121,8 @@ const KIND_BY_CODE: Record<string, ErrorKind> = {
   DOCUMENT_REQUIRED: 'Documento',
   STATEMENT_NOT_CONSOLIDABLE: 'Documento',
   PDF_PAGE_LIMIT_EXCEEDED: 'Límite de la membresía',
+  MONTHLY_PAGE_QUOTA_EXCEEDED: 'Límite de la membresía',
+  TRIAL_ALREADY_USED: 'Límite de la membresía',
   MEMBERSHIP_EXPIRED: 'Límite de la membresía',
   INSUFFICIENT_ROLE: 'Permisos',
   ROLE_ABOVE_YOURS: 'Permisos',

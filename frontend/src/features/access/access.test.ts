@@ -6,7 +6,7 @@ import { BASIC_USER, TEST_USER } from '@/test/render';
 import {
   cupoDe,
   FEATURE,
-  paginasPorDocumento,
+  paginasAlMes,
   puedeGestionarCuentas,
   resumenDePlan,
   tieneFuncion,
@@ -45,24 +45,27 @@ describe('acceso según rol y membresía', () => {
     expect(tieneFuncion(SESION_ANTIGUA, FEATURE.FINANCIAL_CENTER)).toBe(true);
     expect(puedeGestionarCuentas(SESION_ANTIGUA)).toBe(true);
     expect(cupoDe(SESION_ANTIGUA)).toBe(3);
-    expect(paginasPorDocumento(SESION_ANTIGUA)).toBeNull();
+    expect(paginasAlMes(SESION_ANTIGUA)).toBeNull();
   });
 
   it('lee los límites del plan', () => {
     expect(cupoDe({ ...TEST_USER, plan: { ...BASIC_USER.plan!, maxRetainedStatements: 20 } })).toBe(
       20,
     );
-    expect(paginasPorDocumento(BASIC_USER)).toBe(15);
+    expect(paginasAlMes(BASIC_USER)).toBe(10);
     expect(cupoDe(null)).toBe(0);
   });
 
   it('resume un plan en una línea', () => {
-    expect(resumenDePlan({ maxRetainedStatements: 3, maxPagesPerDocument: 15 })).toBe(
-      '3 documentos guardados · hasta 15 páginas por PDF',
+    expect(resumenDePlan({ maxRetainedStatements: 3, monthlyPageQuota: 10 })).toBe(
+      '3 documentos guardados · 10 páginas acumuladas al mes',
     );
-    expect(resumenDePlan({ maxRetainedStatements: 1, maxPagesPerDocument: null })).toBe(
-      '1 documento guardado · sin límite de páginas',
+    expect(resumenDePlan({ maxRetainedStatements: 20, monthlyPageQuota: null })).toBe(
+      '20 documentos guardados · volumen de páginas a cotizar',
     );
+    expect(
+      resumenDePlan({ maxRetainedStatements: 1, monthlyPageQuota: 3, trialOneTime: true }),
+    ).toBe('1 documento guardado · 3 páginas de prueba, una sola vez');
   });
 });
 
@@ -72,9 +75,9 @@ describe('errores explicados para soporte', () => {
       pageCount: 42,
       maxPages: 15,
     });
-    expect(describeError(conNumeros)).toMatch(/42 páginas.*hasta 15 por documento/);
+    expect(describeError(conNumeros)).toMatch(/42 páginas.*te quedan 15/);
     expect(describeError(new ApiError('PDF_PAGE_LIMIT_EXCEEDED', 422))).toMatch(
-      /más páginas de las que admite tu membresía/,
+      /más páginas de las que te quedan este mes/,
     );
   });
 

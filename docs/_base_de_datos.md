@@ -49,7 +49,7 @@ Dos adiciones respecto al diseño conceptual, decididas al escribirlo:
 | --- | --- | --- |
 | `users` | Identidad del usuario | `id`, `email_normalized`, `status`, timestamps |
 | `organizations` | Tenant/empresa | `id`, `display_name`, `status`, política de retención, timestamps |
-| `organization_memberships` | Relación usuario-organización: rol y membresía de cada persona | `organization_id`, `user_id`, `role_code`, `plan_code`, `plan_changed_at`, `plan_expires_on` (último día de vigencia, nulo si no vence; ADR-0017), `status`, timestamps |
+| `organization_memberships` | Relación usuario-organización: rol y membresía de cada persona | `organization_id`, `user_id`, `role_code`, `plan_code`, `plan_changed_at`, `plan_expires_on` (último día de vigencia, nulo si no vence; ADR-0017), `trial_used_at` (cuándo gastó la prueba única de un plan `trial_one_time`, nulo si no la ha usado; ADR-0018), `status`, timestamps |
 | `api_keys` | Credencial de servicio con alcance de organización | `organization_id`, `label`, `token_hash`, `status`, `last_used_at` |
 
 ### Roles y membresías (catálogos, ADR-0016)
@@ -59,7 +59,7 @@ Dos adiciones respecto al diseño conceptual, decididas al escribirlo:
 | `roles` | Rol dentro de una organización | `code`, `name`, `description`, `rank` (jerarquía), `default_plan_code`, `plan_expiry_required` (si su membresía vence), `is_system` |
 | `permissions` | Acción administrable que un rol concede | `code`, `description` |
 | `role_permissions` | Qué permisos tiene cada rol | `role_code`, `permission_code` |
-| `membership_plans` | Tipo de membresía y sus límites | `code`, `name`, `max_retained_statements`, `max_pages_per_document` (nulo: sin límite), `is_default`, `is_active`, `sort_order` |
+| `membership_plans` | Tipo de membresía y sus límites | `code`, `name`, `max_retained_statements`, `max_pages_per_document` (tope técnico de seguridad por PDF, nulo: sin tope), `monthly_page_quota` (páginas acumuladas al mes que decide el cobro, nulo: sin tope fijo, se cotiza; ADR-0018), `trial_one_time` (la prueba no se renueva cada mes), `is_default`, `is_active`, `sort_order` |
 | `features` | Vista que un plan habilita además de convertir | `code`, `description` |
 | `plan_features` | Qué vistas incluye cada plan | `plan_code`, `feature_code` |
 

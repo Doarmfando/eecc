@@ -86,6 +86,9 @@ export class StatementsController {
         ? {
             retainedStatements: organization.plan.maxRetainedStatements,
             maxPagesPerDocument: organization.plan.maxPagesPerDocument,
+            monthlyPageQuota: organization.plan.monthlyPageQuota,
+            trialOneTime: organization.plan.trialOneTime,
+            trialAvailable: organization.plan.trialAvailable,
             membershipExpired: organization.plan.expired,
           }
         : {}),

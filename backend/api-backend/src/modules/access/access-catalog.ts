@@ -45,8 +45,12 @@ export interface PlanSummary {
   name: string;
   /** Documentos que conserva; al superarlo se reemplaza uno. */
   maxRetainedStatements: number;
-  /** Páginas por PDF. Nulo: sin límite. */
+  /** Tope técnico de seguridad por PDF, igual para todos los planes. Nulo: sin tope. */
   maxPagesPerDocument: number | null;
+  /** Páginas acumuladas al mes que decide el cobro. Nulo: sin tope fijo, se cotiza. */
+  monthlyPageQuota: number | null;
+  /** La prueba se consume una sola vez por persona y no se renueva cada mes. */
+  trialOneTime: boolean;
   /** Funciones que habilita además de convertir. */
   features: string[];
 }
@@ -57,6 +61,9 @@ export interface MembershipPlanState extends PlanSummary {
   expiresOn: string | null;
   /** Ya pasó su último día: no puede convertir hasta que la renueven. */
   expired: boolean;
+  /** Si todavía puede consumir la prueba gratuita (`trialOneTime`); siempre
+   * `true` en un plan que no es de prueba única (ADR-0018). */
+  trialAvailable: boolean;
 }
 
 /** Lo que una membresía de organización concede: rol con sus permisos y plan. */
@@ -85,6 +92,8 @@ export const MEMBERSHIP_ACCESS_INCLUDE = {
       name: true,
       maxRetainedStatements: true,
       maxPagesPerDocument: true,
+      monthlyPageQuota: true,
+      trialOneTime: true,
       features: { select: { featureCode: true }, orderBy: { featureCode: 'asc' } },
     },
   },
@@ -92,12 +101,15 @@ export const MEMBERSHIP_ACCESS_INCLUDE = {
 
 export interface MembershipWithAccess {
   planExpiresOn: Date | null;
+  trialUsedAt: Date | null;
   role: { code: string; name: string; rank: number; permissions: { permissionCode: string }[] };
   plan: {
     code: string;
     name: string;
     maxRetainedStatements: number;
     maxPagesPerDocument: number | null;
+    monthlyPageQuota: number | null;
+    trialOneTime: boolean;
     features: { featureCode: string }[];
   };
 }
@@ -113,7 +125,12 @@ export function toMembershipAccess(
     roleName: membership.role.name,
     roleRank: membership.role.rank,
     permissions: membership.role.permissions.map(({ permissionCode }) => permissionCode),
-    plan: { ...toPlanSummary(membership.plan), expiresOn, expired: isExpired(expiresOn, hoy) },
+    plan: {
+      ...toPlanSummary(membership.plan),
+      expiresOn,
+      expired: isExpired(expiresOn, hoy),
+      trialAvailable: !membership.plan.trialOneTime || membership.trialUsedAt === null,
+    },
   };
 }
 
@@ -123,6 +140,8 @@ export function toPlanSummary(plan: MembershipWithAccess['plan']): PlanSummary {
     name: plan.name,
     maxRetainedStatements: plan.maxRetainedStatements,
     maxPagesPerDocument: plan.maxPagesPerDocument,
+    monthlyPageQuota: plan.monthlyPageQuota,
+    trialOneTime: plan.trialOneTime,
     features: plan.features.map(({ featureCode }) => featureCode),
   };
 }

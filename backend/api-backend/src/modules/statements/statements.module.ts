@@ -7,6 +7,7 @@ import { AuthModule } from '../auth/auth.module';
 import { StorageModule } from '../storage/storage.module';
 import { WorkerClientModule } from '../worker-client/worker-client.module';
 import { StatementRetentionService } from './statement-retention.service';
+import { StatementUsageService } from './statement-usage.service';
 import { StatementsController } from './statements.controller';
 import { StatementsService } from './statements.service';
 
@@ -26,7 +27,7 @@ import { StatementsService } from './statements.service';
     }),
   ],
   controllers: [StatementsController],
-  providers: [StatementsService, StatementRetentionService],
-  exports: [StatementsService, StatementRetentionService],
+  providers: [StatementsService, StatementRetentionService, StatementUsageService],
+  exports: [StatementsService, StatementRetentionService, StatementUsageService],
 })
 export class StatementsModule {}

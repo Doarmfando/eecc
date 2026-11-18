@@ -25,7 +25,10 @@ const SESION_BASICA = {
     code: 'BASICA',
     name: 'Básica',
     maxRetainedStatements: 3,
-    maxPagesPerDocument: 15,
+    maxPagesPerDocument: 1000,
+    monthlyPageQuota: 10,
+    trialOneTime: false,
+    trialAvailable: true,
     features: [],
   },
   retainedStatementsPerUser: 3,
@@ -37,7 +40,10 @@ const SESION_ATLAS = {
     code: 'ATLAS',
     name: 'Atlas',
     maxRetainedStatements: 20,
-    maxPagesPerDocument: null,
+    maxPagesPerDocument: 1000,
+    monthlyPageQuota: null,
+    trialOneTime: false,
+    trialAvailable: true,
     features: ['FINANCIAL_CALENDAR', 'FINANCIAL_CENTER', 'HISTORY'],
   },
   retainedStatementsPerUser: 20,
@@ -49,7 +55,9 @@ const PLANES = [
     name: 'Básica',
     description: 'Solo conversión',
     maxRetainedStatements: 3,
-    maxPagesPerDocument: 15,
+    maxPagesPerDocument: 1000,
+    monthlyPageQuota: 10,
+    trialOneTime: false,
     features: [],
     isDefault: true,
   },
@@ -58,7 +66,9 @@ const PLANES = [
     name: 'Atlas',
     description: 'Todo',
     maxRetainedStatements: 20,
-    maxPagesPerDocument: null,
+    maxPagesPerDocument: 1000,
+    monthlyPageQuota: null,
+    trialOneTime: false,
     features: ['FINANCIAL_CALENDAR', 'FINANCIAL_CENTER', 'HISTORY'],
     isDefault: false,
   },
@@ -172,7 +182,7 @@ describe('Membresía Básica', () => {
     expect(within(menu).getByRole('link', { name: 'Nuevo documento' })).toBeInTheDocument();
     expect(within(menu).queryByRole('link', { name: 'Historial' })).not.toBeInTheDocument();
     expect(within(menu).queryByRole('link', { name: 'Centro Financiero' })).not.toBeInTheDocument();
-    expect(await screen.findByText(/hasta 15 páginas por PDF/)).toBeInTheDocument();
+    expect(await screen.findByText(/10 páginas acumuladas al mes/)).toBeInTheDocument();
   });
 
   it('una vista que no incluye se explica, con la membresía que sí la trae', async () => {
@@ -200,7 +210,7 @@ describe('Membresía Básica', () => {
     const aviso = await screen.findByRole('alert');
     expect(within(aviso).getByText('No se pudo procesar «Mayo BCP.pdf»')).toBeInTheDocument();
     expect(
-      within(aviso).getByText(/El PDF tiene 424 páginas y tu membresía admite hasta 15/),
+      within(aviso).getByText(/El PDF tiene 424 páginas y este mes te quedan 15/),
     ).toBeInTheDocument();
     expect(within(aviso).getByText('req-paginas')).toBeInTheDocument();
   });

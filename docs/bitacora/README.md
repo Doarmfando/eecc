@@ -13,6 +13,45 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-11-17 — Cobro por páginas acumuladas al mes, prueba única y planes Gratuito/Especial
+
+- Contexto: el responsable del producto va a monetizar con cobro manual por Yape (todavía en
+  pruebas) y pidió revisar el modelo de planes antes de fijar precios. Al modelarlo con datos
+  reales (documentos de prueba, perfiles de consumidor peruano) se encontró que
+  `max_pages_per_document` cumplía dos papeles a la vez (seguridad del worker y límite de
+  cobro) y que Atlas no tenía ningún tope de páginas, lo que podía colgar el worker varias
+  horas con un PDF absurdo. Detalle del análisis y las alternativas en
+  [`ADR-0018`](../decisiones/ADR-0018-cobro-por-paginas-acumuladas-y-tope-tecnico.md).
+- Hecho (base): migración `cobro_por_paginas_acumuladas`. `membership_plans` gana
+  `monthly_page_quota` (páginas acumuladas al mes que decide el cobro; nulo: sin tope fijo,
+  se cotiza) y `trial_one_time`; `organization_memberships` gana `trial_used_at`. Básica y
+  Atlas cambian sus números (`max_pages_per_document` pasa a ser solo el tope técnico, 1000
+  para los cuatro planes); nacen Gratuito (1 documento, 3 páginas de prueba, una sola vez) y
+  Especial (10 documentos, 20 páginas/mes, suma Historial). Nadie con membresía existente
+  cambia de plan; solo cambian los números de los planes que ya tenía.
+- Hecho (API): `StatementUsageService` suma `job_attempts.page_count` de los últimos 30 días
+  por persona (ventana móvil calculada al subir, sin tarea programada, igual que el cupo de
+  documentos de ADR-0007) y decide cuánto puede traer el PDF que se está subiendo:
+  `monthly_page_quota − usado`, acotado además por el tope técnico. Ese número —no el tope
+  fijo del plan— es el que se envía al worker como `max_pages`, reutilizando el mismo
+  mecanismo de siempre (`PDF_PAGE_LIMIT_EXCEEDED`); si ya no queda nada del mes, se rechaza
+  antes de llamar al worker (`MONTHLY_PAGE_QUOTA_EXCEEDED`). La prueba única se verifica
+  antes de procesar (`TRIAL_ALREADY_USED`) y se marca gastada después de una conversión
+  nueva, nunca al reutilizar un documento ya subido. El worker no cambió: sigue sin saber
+  nada de planes ni de acumulados, solo recibe un número.
+- Hecho (frontend): el resumen de membresía y los avisos de página muestran el acumulado
+  mensual («10 páginas acumuladas al mes», «te quedan N este mes») en vez del tope por PDF;
+  nuevos mensajes para `MONTHLY_PAGE_QUOTA_EXCEEDED` y `TRIAL_ALREADY_USED` con el mismo
+  patrón de avisos de soporte que ya existía.
+- Verificación automática: API `npm run check` (292 pruebas, incluida la cobertura;
+  `StatementUsageService` con su propia especificación y `StatementsService` con casos
+  nuevos para el acumulado, la prueba única y la reutilización), frontend `npm run check`
+  (369 pruebas). Migración probada en Postgres local, idempotente.
+- Pendiente: precio en soles de cada plan (sigue siendo cobro manual, sin pasarela ni
+  columna de precio); validar 10/20 con datos reales de los primeros meses
+  (`job_attempts.page_count` por plan); desplegar (worker sin cambios; API aplica la
+  migración; frontend); decidir si Especial necesita alguna vista más.
+
 ## 2026-10-29 — Video promocional vertical con Remotion
 
 - Hecho: nueva carpeta `video-promo/`, proyecto Remotion independiente (no comparte dependencias con el frontend ni con los backends). Composición `PromoVertical`: 1080×1920, 30 fps, 50 s, seis escenas (gancho, cuatro pasos y cierre) con Anton y Poppins, azul `#0056C6` y coral `#D97757`. `render.ps1` lo renderiza en local a `out/video-promo/`; `scripts/generar-voz.ps1` crea una voz provisional con el sintetizador de Windows, sin servicios externos. El guion vive en `video-promo/src/guion.json`.
