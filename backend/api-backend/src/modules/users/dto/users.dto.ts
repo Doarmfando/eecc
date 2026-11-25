@@ -4,10 +4,12 @@ import { Transform, type TransformFnParams } from 'class-transformer';
 import {
   IsEmail,
   IsEnum,
+  IsInt,
   IsOptional,
   IsString,
   Matches,
   MaxLength,
+  Min,
   MinLength,
   ValidateIf,
 } from 'class-validator';
@@ -131,6 +133,21 @@ export class UpdateMemberDto {
   @Matches(ISO_DATE)
   planExpiresOn?: string | null;
 
+  @ApiPropertyOptional({
+    nullable: true,
+    type: Number,
+    example: 50,
+    description:
+      'Recarga de páginas al mes puesta a mano, por encima de la del plan (la "Atlas" que se ' +
+      'cotiza aparte); null la quita y vuelve a la del plan. La aplica un administrador, no ' +
+      'hace falta superadministrador.',
+  })
+  @IsOptional()
+  @ValidateIf((_objeto, valor) => valor !== null)
+  @IsInt()
+  @Min(1)
+  monthlyPageQuotaOverride?: number | null;
+
   @ApiPropertyOptional({ enum: [MembershipStatus.ACTIVE, MembershipStatus.REVOKED] })
   @IsOptional()
   @IsEnum(MembershipStatus)
@@ -160,8 +177,25 @@ export class MemberDto {
   @ApiProperty({ example: 'Básica' }) planName!: string;
   @ApiProperty({ description: 'Documentos que conserva según su membresía' })
   maxRetainedStatements!: number;
-  @ApiProperty({ nullable: true, type: Number, description: 'Páginas por PDF; nulo es sin límite' })
+  @ApiProperty({
+    nullable: true,
+    type: Number,
+    description: 'Tope técnico de seguridad por PDF; nulo es sin tope',
+  })
   maxPagesPerDocument!: number | null;
+  @ApiProperty({
+    nullable: true,
+    type: Number,
+    description:
+      'Páginas acumuladas al mes que de verdad admite: la recarga, si tiene, si no la del plan',
+  })
+  monthlyPageQuota!: number | null;
+  @ApiProperty({
+    nullable: true,
+    type: Number,
+    description: 'Recarga puesta a mano por un administrador; nulo usa la del plan',
+  })
+  monthlyPageQuotaOverride!: number | null;
   @ApiProperty({ description: 'Desde cuándo tiene la membresía actual' })
   planChangedAt!: string;
   @ApiProperty({

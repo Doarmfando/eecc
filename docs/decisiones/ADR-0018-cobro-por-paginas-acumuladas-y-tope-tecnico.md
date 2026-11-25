@@ -139,9 +139,59 @@ acumuladas por persona) disponible sin tener que calcularlo fuera del sistema:
   a futuro) y confirmar con datos reales de los primeros meses si 10/20 son los números
   correctos.
 
+## Anexo — 2026-11-25: Atlas pasa a ser una recarga, y el catálogo se administra desde la app
+
+El responsable del producto ajustó el modelo con una tabla de precios y pidió dos cosas más:
+que Atlas deje de ofrecerse como membresía que alguien elige, y que los planes se administren
+"desde la base" — sin que cada ajuste sea una migración de código que yo misma escriba.
+
+### Básico y Especial cambian de números y de vistas
+
+| Plan | Páginas/mes | Vistas |
+| --- | --- | --- |
+| Básico | 15 (antes 10) | + Centro Financiero |
+| Especial | 15 (antes 20) | Historial + Centro Financiero + Calendario (antes solo Historial) |
+
+Básico y Especial quedan con el mismo tope de páginas a propósito: la tabla del responsable
+del producto los pone iguales en páginas y los diferencia por vistas y precio, no por cupo.
+
+### Atlas se convierte en una recarga, no en un plan que se elige
+
+Atlas deja de ofrecerse en el alta de una persona normal. Sigue existiendo en el catálogo
+porque las cuentas de administrador y superadministrador lo siguen usando (rol →
+`default_plan_code`), pero para un cliente real ya no es "el cuarto plan": es una recarga que
+un **administrador** (rango ADMIN, no hace falta superadministrador) le pone a alguien que ya
+tiene Básico o Especial, después de cotizarlo y cobrarlo por fuera del sistema, igual que
+siempre.
+
+Técnicamente es un número nuevo en la membresía:
+`organization_memberships.monthly_page_quota_override` (nulo: usa el tope de su plan). Se
+resuelve en un solo punto — `toMembershipAccess`, que ya calculaba el acumulado efectivo —
+así que nada más en el sistema (el worker, el aviso de la subida, la sesión) necesita saber
+que la recarga existe: todos siguen viendo un único número de páginas al mes. Lo escribe
+`PATCH /v1/users/:userId` con `monthlyPageQuotaOverride`, bajo el mismo permiso que ya movía
+el plan (`CHANGE_PLAN`): subir el tope de alguien es, en los hechos, la misma decisión de
+negocio que cambiarle de plan.
+
+### El catálogo se administra con una API, no con una migración por cambio
+
+Los planes ya eran un catálogo en la base (ADR-0016), pero cambiarlos exigía que alguien
+escribiera y aplicara una migración SQL. Ahora existe un permiso nuevo,
+`PLANS_MANAGE` — solo lo tiene `SUPER_ADMIN`, no `ADMIN`: cambia el negocio para todas las
+organizaciones, no una cuenta a la vez — y tres rutas:
+
+- `GET /v1/plans/admin`: todo el catálogo, activo o retirado.
+- `POST /v1/plans`: crea un plan nuevo (código, nombre, páginas, documentos, vistas).
+- `PATCH /v1/plans/:code`: cambia lo que se envíe; `features` reemplaza la lista completa.
+
+Seguir pudiendo crear un plan con una migración (la guía de ADR-0016) no se pierde: ambas vías
+escriben las mismas tablas. La API es para cuando no hace falta —ni conviene— desplegar código
+solo para subir un precio o una vigencia de página.
+
 ## Criterio de revisión
 
 Revisar cuando el cobro se automatice (ahí sí conviene un periodo guardado y cobro por
 consumo real, no solo por plan), cuando los datos reales de `job_attempts.page_count` por
-plan contradigan los supuestos de comportamiento de este ADR, o cuando se decida qué vistas
-adicionales (si alguna) le corresponden a Especial.
+plan contradigan los supuestos de comportamiento de este ADR, cuando se decida un precio real
+para la recarga Atlas (hoy sigue siendo "cotizar" fuera del sistema), o si hace falta que un
+administrador (no solo superadministrador) también administre el catálogo.

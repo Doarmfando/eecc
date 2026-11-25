@@ -1,4 +1,28 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform, type TransformFnParams } from 'class-transformer';
+import {
+  ArrayUnique,
+  IsArray,
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  Matches,
+  Max,
+  MaxLength,
+  Min,
+  ValidateIf,
+} from 'class-validator';
+
+import { FEATURE, PLAN_CODE_PATTERN } from '../access-catalog';
+
+const FEATURE_CODES = Object.values(FEATURE);
+
+/** Recorta antes de validar: un nombre de solo espacios no debe pasar por válido. */
+function recortar({ value }: TransformFnParams): unknown {
+  return typeof value === 'string' ? value.trim() : value;
+}
 
 export class PlanDto {
   @ApiProperty({ example: 'ATLAS' }) code!: string;
@@ -43,6 +67,167 @@ export class RoleDto {
   @ApiProperty({ description: 'Si su membresía lleva fecha de vencimiento' })
   planExpiryRequired!: boolean;
   @ApiProperty({ type: [String], example: ['STATEMENTS_CONVERT'] }) permissions!: string[];
+}
+
+/** Lo que ve un superadministrador: igual que `PlanDto`, más si se ofrece y en qué orden. */
+export class PlanAdminDto extends PlanDto {
+  @ApiProperty({ description: 'Un plan retirado no se ofrece en altas ni cambios' })
+  isActive!: boolean;
+
+  @ApiProperty({ description: 'Orden en que se ofrece, de menor a mayor' })
+  sortOrder!: number;
+}
+
+export class CreatePlanDto {
+  @ApiProperty({
+    example: 'PRO',
+    description: 'Código del catálogo; no se puede cambiar después de creado.',
+  })
+  @Transform(recortar)
+  @IsString()
+  @Matches(PLAN_CODE_PATTERN)
+  code!: string;
+
+  @ApiProperty({ example: 'Pro' })
+  @Transform(recortar)
+  @IsString()
+  @MaxLength(80)
+  name!: string;
+
+  @ApiProperty({ example: 'Conversión e historial, 10 documentos y hasta 100 páginas por PDF.' })
+  @Transform(recortar)
+  @IsString()
+  @MaxLength(255)
+  description!: string;
+
+  @ApiProperty({ description: 'Documentos que conserva cada persona antes de reemplazar uno' })
+  @IsInt()
+  @Min(1)
+  @Max(1000)
+  maxRetainedStatements!: number;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    type: Number,
+    default: 1000,
+    description: 'Tope técnico de seguridad por PDF. Sin indicarlo, 1000 (igual que los demás).',
+  })
+  @IsOptional()
+  @ValidateIf((_objeto, valor) => valor !== null)
+  @IsInt()
+  @Min(1)
+  maxPagesPerDocument?: number | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    type: Number,
+    description: 'Páginas acumuladas al mes que decide el cobro; nulo o sin indicarlo, se cotiza.',
+  })
+  @IsOptional()
+  @ValidateIf((_objeto, valor) => valor !== null)
+  @IsInt()
+  @Min(1)
+  monthlyPageQuota?: number | null;
+
+  @ApiPropertyOptional({ default: false, description: 'La prueba no se renueva cada mes' })
+  @IsOptional()
+  @IsBoolean()
+  trialOneTime?: boolean;
+
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  isDefault?: boolean;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+
+  @ApiPropertyOptional({ default: 0 })
+  @IsOptional()
+  @IsInt()
+  sortOrder?: number;
+
+  @ApiPropertyOptional({
+    type: [String],
+    example: ['HISTORY'],
+    description: 'Vistas que habilita, del catálogo de funciones. Sin indicarlo, ninguna.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsIn(FEATURE_CODES, { each: true })
+  features?: string[];
+}
+
+/** Igual que al crear, pero todo opcional: solo se cambia lo que se envía. */
+export class UpdatePlanDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(recortar)
+  @IsString()
+  @MaxLength(80)
+  name?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(recortar)
+  @IsString()
+  @MaxLength(255)
+  description?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(1000)
+  maxRetainedStatements?: number;
+
+  @ApiPropertyOptional({ nullable: true, type: Number })
+  @IsOptional()
+  @ValidateIf((_objeto, valor) => valor !== null)
+  @IsInt()
+  @Min(1)
+  maxPagesPerDocument?: number | null;
+
+  @ApiPropertyOptional({ nullable: true, type: Number })
+  @IsOptional()
+  @ValidateIf((_objeto, valor) => valor !== null)
+  @IsInt()
+  @Min(1)
+  monthlyPageQuota?: number | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  trialOneTime?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isDefault?: boolean;
+
+  @ApiPropertyOptional({ description: 'Un plan retirado no se ofrece en altas ni cambios' })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  sortOrder?: number;
+
+  @ApiPropertyOptional({
+    type: [String],
+    example: ['HISTORY', 'FINANCIAL_CENTER'],
+    description: 'Reemplaza la lista completa de vistas que habilita. Sin indicarlo, no cambia.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsIn(FEATURE_CODES, { each: true })
+  features?: string[];
 }
 
 export class SupportContactDto {

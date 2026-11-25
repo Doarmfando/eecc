@@ -160,3 +160,135 @@ describe('AccessController.support', () => {
     expect(controlador('').support()).toEqual({ phone: null });
   });
 });
+
+describe('AccessService: administrar el catálogo de planes (ADR-0018)', () => {
+  function servicioAdmin(planExistente: Record<string, unknown> | null = null): {
+    service: AccessService;
+    planCreado: jest.Mock;
+    planActualizado: jest.Mock;
+    featuresCreadas: jest.Mock;
+    featuresBorradas: jest.Mock;
+  } {
+    const planCreado = jest.fn((args: { data: Record<string, unknown> }) =>
+      Promise.resolve({ code: args.data.code as string, ...args.data }),
+    );
+    const planActualizado = jest.fn().mockResolvedValue({});
+    const featuresCreadas = jest.fn().mockResolvedValue({ count: 1 });
+    const featuresBorradas = jest.fn().mockResolvedValue({ count: 1 });
+    const planFinal = {
+      code: 'PRO',
+      name: 'Pro',
+      description: 'd',
+      maxRetainedStatements: 10,
+      maxPagesPerDocument: 1000,
+      monthlyPageQuota: 100,
+      trialOneTime: false,
+      isDefault: false,
+      isActive: true,
+      sortOrder: 15,
+      features: [{ featureCode: 'HISTORY' }],
+    };
+
+    const prisma = {
+      membershipPlan: {
+        findUnique: jest.fn().mockResolvedValue(planExistente),
+        findUniqueOrThrow: jest.fn().mockResolvedValue(planFinal),
+        findMany: jest.fn().mockResolvedValue([planFinal]),
+        create: planCreado,
+        update: planActualizado,
+      },
+      planFeature: { createMany: featuresCreadas, deleteMany: featuresBorradas },
+      $transaction: jest.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
+        fn({
+          membershipPlan: { create: planCreado, update: planActualizado },
+          planFeature: { createMany: featuresCreadas, deleteMany: featuresBorradas },
+        }),
+      ),
+    } as unknown as PrismaService;
+    return {
+      service: new AccessService(prisma),
+      planCreado,
+      planActualizado,
+      featuresCreadas,
+      featuresBorradas,
+    };
+  }
+
+  it('crea un plan nuevo con sus funciones, con los valores por defecto documentados', async () => {
+    const { service, planCreado, featuresCreadas } = servicioAdmin();
+
+    const creado = await service.createPlan({
+      code: 'PRO',
+      name: 'Pro',
+      description: 'Conversión e historial, 10 documentos y hasta 100 páginas por PDF.',
+      maxRetainedStatements: 10,
+      monthlyPageQuota: 100,
+      features: ['HISTORY'],
+    });
+
+    expect(planCreado).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          code: 'PRO',
+          maxPagesPerDocument: 1000,
+          trialOneTime: false,
+          isDefault: false,
+          isActive: true,
+          sortOrder: 0,
+        }),
+      }),
+    );
+    expect(featuresCreadas).toHaveBeenCalledWith({
+      data: [{ planCode: 'PRO', featureCode: 'HISTORY' }],
+    });
+    expect(creado.code).toBe('PRO');
+    expect(creado.features).toEqual(['HISTORY']);
+  });
+
+  it('no deja crear un plan con un código que ya existe, ni siquiera retirado', async () => {
+    const { service, planCreado } = servicioAdmin({ code: 'PRO' });
+
+    await expect(
+      service.createPlan({
+        code: 'PRO',
+        name: 'Pro',
+        description: 'd',
+        maxRetainedStatements: 10,
+      }),
+    ).rejects.toMatchObject({ response: { code: 'PLAN_ALREADY_EXISTS' } });
+    expect(planCreado).not.toHaveBeenCalled();
+  });
+
+  it('actualiza solo lo que se envía y reemplaza la lista de funciones completa', async () => {
+    const { service, planActualizado, featuresBorradas, featuresCreadas } = servicioAdmin({
+      code: 'PRO',
+    });
+
+    await service.updatePlan('PRO', { monthlyPageQuota: 200, features: ['FINANCIAL_CENTER'] });
+
+    expect(planActualizado).toHaveBeenCalledWith({
+      where: { code: 'PRO' },
+      data: { monthlyPageQuota: 200 },
+    });
+    expect(featuresBorradas).toHaveBeenCalledWith({ where: { planCode: 'PRO' } });
+    expect(featuresCreadas).toHaveBeenCalledWith({
+      data: [{ planCode: 'PRO', featureCode: 'FINANCIAL_CENTER' }],
+    });
+  });
+
+  it('rechaza cambiar un plan que no existe', async () => {
+    const { service } = servicioAdmin(null);
+
+    await expect(service.updatePlan('NO_EXISTE', { name: 'x' })).rejects.toMatchObject({
+      response: { code: 'PLAN_NOT_FOUND' },
+    });
+  });
+
+  it('lista el catálogo completo para administrar, activo o retirado', async () => {
+    const { service } = servicioAdmin();
+
+    const planes = await service.listPlansForAdmin();
+
+    expect(planes[0]).toMatchObject({ code: 'PRO', isActive: true, sortOrder: 15 });
+  });
+});

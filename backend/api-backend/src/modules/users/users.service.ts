@@ -46,6 +46,10 @@ export interface MemberSummary {
   planName: string;
   maxRetainedStatements: number;
   maxPagesPerDocument: number | null;
+  /** Páginas acumuladas al mes que de verdad admite: la recarga, si tiene, si no la del plan. */
+  monthlyPageQuota: number | null;
+  /** Recarga puesta a mano por un administrador; nulo usa la del plan (ADR-0018). */
+  monthlyPageQuotaOverride: number | null;
   planChangedAt: string;
   /** Último día de vigencia (`YYYY-MM-DD`); nulo si no vence (ADR-0017). */
   planExpiresOn: string | null;
@@ -79,6 +83,8 @@ export interface MemberChanges {
   planCode?: string;
   /** `YYYY-MM-DD` para renovar o cambiar la vigencia; `null` la quita. */
   planExpiresOn?: string | null;
+  /** Recarga de páginas al mes; `null` la quita y vuelve a la del plan (ADR-0018). */
+  monthlyPageQuotaOverride?: number | null;
   membershipStatus?: MembershipStatus;
 }
 
@@ -120,6 +126,13 @@ export class UsersService {
   private exigirFecha(dia: string): void {
     if (!isValidIsoDate(dia)) {
       throw new BadRequestException({ code: 'PLAN_EXPIRY_INVALID' });
+    }
+  }
+
+  /** `null` quita la recarga y vuelve al tope del plan; si no, un entero positivo. */
+  private exigirRecargaValida(paginas: number | null | undefined): void {
+    if (paginas !== null && paginas !== undefined && (!Number.isInteger(paginas) || paginas <= 0)) {
+      throw new BadRequestException({ code: 'MONTHLY_PAGE_QUOTA_OVERRIDE_INVALID' });
     }
   }
 
@@ -280,6 +293,9 @@ export class UsersService {
       datosMembresia.status = cambios.membershipStatus;
     }
     const cambiaPlan = cambios.planCode !== undefined && cambios.planCode !== membership.planCode;
+    const cambiaRecarga =
+      cambios.monthlyPageQuotaOverride !== undefined &&
+      cambios.monthlyPageQuotaOverride !== membership.monthlyPageQuotaOverride;
 
     // La vigencia sigue al rol final: uno que no vence la pierde (ascender a
     // administrador la quita); uno que vence conserva la que tenía salvo que se
@@ -307,7 +323,8 @@ export class UsersService {
       camposUsuario.length === 0 &&
       camposMembresia.length === 0 &&
       !cambiaPlan &&
-      !cambiaVigencia
+      !cambiaVigencia &&
+      !cambiaRecarga
     ) {
       return toMemberSummary(membership, actor, hoy);
     }
@@ -319,9 +336,11 @@ export class UsersService {
     if (camposUsuario.length > 0) acciones.push('EDIT_PROFILE');
     if (datosMembresia.roleCode !== undefined) acciones.push('CHANGE_ROLE');
     if (datosMembresia.status !== undefined) acciones.push('CHANGE_STATUS');
-    // La vigencia es parte de la membresía. Si solo cambia por el rol (ascender
-    // la quita), basta con poder cambiar el rol.
-    if (cambiaPlan || (cambiaVigencia && datosMembresia.roleCode === undefined)) {
+    // La vigencia y la recarga de páginas son parte de la membresía: el mismo
+    // permiso que cambia el plan decide cuánto puede convertir cada mes. Si la
+    // vigencia solo cambia por el rol (ascender la quita), basta con poder
+    // cambiar el rol.
+    if (cambiaPlan || cambiaRecarga || (cambiaVigencia && datosMembresia.roleCode === undefined)) {
       acciones.push('CHANGE_PLAN');
     }
     exigirAcciones(actor, { userId, rank: membership.role.rank }, acciones);
@@ -335,6 +354,10 @@ export class UsersService {
         membership.planCode,
       );
       datosMembresia.planChangedAt = new Date();
+    }
+    if (cambiaRecarga) {
+      this.exigirRecargaValida(cambios.monthlyPageQuotaOverride);
+      datosMembresia.monthlyPageQuotaOverride = cambios.monthlyPageQuotaOverride;
     }
     if (cambiaVigencia) {
       datosMembresia.planExpiresOn = vigenciaNueva ? fromIsoDate(vigenciaNueva) : null;
@@ -389,11 +412,16 @@ export class UsersService {
                 ...camposMembresia.filter((campo) => campo !== 'planExpiresOn'),
                 ...(cambiaPlan ? ['planCode'] : []),
                 ...(cambiaVigencia ? ['planExpiresOn'] : []),
+                ...(cambiaRecarga ? ['monthlyPageQuotaOverride'] : []),
               ],
               ...(cambios.role !== undefined ? { role: cambios.role } : {}),
               ...(cambiaPlan ? { planCode: cambios.planCode } : {}),
               // Una fecha no es un dato personal y es lo que soporte necesita ver.
               ...(cambiaVigencia ? { planExpiresOn: vigenciaNueva } : {}),
+              // Tampoco un número de páginas: es cuánto cobra el negocio, no de la persona.
+              ...(cambiaRecarga
+                ? { monthlyPageQuotaOverride: cambios.monthlyPageQuotaOverride }
+                : {}),
               ...(cambios.membershipStatus !== undefined
                 ? { membershipStatus: cambios.membershipStatus }
                 : {}),
@@ -584,7 +612,13 @@ function generarContrasenaTemporal(): string {
 const ROL_Y_PLAN = {
   role: { select: { code: true, name: true, rank: true, planExpiryRequired: true } },
   plan: {
-    select: { code: true, name: true, maxRetainedStatements: true, maxPagesPerDocument: true },
+    select: {
+      code: true,
+      name: true,
+      maxRetainedStatements: true,
+      maxPagesPerDocument: true,
+      monthlyPageQuota: true,
+    },
   },
 } as const;
 
@@ -622,6 +656,7 @@ interface MembershipConUsuario {
   planCode: string;
   planChangedAt: Date;
   planExpiresOn: Date | null;
+  monthlyPageQuotaOverride: number | null;
   status: MembershipStatus;
   createdAt: Date;
   role: { code: string; name: string; rank: number; planExpiryRequired: boolean };
@@ -630,6 +665,7 @@ interface MembershipConUsuario {
     name: string;
     maxRetainedStatements: number;
     maxPagesPerDocument: number | null;
+    monthlyPageQuota: number | null;
   };
   user: {
     id: string;
@@ -658,6 +694,8 @@ function toMemberSummary(
     planName: membership.plan.name,
     maxRetainedStatements: membership.plan.maxRetainedStatements,
     maxPagesPerDocument: membership.plan.maxPagesPerDocument,
+    monthlyPageQuota: membership.monthlyPageQuotaOverride ?? membership.plan.monthlyPageQuota,
+    monthlyPageQuotaOverride: membership.monthlyPageQuotaOverride,
     planChangedAt: membership.planChangedAt.toISOString(),
     planExpiresOn,
     planExpired: isExpired(planExpiresOn, hoy),

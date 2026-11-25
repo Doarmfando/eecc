@@ -22,6 +22,12 @@ export const PERMISSION = {
   STATEMENTS_CONVERT: 'STATEMENTS_CONVERT',
   /** Gestionar las cuentas de la organización y asignar su membresía. */
   USERS_MANAGE: 'USERS_MANAGE',
+  /**
+   * Crear o modificar el catálogo de membresías (precio, páginas, vistas).
+   * Solo lo tiene SUPER_ADMIN: cambia el negocio para todas las organizaciones,
+   * no una cuenta a la vez como `USERS_MANAGE` (ADR-0018).
+   */
+  PLANS_MANAGE: 'PLANS_MANAGE',
 } as const;
 
 export const FEATURE = {
@@ -102,6 +108,8 @@ export const MEMBERSHIP_ACCESS_INCLUDE = {
 export interface MembershipWithAccess {
   planExpiresOn: Date | null;
   trialUsedAt: Date | null;
+  /** Recarga puesta a mano por un administrador, por encima del tope del plan. */
+  monthlyPageQuotaOverride: number | null;
   role: { code: string; name: string; rank: number; permissions: { permissionCode: string }[] };
   plan: {
     code: string;
@@ -127,6 +135,10 @@ export function toMembershipAccess(
     permissions: membership.role.permissions.map(({ permissionCode }) => permissionCode),
     plan: {
       ...toPlanSummary(membership.plan),
+      // La recarga de un administrador manda sobre el tope del plan; sin ella,
+      // el de siempre. Así el resto del código (worker, aviso, interfaz) solo
+      // ve un número, sin saber que existe la recarga (ADR-0018 y su anexo).
+      monthlyPageQuota: membership.monthlyPageQuotaOverride ?? membership.plan.monthlyPageQuota,
       expiresOn,
       expired: isExpired(expiresOn, hoy),
       trialAvailable: !membership.plan.trialOneTime || membership.trialUsedAt === null,

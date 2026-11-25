@@ -13,6 +13,38 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-11-25 — Atlas pasa a ser una recarga administrada, y el catálogo de planes se puede editar desde la app
+
+- Contexto: el responsable del producto mandó una tabla de precios definitiva (Gratuito S/0,
+  Básico S/20, Especial S/30, Atlas "recargas" a cotizar) y pidió dos cosas: que Atlas deje de
+  ofrecerse como membresía elegible y pase a ser una recarga que un **administrador** (no
+  superadministrador) le aplica a alguien que ya tiene Básico o Especial; y que el catálogo de
+  planes se administre "desde la base", sin que cada ajuste sea una migración de código mía.
+  Detalle completo en el anexo de [`ADR-0018`](../decisiones/ADR-0018-cobro-por-paginas-acumuladas-y-tope-tecnico.md).
+- Hecho (base): migración `recarga_de_paginas_y_ajuste_de_planes` — Básica y Especial pasan a
+  15 páginas/mes; Básica suma Centro Financiero; Especial suma Centro Financiero y Calendario
+  (ya tenía Historial). Nueva columna `organization_memberships.monthly_page_quota_override`
+  (nulo: usa el tope del plan). Migración `permiso_para_administrar_planes`: permiso nuevo
+  `PLANS_MANAGE`, solo para `SUPER_ADMIN`.
+- Hecho (API): `toMembershipAccess` resuelve la recarga en un solo punto (prioridad sobre el
+  tope del plan), así que el worker, el aviso de subida y la sesión no cambian: siguen viendo
+  un único número. `PATCH /v1/users/:userId` acepta `monthlyPageQuotaOverride` bajo el mismo
+  permiso que ya movía el plan (`CHANGE_PLAN`, que ya tiene un `ADMIN` de rango 50). Nuevo
+  `GET /v1/plans/admin`, `POST /v1/plans` y `PATCH /v1/plans/:code`, gateados por
+  `PLANS_MANAGE`: crean o cambian un plan (nombre, páginas, documentos, vistas) sin desplegar
+  código. `features` en el `PATCH` reemplaza la lista completa, no la suma.
+- Verificación automática: API `npm run check` (305 pruebas, con cobertura); pruebas nuevas en
+  `access-catalog.spec.ts` (la recarga manda sobre el plan, incluso sobre Atlas sin tope),
+  `access.service.spec.ts` (crear, actualizar, listar el catálogo para administrar) y
+  `users.service.spec.ts` (un `ADMIN` de rango 50 puede poner la recarga, se audita el número,
+  se valida que sea un entero positivo, `null` la quita).
+- Decisión: Atlas sigue en el catálogo (lo usan los roles ADMIN/SUPER_ADMIN por
+  `default_plan_code`), pero deja de ofrecerse en el alta de un usuario normal; para un
+  cliente real es la recarga, no un plan que se elige.
+- Pendiente: interfaz de administración de planes (hoy solo hay API; `/docs` de Swagger sirve
+  mientras tanto) y el campo para poner la recarga en la pantalla de edición de *Usuarios*
+  (la API ya lo acepta, falta el campo en el formulario).
+
 ## 2026-11-18 — El mensaje de membresía pasa a ser solo por páginas, y aviso antes de subir
 
 - Contexto: el responsable del producto pidió que el modelo se comunique **solo por

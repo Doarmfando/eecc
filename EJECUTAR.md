@@ -81,7 +81,7 @@ Get-Content -Wait -Tail 30 .local\logs\api.log
 
 Con sesión de **administrador**, entra en **Usuarios** (menú lateral, sección *Administración*):
 
-- **Nuevo usuario** pide siempre **rol** y **membresía**. Un administrador recibe Atlas propuesto; a un usuario le eliges Básica, Atlas o la que exista, y **hasta cuándo vale** (se propone un mes; atajos de 1, 3, 6 y 12 meses o una fecha). La contraseña se puede **generar** —se muestra **una sola vez**, entrégasela— o **escribir** tú.
+- **Nuevo usuario** pide siempre **rol** y **membresía**. Un administrador recibe Atlas propuesto; a un usuario le eliges Básica, Especial o la que exista, y **hasta cuándo vale** (se propone un mes; atajos de 1, 3, 6 y 12 meses o una fecha). Para subirle el tope de páginas por encima de su plan (la recarga que antes era «Atlas»), edítalo después: no hace falta superadministrador. La contraseña se puede **generar** —se muestra **una sola vez**, entrégasela— o **escribir** tú.
 - **Vigencia.** Cada usuario normal muestra «Vence el …», «Vence en N días» (desde una semana antes) o «Venció el …», y el filtro **Vencidas** los reúne. Al vencer, entra y conserva lo suyo, pero no convierte. Renuévala desde **Editar** (los atajos cuentan desde el vencimiento actual) o pon una fecha pasada para cortarle la conversión. Los administradores no vencen. Los días se cuentan en `BUSINESS_TIMEZONE` (Lima).
 - **Editar** cambia nombre, correo, rol y membresía. Si la nueva guarda menos documentos de los que tiene, te lo advierte: el exceso se borra al subir el siguiente.
 - **Cambiar contraseña** genera otra o fija la que escribas; cierra sus sesiones y desbloquea la cuenta.
@@ -101,7 +101,9 @@ npm run access:super-admins -- brando@hotmail.com fabio@hotmail.com
 
 Crea las cuentas que falten con una contraseña generada (se muestra una sola vez) y promueve las que existan sin tocar su contraseña. Repetirlo no cambia nada; `--restablecer` genera contraseñas nuevas.
 
-**Membresías.** *Gratuito*: solo conversión, 1 documento, 3 páginas de prueba (una sola vez). *Básica*: solo conversión, 3 documentos, 10 páginas acumuladas al mes. *Especial*: conversión e Historial, 10 documentos, 20 páginas al mes. *Atlas*: todo el producto, 20 documentos, sin tope fijo de páginas (se cotiza). El límite de páginas es el acumulado de 30 días, no por PDF individual; ver [`ADR-0018`](docs/decisiones/ADR-0018-cobro-por-paginas-acumuladas-y-tope-tecnico.md). Para crear o mejorar un plan, ver la guía de [`ADR-0016`](docs/decisiones/ADR-0016-roles-y-membresias-como-catalogo.md#cómo-crear-o-mejorar-un-plan-o-un-rol).
+**Membresías.** *Gratuito*: solo conversión, 1 documento, 3 páginas de prueba (una sola vez). *Básica*: conversión y Centro Financiero, 3 documentos, 15 páginas acumuladas al mes. *Especial*: todo el producto (Historial, Centro Financiero, Calendario), 10 documentos, 15 páginas al mes. El límite de páginas es el acumulado de 30 días, no por PDF individual; ver [`ADR-0018`](docs/decisiones/ADR-0018-cobro-por-paginas-acumuladas-y-tope-tecnico.md).
+
+**Atlas ya no se da de alta.** Sigue en el catálogo solo para administradores y superadministradores. Para un usuario normal, la «recarga Atlas» es subirle a mano el tope de páginas del mes por encima de su plan: edítalo desde *Usuarios*, lo puede hacer cualquier administrador. El catálogo de planes (crear uno, cambiar precio o páginas) se administra con `GET/POST/PATCH /v1/plans`, solo con permiso `PLANS_MANAGE` (superadministrador); la vía por migración de [`ADR-0016`](docs/decisiones/ADR-0016-roles-y-membresias-como-catalogo.md#cómo-crear-o-mejorar-un-plan-o-un-rol) sigue sirviendo igual.
 
 **Teléfono de soporte.** Ponlo en `SUPPORT_PHONE` del `.env` de la API: los avisos de error lo muestran junto al código y la referencia que hay que dictar.
 

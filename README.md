@@ -62,11 +62,12 @@ Solo se gestionan cuentas de rango inferior; entre iguales, solo lo reversible (
 | Membresía | Vistas | Documentos guardados | Páginas acumuladas al mes |
 | --- | --- | --- | --- |
 | **Gratuito** | Solo conversión | 1 | 3, una sola vez (no se renueva) |
-| **Básica** | Solo conversión | 3 | 10 |
-| **Especial** | Conversión, Historial | 10 | 20 |
-| **Atlas** | Conversión, Historial, Centro Financiero, Calendario | 20 | Sin tope fijo, se cotiza |
+| **Básica** | Conversión, Centro Financiero | 3 | 15 |
+| **Especial** | Conversión, Historial, Centro Financiero, Calendario | 10 | 15 |
 
 El límite de páginas ya no es por PDF: es la suma de todas las páginas que la persona procesa en una ventana móvil de 30 días (sin tarea programada, igual que el cupo de documentos). Por PDF solo queda un tope técnico de seguridad, alto e igual para todos los planes (protege al worker, no decide el cobro). Ver [`ADR-0018`](docs/decisiones/ADR-0018-cobro-por-paginas-acumuladas-y-tope-tecnico.md).
+
+**Atlas ya no se ofrece como una membresía más: es una recarga.** Un administrador (no hace falta superadministrador) le sube a mano el tope de páginas del mes a alguien que ya tiene Básica o Especial, después de cotizarlo y cobrarlo por fuera del sistema. Sigue existiendo en el catálogo solo para las cuentas de administrador y superadministrador. El catálogo (planes, páginas, vistas) se administra con `GET/POST/PATCH /v1/plans` — solo `SUPER_ADMIN`, permiso `PLANS_MANAGE` — sin que cada ajuste exija una migración.
 
 La membresía de un usuario normal tiene **fecha de vencimiento**, que el administrador fija al darlo de alta y ve en cada cuenta; al vencer, la persona entra y conserva lo suyo, pero no convierte hasta que la renueven. Los administradores no vencen. Cada persona puede **borrar** sus documentos del historial (uno o todos), con sus archivos. Ver [`ADR-0017`](docs/decisiones/ADR-0017-vigencia-de-la-membresia-y-borrado-del-historial.md).
 

@@ -1,6 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
+import type { CreatePlanDto, UpdatePlanDto } from './dto/access.dto';
 import {
   PLAN_CODE_PATTERN,
   ROLE_CODE_PATTERN,
@@ -11,6 +13,11 @@ import {
 export interface PlanOption extends PlanSummary {
   description: string;
   isDefault: boolean;
+}
+
+export interface PlanAdminOption extends PlanOption {
+  isActive: boolean;
+  sortOrder: number;
 }
 
 export interface RoleOption {
@@ -66,6 +73,118 @@ export class AccessService {
       description: plan.description,
       isDefault: plan.isDefault,
     }));
+  }
+
+  /**
+   * Todas las membresías, activas o no, para que un superadministrador las
+   * administre. A diferencia de `listPlans`, no filtra por `isActive` ni
+   * esconde el orden: es la vista de gestión, no la de alta de usuarios.
+   */
+  async listPlansForAdmin(): Promise<PlanAdminOption[]> {
+    const planes = await this.prisma.membershipPlan.findMany({
+      orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
+      select: { ...PLAN_SELECT, isActive: true, sortOrder: true },
+    });
+    return planes.map((plan) => ({
+      ...toPlanSummary(plan),
+      description: plan.description,
+      isDefault: plan.isDefault,
+      isActive: plan.isActive,
+      sortOrder: plan.sortOrder,
+    }));
+  }
+
+  /**
+   * Crea un plan nuevo en el catálogo. `PLAN_ALREADY_EXISTS` si el código ya
+   * está en uso, aunque esté retirado: los códigos no se reutilizan (ADR-0016).
+   */
+  async createPlan(datos: CreatePlanDto): Promise<PlanAdminOption> {
+    const existente = await this.prisma.membershipPlan.findUnique({
+      where: { code: datos.code },
+      select: { code: true },
+    });
+    if (existente) {
+      throw new ConflictException({ code: 'PLAN_ALREADY_EXISTS' });
+    }
+    const creado = await this.prisma.$transaction(async (tx) => {
+      const plan = await tx.membershipPlan.create({
+        data: {
+          code: datos.code,
+          name: datos.name,
+          description: datos.description,
+          maxRetainedStatements: datos.maxRetainedStatements,
+          maxPagesPerDocument: datos.maxPagesPerDocument ?? 1000,
+          monthlyPageQuota: datos.monthlyPageQuota ?? null,
+          trialOneTime: datos.trialOneTime ?? false,
+          isDefault: datos.isDefault ?? false,
+          isActive: datos.isActive ?? true,
+          sortOrder: datos.sortOrder ?? 0,
+        },
+      });
+      if (datos.features && datos.features.length > 0) {
+        await tx.planFeature.createMany({
+          data: datos.features.map((featureCode) => ({ planCode: plan.code, featureCode })),
+        });
+      }
+      return plan;
+    });
+    return this.obtenerPlanAdmin(creado.code);
+  }
+
+  /** `PLAN_NOT_FOUND` si el código no existe. Solo escribe lo que se envía. */
+  async updatePlan(code: string, cambios: UpdatePlanDto): Promise<PlanAdminOption> {
+    const existente = await this.prisma.membershipPlan.findUnique({
+      where: { code },
+      select: { code: true },
+    });
+    if (!existente) {
+      throw new BadRequestException({ code: 'PLAN_NOT_FOUND' });
+    }
+    const datos: Prisma.MembershipPlanUpdateInput = {};
+    if (cambios.name !== undefined) datos.name = cambios.name;
+    if (cambios.description !== undefined) datos.description = cambios.description;
+    if (cambios.maxRetainedStatements !== undefined) {
+      datos.maxRetainedStatements = cambios.maxRetainedStatements;
+    }
+    if (cambios.maxPagesPerDocument !== undefined) {
+      datos.maxPagesPerDocument = cambios.maxPagesPerDocument;
+    }
+    if (cambios.monthlyPageQuota !== undefined) datos.monthlyPageQuota = cambios.monthlyPageQuota;
+    if (cambios.trialOneTime !== undefined) datos.trialOneTime = cambios.trialOneTime;
+    if (cambios.isDefault !== undefined) datos.isDefault = cambios.isDefault;
+    if (cambios.isActive !== undefined) datos.isActive = cambios.isActive;
+    if (cambios.sortOrder !== undefined) datos.sortOrder = cambios.sortOrder;
+
+    await this.prisma.$transaction(async (tx) => {
+      if (Object.keys(datos).length > 0) {
+        await tx.membershipPlan.update({ where: { code }, data: datos });
+      }
+      // Se reemplaza la lista completa: es más claro para quien administra que
+      // ir sumando y restando funciones una a una.
+      if (cambios.features !== undefined) {
+        await tx.planFeature.deleteMany({ where: { planCode: code } });
+        if (cambios.features.length > 0) {
+          await tx.planFeature.createMany({
+            data: cambios.features.map((featureCode) => ({ planCode: code, featureCode })),
+          });
+        }
+      }
+    });
+    return this.obtenerPlanAdmin(code);
+  }
+
+  private async obtenerPlanAdmin(code: string): Promise<PlanAdminOption> {
+    const plan = await this.prisma.membershipPlan.findUniqueOrThrow({
+      where: { code },
+      select: { ...PLAN_SELECT, isActive: true, sortOrder: true },
+    });
+    return {
+      ...toPlanSummary(plan),
+      description: plan.description,
+      isDefault: plan.isDefault,
+      isActive: plan.isActive,
+      sortOrder: plan.sortOrder,
+    };
   }
 
   /**

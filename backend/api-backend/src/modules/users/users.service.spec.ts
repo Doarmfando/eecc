@@ -41,9 +41,12 @@ const ROLES: Record<string, { name: string; rank: number }> = {
   ADMIN: { name: 'Administrador', rank: 50 },
   MEMBER: { name: 'Usuario', rank: 10 },
 };
-const PLANES: Record<string, { name: string; docs: number; pages: number | null }> = {
-  BASICA: { name: 'Básica', docs: 3, pages: 15 },
-  ATLAS: { name: 'Atlas', docs: 20, pages: null },
+const PLANES: Record<
+  string,
+  { name: string; docs: number; pages: number | null; monthlyPageQuota: number | null }
+> = {
+  BASICA: { name: 'Básica', docs: 3, pages: 1000, monthlyPageQuota: 15 },
+  ATLAS: { name: 'Atlas', docs: 20, pages: 1000, monthlyPageQuota: null },
 };
 const DESDE = new Date('2026-01-01T00:00:00Z');
 /** Una vigencia futura para las altas de usuarios normales, que la exigen. */
@@ -70,6 +73,7 @@ function membresiaFila(overrides: Record<string, unknown> = {}): Record<string, 
     planCode: 'BASICA',
     planChangedAt: DESDE,
     planExpiresOn: null,
+    monthlyPageQuotaOverride: null,
     status: MembershipStatus.ACTIVE,
     createdAt: DESDE,
     user: usuarioFila(),
@@ -77,7 +81,7 @@ function membresiaFila(overrides: Record<string, unknown> = {}): Record<string, 
   };
   const roleCode = String(fila.roleCode);
   const planCode = String(fila.planCode);
-  const plan = PLANES[planCode] ?? { name: planCode, docs: 3, pages: null };
+  const plan = PLANES[planCode] ?? { name: planCode, docs: 3, pages: null, monthlyPageQuota: null };
   return {
     ...fila,
     role: {
@@ -90,6 +94,7 @@ function membresiaFila(overrides: Record<string, unknown> = {}): Record<string, 
       name: plan.name,
       maxRetainedStatements: plan.docs,
       maxPagesPerDocument: plan.pages,
+      monthlyPageQuota: plan.monthlyPageQuota,
     },
   };
 }
@@ -238,7 +243,9 @@ describe('UsersService.list', () => {
         planCode: 'BASICA',
         planName: 'Básica',
         maxRetainedStatements: 3,
-        maxPagesPerDocument: 15,
+        maxPagesPerDocument: 1000,
+        monthlyPageQuota: 15,
+        monthlyPageQuotaOverride: null,
         planChangedAt: '2026-01-01T00:00:00.000Z',
         planExpiresOn: null,
         planExpired: false,
@@ -637,7 +644,8 @@ describe('UsersService y la membresía', () => {
     expect(resultado.member).toMatchObject({
       planCode: 'ATLAS',
       maxRetainedStatements: 20,
-      maxPagesPerDocument: null,
+      maxPagesPerDocument: 1000,
+      monthlyPageQuota: null,
     });
     const evento = auditoria.mock.calls[0]?.[0] as { data: { metadata: unknown } };
     expect(evento.data.metadata).toEqual({
@@ -1063,5 +1071,75 @@ describe('UsersService y la vigencia de la membresía', () => {
       planExpired: true,
       planExpiryRequired: true,
     });
+  });
+});
+
+describe('UsersService y la recarga de páginas al mes (ADR-0018)', () => {
+  it('un administrador (rango 50, sin falta de superadmin) le sube el tope a un Básico', async () => {
+    const { service, membresiaActualizada, auditoria } = construir();
+
+    const actualizado = await service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, {
+      monthlyPageQuotaOverride: 50,
+    });
+
+    expect(actualizado.monthlyPageQuota).toBe(50);
+    expect(actualizado.monthlyPageQuotaOverride).toBe(50);
+    const escrito = membresiaActualizada.mock.calls[0]?.[0] as {
+      data: { monthlyPageQuotaOverride: number };
+    };
+    expect(escrito.data.monthlyPageQuotaOverride).toBe(50);
+    // El número de páginas no es un dato personal: se audita, a diferencia del correo.
+    const evento = auditoria.mock.calls[0]?.[0] as { data: { metadata: unknown } };
+    expect(evento.data.metadata).toEqual({
+      fields: ['monthlyPageQuotaOverride'],
+      monthlyPageQuotaOverride: 50,
+    });
+  });
+
+  it('sin recarga, el tope efectivo es el del plan', async () => {
+    const { service } = construir();
+    const sinTocar = await service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, {
+      displayName: 'Otro nombre',
+    });
+    expect(sinTocar.monthlyPageQuota).toBe(15);
+    expect(sinTocar.monthlyPageQuotaOverride).toBeNull();
+  });
+
+  it('null quita la recarga y vuelve al tope del plan', async () => {
+    const { service, membresiaActualizada } = construir({
+      membresiaExistente: membresiaFila({ monthlyPageQuotaOverride: 50 }),
+    });
+
+    await service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, { monthlyPageQuotaOverride: null });
+
+    const escrito = membresiaActualizada.mock.calls[0]?.[0] as {
+      data: { monthlyPageQuotaOverride: null };
+    };
+    expect(escrito.data.monthlyPageQuotaOverride).toBeNull();
+  });
+
+  it('rechaza un número que no sea un entero positivo, sin escribir nada', async () => {
+    const cero = construir();
+    await expect(
+      cero.service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, { monthlyPageQuotaOverride: 0 }),
+    ).rejects.toMatchObject({ response: { code: 'MONTHLY_PAGE_QUOTA_OVERRIDE_INVALID' } });
+    expect(cero.membresiaActualizada).not.toHaveBeenCalled();
+
+    const negativo = construir();
+    await expect(
+      negativo.service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, {
+        monthlyPageQuotaOverride: -5,
+      }),
+    ).rejects.toMatchObject({ response: { code: 'MONTHLY_PAGE_QUOTA_OVERRIDE_INVALID' } });
+  });
+
+  it('repetir el mismo valor no escribe de nuevo', async () => {
+    const { service, membresiaActualizada } = construir({
+      membresiaExistente: membresiaFila({ monthlyPageQuotaOverride: 50 }),
+    });
+
+    await service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, { monthlyPageQuotaOverride: 50 });
+
+    expect(membresiaActualizada).not.toHaveBeenCalled();
   });
 });
