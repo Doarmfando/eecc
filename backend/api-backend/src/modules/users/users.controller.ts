@@ -93,6 +93,9 @@ export class UsersController {
         ...(body.role !== undefined ? { role: body.role } : {}),
         ...(body.planCode !== undefined ? { planCode: body.planCode } : {}),
         ...(body.planExpiresOn !== undefined ? { planExpiresOn: body.planExpiresOn } : {}),
+        ...(body.monthlyPageQuotaOverride !== undefined
+          ? { monthlyPageQuotaOverride: body.monthlyPageQuotaOverride }
+          : {}),
         ...(body.membershipStatus !== undefined ? { membershipStatus: body.membershipStatus } : {}),
       },
       request.requestId,
