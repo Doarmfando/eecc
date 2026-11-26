@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Eye,
-  FileText,
   Gem,
   KeyRound,
   Pencil,
@@ -306,7 +305,6 @@ export function MembersPage(): ReactNode {
   // Quien está por encima del rango más bajo gestiona cuentas: hoy, admins y superadmins.
   const administradores = lista.filter((miembro) => rangoDe(miembro) > rangoBase).length;
   const activas = lista.filter((miembro) => miembro.membershipStatus === 'ACTIVE').length;
-  const documentos = lista.reduce((total, miembro) => total + miembro.documentCount, 0);
 
   function abrir(nuevo: Dialogo): void {
     setAviso(null);
@@ -338,7 +336,7 @@ export function MembersPage(): ReactNode {
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         <Indicador
           Icono={Users}
           etiqueta="Cuentas"
@@ -356,12 +354,6 @@ export function MembersPage(): ReactNode {
           etiqueta="Activas"
           valor={activas}
           detalle={contar(lista.length - activas, 'desactivada', 'desactivadas')}
-        />
-        <Indicador
-          Icono={FileText}
-          etiqueta="Documentos cargados"
-          valor={documentos}
-          detalle="Según cada membresía"
         />
       </div>
 

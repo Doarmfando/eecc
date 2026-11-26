@@ -225,14 +225,13 @@ describe('MembersPage: listado', () => {
     expect(within(filaDe('Jefa de área')).getByText('Administrador')).toBeInTheDocument();
   });
 
-  it('resume cuentas, administradores y documentos cargados', async () => {
+  it('resume cuentas y administradores', async () => {
     await montar();
 
     const indicador = (etiqueta: string): HTMLElement =>
       screen.getByText(etiqueta, { selector: 'p' }).parentElement as HTMLElement;
     expect(indicador('Cuentas')).toHaveTextContent('31 usuario');
     expect(indicador('Administración')).toHaveTextContent('2');
-    expect(indicador('Documentos cargados')).toHaveTextContent('5');
   });
 
   it('marca la propia cuenta y no deja quitarse el acceso ni cambiarse la contraseña desde aquí', async () => {
