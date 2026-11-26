@@ -13,7 +13,9 @@ import { ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 
 import { API_KEY_HEADER } from '../../common/security/api-key.guard';
 import { AuthGuard } from '../../common/security/auth.guard';
+import { requirePlanFeature } from '../../common/security/require-plan-feature';
 import { CurrentOrganization, type OrganizationContext } from '../../common/http/request-context';
+import { FEATURE } from '../access/access-catalog';
 import { JobResponseDto } from '../statements/dto/create-statement.dto';
 import { ArtifactDownloadService } from '../statements/artifact-download.service';
 import { JobListDto, JobListQueryDto } from './dto/job-list.dto';
@@ -41,6 +43,7 @@ export class JobsController {
     @CurrentOrganization() organization: OrganizationContext,
     @Query() query: JobListQueryDto,
   ): Promise<JobListDto> {
+    requirePlanFeature(organization, query.feature ?? FEATURE.HISTORY);
     return this.jobs.list(organization.organizationId, organization.userId, {
       ...(query.limit === undefined ? {} : { limit: query.limit }),
       ...(query.cursor === undefined ? {} : { cursor: query.cursor }),

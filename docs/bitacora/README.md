@@ -13,6 +13,17 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-11-26 — Acceso a documentos y vistas al vencer Personal
+
+- Al iniciar el día comercial siguiente al último día pagado se cierran el Historial, el
+  Centro Financiero y el Calendario Financiero desde la API y la interfaz. El navegador
+  vuelve a consultar la vigencia cuando una sesión abierta llega al fin del periodo.
+- Las cuentas con páginas compradas vigentes pueden convertir. Conservan la descarga y el
+  borrado individual de un resultado propio conocido. La sustitución automática informa
+  cuántos documentos retiró cuando la cuenta carece de historial.
+- Se verificaron la sesión activa al vencer, las consultas directas y una nueva conversión
+  con saldo comprado. [ADR-0019](../decisiones/ADR-0019-modelo-comercial-de-cuatro-productos.md)
+
 ## 2026-11-26 — Panel comercial por organización
 
 - Administración → Comercial reúne cuentas, ingresos por producto, ticket, periodos pagados

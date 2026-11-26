@@ -114,4 +114,9 @@ export class JobResponseDto {
    */
   @ApiProperty({ type: [ReplacedStatementDto] })
   replacedStatements!: ReplacedStatementDto[];
+
+  @ApiPropertyOptional({
+    description: 'Cantidad reemplazada cuando la sesión no puede ver el historial',
+  })
+  replacedStatementCount?: number;
 }

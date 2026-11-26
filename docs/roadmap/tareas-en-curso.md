@@ -484,6 +484,11 @@ calendario en diciembre de 2026)
   - [x] **5b. Cobros manuales de Personal.** La cuenta Gratuito puede activar Personal con un
     pago confirmado por Yape. Se registran periodos y renovaciones, y se cancela la renovación
     desde *Mi saldo* manteniendo lo pagado. La pasarela de pago sigue pendiente.
+  - [x] **5c. Acceso al vencer Personal.** El Historial, Centro Financiero y Calendario
+    Financiero requieren vigencia. Se pueden usar los saldos comprados vigentes y descargar
+    un resultado propio por identificador.
+  - [ ] **5d. Avisos de vencimiento.** Mostrar cuándo quedan pocos días para que caduque un
+    lote vigente con páginas disponibles y completar la matriz comercial de 28 escenarios.
   - [~] **6. Migración de datos existentes — requiere autorización aparte.** El migrador local
     simula y aplica el corte de los casos compatibles. Se ensayó con datos sintéticos. Queda
     acordar la transición de los ajustes pactados y los Atlas de otros roles, además de autorizar

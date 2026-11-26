@@ -1,6 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
+
+import { FEATURE, type FeatureCode } from '../../access/access-catalog';
 
 export const JOB_LIST_DEFAULT_LIMIT = 20;
 export const JOB_LIST_MAX_LIMIT = 100;
@@ -21,6 +23,11 @@ export class JobListQueryDto {
   @IsString()
   @Matches(/^[A-Za-z0-9_-]{1,200}$/)
   cursor?: string;
+
+  @ApiPropertyOptional({ enum: Object.values(FEATURE), default: FEATURE.HISTORY })
+  @IsOptional()
+  @IsIn(Object.values(FEATURE))
+  feature?: FeatureCode;
 }
 
 export class JobListItemDto {

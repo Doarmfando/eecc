@@ -31,7 +31,8 @@ import {
 import { API_KEY_HEADER } from '../../common/security/api-key.guard';
 import { AuthGuard } from '../../common/security/auth.guard';
 import { PermissionsGuard, RequirePermissions } from '../../common/security/permissions.guard';
-import { PERMISSION } from '../access/access-catalog';
+import { hasPlanFeature, requirePlanFeature } from '../../common/security/require-plan-feature';
+import { FEATURE, PERMISSION } from '../access/access-catalog';
 import { CurrentOrganization, type OrganizationContext } from '../../common/http/request-context';
 import {
   CreateStatementDto,
@@ -131,8 +132,9 @@ export class StatementsController {
     if (idempotencyKey !== undefined && !/^[\w.:-]{8,128}$/.test(idempotencyKey)) {
       throw new BadRequestException({ code: 'INVALID_IDEMPOTENCY_KEY' });
     }
+    if (body.replaceStatementId !== undefined) requirePlanFeature(organization, FEATURE.HISTORY);
 
-    return this.statements.process({
+    const job = await this.statements.process({
       organizationId: organization.organizationId,
       userId: organization.userId,
       content: document.buffer,
@@ -157,6 +159,13 @@ export class StatementsController {
         : {}),
       ...(requestId !== undefined ? { requestId } : {}),
     });
+    if (!hasPlanFeature(organization, FEATURE.HISTORY) && job.replacedStatements.length > 0) {
+      return Object.assign(new JobResponseDto(), job, {
+        replacedStatements: [],
+        replacedStatementCount: job.replacedStatements.length,
+      });
+    }
+    return job;
   }
 
   /**
@@ -172,6 +181,7 @@ export class StatementsController {
     @CurrentOrganization() organization: OrganizationContext,
     @Headers('x-request-id') requestId?: string,
   ): Promise<DeletedStatementsDto> {
+    requirePlanFeature(organization, FEATURE.HISTORY);
     return this.statements.deleteOwn(
       organization.organizationId,
       organization.userId,

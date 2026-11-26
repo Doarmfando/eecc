@@ -35,7 +35,9 @@ export interface SessionPlan {
   features: string[];
   /** Último día de vigencia (`YYYY-MM-DD`); nulo si no vence (ADR-0017). */
   expiresOn?: string | null;
-  /** Ya venció: no puede convertir hasta que la renueven. */
+  /** Instante en que se cierran las funciones de ATLAS Personal. */
+  accessEndsAt?: string | null;
+  /** Ya venció. La API evalúa por separado si quedan páginas compradas para convertir. */
   expired?: boolean;
 }
 

@@ -44,7 +44,9 @@ Existente hoy en `frontend`:
 Existente hoy en `backend/api-backend`:
 
 - `POST /v1/statements` autoriza por sesión o credencial de servicio, valida la carga, llama al worker y persiste trabajo, intento, advertencias, artefactos, auditoría y evento de outbox en una sola transacción.
-- `GET /v1/jobs` devuelve el historial de quien consulta —solo lo que subió, sea usuario o administrador— con paginación por cursor.
+- `GET /v1/jobs` lista los trabajos propios con paginación por cursor. Para una sesión exige
+  `HISTORY` por defecto. `feature=FINANCIAL_CENTER` o `feature=FINANCIAL_CALENDAR` exige la
+  función indicada para alimentar esa vista. Una función ausente devuelve `PLAN_FEATURE_REQUIRED`.
 - `GET /v1/jobs/{jobId}` devuelve el estado del trabajo si pertenece a la organización y lo subió quien lo pide; si no, `404`.
 - `GET /v1/jobs/{jobId}/artifacts/{artifactId}/content` entrega el archivo con la misma regla de dueño: el PDF de origen desde el almacenamiento propio y los resultados desde el worker, que solo sirve lo declarado en su manifiesto.
 - La idempotencia usa `Idempotency-Key` o, en su ausencia, una huella HMAC del contenido con alcance por organización más la versión del perfil; en ambos casos repartida por dueño, para no reutilizar el trabajo de otra persona.
@@ -71,9 +73,16 @@ descarga con el nombre del PDF, y el worker lo recibe solo para la columna
 [ADR-0013](../decisiones/ADR-0013-formato-comun-del-excel.md)).
 
 La carga y el detalle incluyen `createdAt`, la fecha de la subida y su conversión.
-La carga acepta `replaceStatementId`: el documento propio que se borra en lugar
-del más antiguo si se supera el cupo; uno ajeno se ignora
-([ADR-0014](../decisiones/ADR-0014-elegir-que-documento-reemplazar.md)).
+La carga acepta `replaceStatementId` con la función `HISTORY`. Identifica el documento propio
+que se borra al superar el cupo. Un identificador ajeno se ignora. Las sesiones sin historial
+reciben solo `replacedStatementCount` cuando el cupo sustituye documentos automáticamente.
+Vaciar el historial exige `HISTORY`. El resultado propio conserva la opción de borrar ese
+documento. [ADR-0014](../decisiones/ADR-0014-elegir-que-documento-reemplazar.md)
+
+`GET /v1/auth/me` devuelve `plan.accessEndsAt` para Personal con fecha de vigencia. El servidor
+evalúa la membresía en cada solicitud. El navegador usa ese instante para actualizar una sesión
+abierta y consultar la vigencia actual cuando termina el periodo.
+[ADR-0019](../decisiones/ADR-0019-modelo-comercial-de-cuatro-productos.md)
 
 Diferencias intencionales con el objetivo, todavía pendientes:
 

@@ -35,6 +35,7 @@ export const FEATURE = {
   FINANCIAL_CENTER: 'FINANCIAL_CENTER',
   FINANCIAL_CALENDAR: 'FINANCIAL_CALENDAR',
 } as const;
+export type FeatureCode = (typeof FEATURE)[keyof typeof FEATURE];
 
 export const PLAN = {
   BASICA: 'BASICA',
@@ -131,19 +132,22 @@ export function toMembershipAccess(
   hoy: string,
 ): MembershipAccess {
   const expiresOn = membership.planExpiresOn ? toIsoDate(membership.planExpiresOn) : null;
+  const expired = isExpired(expiresOn, hoy);
+  const plan = toPlanSummary(membership.plan);
   return {
     role: membership.role.code,
     roleName: membership.role.name,
     roleRank: membership.role.rank,
     permissions: membership.role.permissions.map(({ permissionCode }) => permissionCode),
     plan: {
-      ...toPlanSummary(membership.plan),
+      ...plan,
+      features: plan.code === PLAN.PERSONAL && expired ? [] : plan.features,
       // La recarga de un administrador manda sobre el tope del plan; sin ella,
       // el de siempre. Así el resto del código (worker, aviso, interfaz) solo
       // ve un número, sin saber que existe la recarga (ADR-0018 y su anexo).
       monthlyPageQuota: membership.monthlyPageQuotaOverride ?? membership.plan.monthlyPageQuota,
       expiresOn,
-      expired: isExpired(expiresOn, hoy),
+      expired,
       trialAvailable: !membership.plan.trialOneTime || membership.trialUsedAt === null,
     },
   };

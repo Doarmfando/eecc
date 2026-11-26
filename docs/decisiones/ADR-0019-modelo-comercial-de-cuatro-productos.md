@@ -133,6 +133,7 @@ Plan completo en [`tareas-en-curso.md`](../roadmap/tareas-en-curso.md) §21.
 | 3     | Catálogo de productos de saldo y precios (este ADR)              | Hecha                              |
 | 2b, 4 | Lotes de páginas, FEFO, compras registradas por un administrador | Implementada en la rama           |
 | 5     | Saldo, cotización e historiales comerciales                      | Implementada en la rama           |
+| 5c    | Restricción de vistas de Personal al vencer                      | Implementada en la rama           |
 | 6     | Migración de clientes: Básica/Especial → Personal, renombre      | Candidatos compatibles ensayados localmente. Excepciones y producción pendientes. |
 | 7     | Panel comercial con métricas                                     | Implementado en la rama con las fuentes registradas. |
 
@@ -195,3 +196,21 @@ usa días de la zona comercial, inclusive en ambos extremos, y cubre hasta 366 d
   El margen bruto estimado en PEN usa ventas confirmadas y costo del consumo atribuido al
   producto en el periodo. No incorpora gastos fijos, impuestos ni comisiones. El CSV conserva
   las métricas y excluye contenido bancario y nombres de cuentas.
+
+## Anexo — 2026-11-26 — Acceso al vencer Personal
+
+La vigencia incluye el último día pagado en `America/Lima`. Al inicio del día siguiente la
+sesión de Personal pierde las funciones del plan. La API las evalúa con cada solicitud y la
+interfaz vuelve a consultar la membresía cuando una sesión abierta alcanza `plan.accessEndsAt`.
+Las credenciales de servicio conservan su contrato y los planes heredados conservan las funciones
+de su catálogo durante la transición.
+
+El listado de trabajos comprueba la función del Historial, del Centro Financiero o del
+Calendario Financiero, según la vista solicitada. Elegir un documento para reemplazo y vaciar
+el historial requieren `HISTORY`. El límite de almacenamiento sigue aplicando y la respuesta
+sin historial muestra solo cuántos documentos reemplazó. La consulta, descarga y eliminación
+individual por identificador conservan el alcance de usuario y organización. Esto permite que
+Gratuito y Personal vencido usen el resultado propio sin acceso al listado documental.
+
+Los lotes comprados vigentes se pueden usar después del vencimiento. El historial de compras y
+consumo continúa en *Mi saldo*.

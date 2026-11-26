@@ -15,8 +15,10 @@ import type { Response } from 'express';
 
 import { CurrentUser } from '../../common/http/request-context';
 import type { RequestWithContext } from '../../common/http/request-context';
+import { addDaysToIsoDate, startOfBusinessDay } from '../../common/time/business-date';
 import { SessionGuard } from '../../common/security/session.guard';
 import { NodeEnvironment, parseEmailDomains, type AppConfig } from '../../config/app-config';
+import { PLAN } from '../access/access-catalog';
 import { AuthService, type AuthenticatedUser } from './auth.service';
 import { ChangePasswordDto, LoginDto, SessionUserDto } from './dto/auth.dto';
 import { SESSION_COOKIE, buildSessionCookieOptions, readCookie } from './session-cookie';
@@ -100,7 +102,16 @@ export class AuthController {
       roleName: user.roleName,
       roleRank: user.roleRank,
       permissions: user.permissions,
-      plan: user.plan,
+      plan: {
+        ...user.plan,
+        accessEndsAt:
+          user.plan.code === PLAN.PERSONAL && user.plan.expiresOn
+            ? startOfBusinessDay(
+                addDaysToIsoDate(user.plan.expiresOn, 1),
+                this.config.get('BUSINESS_TIMEZONE', { infer: true }),
+              ).toISOString()
+            : null,
+      },
       // El mismo cupo para cualquiera, sin importar su membresía (ADR-0007).
       retainedStatementsPerUser: this.config.get('RETAINED_STATEMENTS_PER_USER', { infer: true }),
       supportPhone: this.config.get('SUPPORT_PHONE', { infer: true }).trim() || null,

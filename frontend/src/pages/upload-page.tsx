@@ -6,7 +6,7 @@ import { useSession } from '@/app/use-session';
 
 import { useNotifications, useNotifyError } from '@/components/notifications/notifications-context';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { cupoDe } from '@/features/access/access';
+import { FEATURE, cupoDe } from '@/features/access/access';
 import { AvisoDeVigencia } from '@/features/access/plan-gate';
 import {
   AVAILABLE_BANKS,
@@ -107,7 +107,7 @@ function nombreDe(nombre: string | null | undefined): string {
 export function UploadPage(): ReactNode {
   const navigate = useNavigate();
   const upload = useUploadStatement();
-  const { usuario } = useSession();
+  const { usuario, tieneFuncion } = useSession();
   const { notify } = useNotifications();
   const notifyError = useNotifyError();
   const history = useJobHistory();
@@ -118,12 +118,13 @@ export function UploadPage(): ReactNode {
   const [awaitingChoice, setAwaitingChoice] = useState<UploadFormValues | null>(null);
 
   const cupo = cupoDe(usuario);
+  const puedeElegir = tieneFuncion(FEATURE.HISTORY);
   // Vencida y sin páginas compradas, la API rechaza la carga: el formulario no se
   // ofrece para algo que fallará. Lo comprado aparte sí se puede usar (ADR-0019).
   const saldo = useMonthlyUsage();
   const vencida =
     usuario?.plan?.expired === true && (!saldo.data || paginasCompradas(saldo.data) === 0);
-  const replaceable = replaceableStatements(history.data?.items ?? []);
+  const replaceable = puedeElegir ? replaceableStatements(history.data?.items ?? []) : [];
 
   /** Lo que pasó, dicho en pantalla: convertido, reutilizado y qué se reemplazó. */
   function avisarResultado(job: Job, fileName: string): void {
@@ -148,6 +149,19 @@ export function UploadPage(): ReactNode {
 
   function avisarReemplazos(job: Job): void {
     const reemplazados = job.replacedStatements ?? [];
+    const cantidad = job.replacedStatementCount ?? reemplazados.length;
+    if (!puedeElegir && cantidad > 0) {
+      notify({
+        id: `reemplazo:${job.jobId}`,
+        variant: 'warning',
+        title:
+          cantidad === 1
+            ? 'Se reemplazó el documento más antiguo'
+            : `Se reemplazaron ${String(cantidad)} documentos antiguos`,
+        description: 'Se liberó espacio para guardar el nuevo resultado.',
+      });
+      return;
+    }
     if (reemplazados.length > 0) {
       notify({
         id: `reemplazo:${job.jobId}`,
@@ -184,7 +198,7 @@ export function UploadPage(): ReactNode {
 
   function handleSubmit(values: UploadFormValues): void {
     // En el cupo, antes de subir se pregunta cuál se reemplaza: después ya sería tarde.
-    if (cupo > 0 && replaceable.length >= cupo) {
+    if (puedeElegir && cupo > 0 && replaceable.length >= cupo) {
       setAwaitingChoice(values);
       return;
     }
@@ -243,6 +257,12 @@ export function UploadPage(): ReactNode {
                     afterFile={<PageQuotaNotice selectedFile={selectedFile} />}
                   />
                 </div>
+                {!puedeElegir && cupo > 0 ? (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Guarda el resultado que necesites. Al superar el cupo de {cupo} documentos se
+                    reemplaza automáticamente el más antiguo.
+                  </p>
+                ) : null}
               </>
             ) : (
               <p className="mt-3 rounded-lg border border-border/60 bg-muted/20 p-4 text-sm text-muted-foreground">
@@ -256,13 +276,13 @@ export function UploadPage(): ReactNode {
       {upload.isSuccess ? <JobSummary job={upload.data} /> : null}
 
       <ReplaceStatementDialog
-        open={awaitingChoice !== null}
+        open={puedeElegir && awaitingChoice !== null}
         fileName={awaitingChoice?.file.name ?? ''}
         cupo={cupo}
         planName={usuario?.plan?.name}
         documents={replaceable}
         onConfirm={(statementId) => {
-          if (awaitingChoice) {
+          if (puedeElegir && awaitingChoice) {
             send(awaitingChoice, statementId);
           }
           setAwaitingChoice(null);

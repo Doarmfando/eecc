@@ -82,3 +82,10 @@ El responsable del producto pidió dos cosas, y dejó el resto a criterio:
 Revisar si la membresía pasa a cobrarse (renovación automática, historial de períodos),
 si se decide otra política al vencer, o si hace falta poder recuperar un documento
 borrado por error, que hoy no se puede.
+
+## Vigencia de ATLAS Personal
+
+Personal aplica la política comercial de ADR-0019. Al vencer se cierran las vistas exclusivas y
+se puede seguir convirtiendo con lotes comprados vigentes. Vaciar el historial y elegir qué
+documento reemplazar requieren acceso al Historial. El resultado propio conserva el borrado
+individual. [ADR-0019](ADR-0019-modelo-comercial-de-cuatro-productos.md)

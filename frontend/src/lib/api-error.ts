@@ -17,6 +17,8 @@ const MESSAGES: Record<string, string> = {
   AUTHENTICATION_REQUIRED: 'Necesitas iniciar sesión.',
   SESSION_EXPIRED: 'Tu sesión caducó. Vuelve a entrar.',
   INSUFFICIENT_ROLE: 'Tu rol no permite hacer esto.',
+  PLAN_FEATURE_REQUIRED:
+    'Esta función requiere una membresía que la incluya y esté vigente. Consulta «Mi saldo».',
   DOCUMENT_REQUIRED: 'Selecciona un archivo PDF antes de enviar.',
   UNSUPPORTED_MEDIA_TYPE:
     'El archivo no es un PDF. Sube el estado de cuenta en PDF, tal como lo descargaste de tu banca.',
@@ -127,6 +129,7 @@ const KIND_BY_CODE: Record<string, ErrorKind> = {
   TRIAL_ALREADY_USED: 'Límite de la membresía',
   UPLOAD_IN_PROGRESS: 'Límite de la membresía',
   MEMBERSHIP_EXPIRED: 'Límite de la membresía',
+  PLAN_FEATURE_REQUIRED: 'Límite de la membresía',
   INSUFFICIENT_ROLE: 'Permisos',
   ROLE_ABOVE_YOURS: 'Permisos',
   CANNOT_MODIFY_SELF: 'Permisos',

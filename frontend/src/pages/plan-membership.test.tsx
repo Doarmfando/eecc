@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -47,6 +47,11 @@ const SESION_ATLAS = {
     features: ['FINANCIAL_CALENDAR', 'FINANCIAL_CENTER', 'HISTORY'],
   },
   retainedStatementsPerUser: 20,
+};
+
+const SESION_PERSONAL = {
+  ...SESION_ATLAS,
+  plan: { ...SESION_ATLAS.plan, code: 'PERSONAL', name: 'ATLAS Personal', monthlyPageQuota: 50 },
 };
 
 const PLANES = [
@@ -164,7 +169,7 @@ function posts(mock: ReturnType<typeof vi.fn>): FormData[] {
 
 async function subir(
   nombre: string,
-  fetchMock: ReturnType<typeof vi.fn>,
+  historial?: ReturnType<typeof vi.fn>,
 ): Promise<ReturnType<typeof userEvent.setup>> {
   const user = userEvent.setup();
   await user.upload(
@@ -173,9 +178,14 @@ async function subir(
   );
   // Antes de enviar, que el historial ya haya respondido: si no, el cupo se
   // evalúa contra una lista vacía y nunca pregunta qué reemplazar.
-  await waitFor(() => {
-    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/v1/jobs'), expect.anything());
-  });
+  if (historial) {
+    await waitFor(() => {
+      expect(historial).toHaveBeenCalledWith(
+        expect.stringContaining('/v1/jobs'),
+        expect.anything(),
+      );
+    });
+  }
   await user.click(screen.getByRole('button', { name: /Procesar estado de cuenta/ }));
   return user;
 }
@@ -209,7 +219,7 @@ describe('Membresía Básica', () => {
   });
 
   it('un PDF largo se rechaza diciendo cuántas páginas tiene y cuántas admite', async () => {
-    const fetchMock = stub(SESION_BASICA, propios(0), () =>
+    stub(SESION_BASICA, propios(0), () =>
       jsonResponse(422, {
         code: 'PDF_PAGE_LIMIT_EXCEEDED',
         requestId: 'req-paginas',
@@ -217,7 +227,7 @@ describe('Membresía Básica', () => {
       }),
     );
     abrir();
-    await subir('Mayo BCP.pdf', fetchMock);
+    await subir('Mayo BCP.pdf');
 
     const aviso = await screen.findByRole('alert');
     expect(within(aviso).getByText('No se pudo procesar «Mayo BCP.pdf»')).toBeInTheDocument();
@@ -293,10 +303,13 @@ describe('Vigencia de la membresía', () => {
   });
 
   it('permite convertir con páginas compradas después de vencer la membresía', async () => {
-    stub(
-      { ...SESION_BASICA, plan: { ...SESION_BASICA.plan, expiresOn: '2026-01-31', expired: true } },
-      propios(0),
-      undefined,
+    const fetchMock = stub(
+      {
+        ...SESION_PERSONAL,
+        plan: { ...SESION_PERSONAL.plan, expiresOn: '2026-01-31', expired: true },
+      },
+      propios(20),
+      () => jsonResponse(201, { ...JOB, replacedStatementCount: 1 }),
       {
         pagesUsed: 0,
         monthlyPageQuota: null,
@@ -320,5 +333,58 @@ describe('Vigencia de la membresía', () => {
 
     expect(await screen.findByText(/Puedes seguir convirtiendo con las 20 páginas/)).toBeVisible();
     expect(screen.getByRole('button', { name: 'Procesar estado de cuenta' })).toBeEnabled();
+    expect(screen.queryByRole('link', { name: 'Historial' })).not.toBeInTheDocument();
+    await subir('Estado sintético.pdf');
+    expect(await screen.findByText('Se reemplazó el documento más antiguo')).toBeVisible();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(posts(fetchMock)[0]?.get('replaceStatementId')).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      expect.stringMatching(/\/v1\/jobs\?/),
+      expect.anything(),
+    );
+  });
+
+  it.each([
+    { escenario: 'cierra el historial al vencer', renovada: false },
+    { escenario: 'reconoce una renovación registrada durante la sesión', renovada: true },
+  ])('en una pestaña abierta $escenario', async ({ renovada }) => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date('2026-12-01T04:59:59.000Z'));
+      const sesion = {
+        ...SESION_PERSONAL,
+        plan: {
+          ...SESION_PERSONAL.plan,
+          expired: false,
+          expiresOn: '2026-11-30',
+          accessEndsAt: '2026-12-01T05:00:00.000Z',
+        },
+      };
+      stub(sesion, propios(0));
+      await act(async () => {
+        abrir('/historial');
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const menu = within(screen.getByRole('navigation', { name: 'Navegación' }));
+      expect(menu.getByRole('link', { name: 'Historial' })).toBeInTheDocument();
+      if (renovada) {
+        sesion.plan.expiresOn = '2026-12-31';
+        sesion.plan.accessEndsAt = '2027-01-01T05:00:00.000Z';
+      } else {
+        sesion.plan.expired = true;
+        sesion.plan.features = [];
+      }
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1_000);
+      });
+      if (renovada) {
+        expect(menu.getByRole('link', { name: 'Historial' })).toBeInTheDocument();
+        return;
+      }
+      expect(menu.queryByRole('link', { name: 'Historial' })).not.toBeInTheDocument();
+      expect(screen.getByText('Venció tu membresía ATLAS Personal')).toBeVisible();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

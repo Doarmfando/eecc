@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 
 import { Alert } from '@/components/ui/alert';
+import { FEATURE } from '@/features/access/access';
 import { ConsolidatingLoader } from '@/features/financial-center/consolidating-loader';
 import { FinancialCenter } from '@/features/financial-center/financial-center';
 import {
@@ -17,7 +18,7 @@ import { formatCount } from '@/lib/format';
  */
 export function FinancialCenterPage(): ReactNode {
   const { history, consolidables, chosen, statements, isPending, failedJobIds } =
-    useSelectedStatements();
+    useSelectedStatements(FEATURE.FINANCIAL_CENTER);
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">

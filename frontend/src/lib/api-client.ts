@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import type { FeatureCode } from '@/features/access/access';
+
 import { apiErrorSchema, jobListSchema, jobSchema, type Job, type JobList } from '@/types/job';
 
 import { ApiError } from './api-error';
@@ -233,7 +235,7 @@ export async function fetchPageHistory(
 
 export async function fetchJobHistory(
   options: ApiClientOptions,
-  params: { limit?: number; cursor?: string } = {},
+  params: { limit?: number; cursor?: string; feature?: FeatureCode } = {},
   signal?: AbortSignal,
 ): Promise<JobList> {
   const search = new URLSearchParams();
@@ -243,6 +245,7 @@ export async function fetchJobHistory(
   if (params.cursor !== undefined) {
     search.set('cursor', params.cursor);
   }
+  if (params.feature !== undefined) search.set('feature', params.feature);
   const query = search.size > 0 ? `?${search.toString()}` : '';
 
   const payload = await request(options, `v1/jobs${query}`, {

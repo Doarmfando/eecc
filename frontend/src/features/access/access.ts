@@ -58,7 +58,16 @@ export function tieneFuncion(usuario: SessionUser | null, funcion: FeatureCode):
   if (!usuario) {
     return false;
   }
+  if (esPersonalVencido(usuario)) return false;
   return usuario.plan ? usuario.plan.features.includes(funcion) : true;
+}
+
+export function esPersonalVencido(usuario: SessionUser | null): boolean {
+  return (
+    usuario?.plan?.code === 'PERSONAL' &&
+    (usuario.plan.expired === true ||
+      (usuario.plan.accessEndsAt != null && Date.parse(usuario.plan.accessEndsAt) <= Date.now()))
+  );
 }
 
 /** Documentos que conserva antes de reemplazar uno: el mismo cupo para cualquiera (ADR-0007). */

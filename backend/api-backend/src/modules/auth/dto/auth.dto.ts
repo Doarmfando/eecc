@@ -60,6 +60,14 @@ export class SessionPlanDto {
   })
   expiresOn!: string | null;
 
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    format: 'date-time',
+    description: 'Fin exclusivo de las funciones de Personal',
+  })
+  accessEndsAt!: string | null;
+
   @ApiProperty({ description: 'Ya venció: no puede convertir hasta que la renueven' })
   expired!: boolean;
 }

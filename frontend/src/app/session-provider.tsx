@@ -52,6 +52,53 @@ export function SessionProvider({
     };
   }, [resolvedBaseUrl]);
 
+  const accessEndsAt = usuario?.plan?.code === 'PERSONAL' ? usuario.plan.accessEndsAt : undefined;
+  const userId = usuario?.userId;
+  const organizationId = usuario?.organizationId;
+  useEffect(() => {
+    if (!accessEndsAt) return;
+    const fin = Date.parse(accessEndsAt);
+    if (!Number.isFinite(fin) || fin <= Date.now()) return;
+    const controller = new AbortController();
+    let timer: number | undefined;
+    function esLaMismaSesion(actual: SessionUser | null): actual is SessionUser {
+      return (
+        actual !== null &&
+        actual.userId === userId &&
+        actual.organizationId === organizationId &&
+        actual.plan?.accessEndsAt === accessEndsAt
+      );
+    }
+    function revisar(): void {
+      const faltan = fin - Date.now();
+      if (faltan > 0) {
+        timer = window.setTimeout(revisar, Math.min(faltan, 24 * 60 * 60 * 1000));
+        return;
+      }
+      setUsuario((actual) =>
+        esLaMismaSesion(actual) && actual.plan
+          ? { ...actual, plan: { ...actual.plan, expired: true } }
+          : actual,
+      );
+      void fetchSession(resolvedBaseUrl, controller.signal)
+        .then((sesion) => {
+          if (sesion.userId === userId && sesion.organizationId === organizationId) {
+            setUsuario((actual) =>
+              !controller.signal.aborted && esLaMismaSesion(actual) ? sesion : actual,
+            );
+          }
+        })
+        .catch(() => {
+          // Una sesión sin conexión conserva el cierre local hasta volver a cargar.
+        });
+    }
+    revisar();
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [accessEndsAt, organizationId, resolvedBaseUrl, userId]);
+
   const establecer = useCallback((sesion: SessionUser) => {
     setUsuario(sesion);
     setEstado('autenticado');

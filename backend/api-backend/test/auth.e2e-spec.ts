@@ -8,11 +8,17 @@ import { SanitizedExceptionFilter } from '../src/common/http/sanitized-exception
 import { PrismaService } from '../src/common/prisma/prisma.service';
 import { hashPassword } from '../src/modules/auth/password-hash';
 import { SESSION_COOKIE, hashSessionToken } from '../src/modules/auth/session-cookie';
+import { JobResponseDto } from '../src/modules/statements/dto/create-statement.dto';
+import { StatementsService } from '../src/modules/statements/statements.service';
 import { WorkerClientService } from '../src/modules/worker-client/worker-client.service';
 
 const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
 const OTRO_USER_ID = '33333333-3333-4333-8333-333333333333';
+const JOB_ID = '44444444-4444-4444-8444-444444444444';
+const STATEMENT_ID = '55555555-5555-4555-8555-555555555555';
+const ARTIFACT_ID = '66666666-6666-4666-8666-666666666666';
+const REPLACED_STATEMENT_ID = '77777777-7777-4777-8777-777777777777';
 const EMAIL = 'persona@empresa.pe';
 const PASSWORD = 'contraseña-de-prueba-larga';
 
@@ -27,6 +33,7 @@ interface EstadoUsuario {
   role: string;
   failedAttempts: number;
   lockedUntil: Date | null;
+  plan?: { code: string; expiresOn: Date | null; features: string[] };
 }
 
 /** Rol con sus permisos y plan, como los resuelve la consulta de la sesión. */
@@ -80,6 +87,20 @@ function buildPrismaDouble(passwordHash: string): {
     organizationId: ORGANIZATION_ID,
     userId: USER_ID,
     ...accesoDe(usuario.role),
+    ...(usuario.plan
+      ? {
+          planCode: usuario.plan.code,
+          planExpiresOn: usuario.plan.expiresOn,
+          plan: {
+            code: usuario.plan.code,
+            name: usuario.plan.code,
+            maxPagesPerDocument: 1000,
+            monthlyPageQuota: 50,
+            trialOneTime: false,
+            features: usuario.plan.features.map((featureCode) => ({ featureCode })),
+          },
+        }
+      : {}),
     status: 'ACTIVE',
     createdAt: new Date('2026-01-01T00:00:00Z'),
     organization: { id: ORGANIZATION_ID, displayName: 'Organización de prueba', status: 'ACTIVE' },
@@ -103,12 +124,63 @@ function buildPrismaDouble(passwordHash: string): {
     $disconnect: jest.fn().mockResolvedValue(undefined),
     $executeRaw: jest.fn().mockResolvedValue(0),
     personalPayment: { findFirst: jest.fn().mockResolvedValue(null) },
+    job: {
+      findMany: jest.fn().mockResolvedValue([]),
+      findFirst: jest.fn(
+        ({
+          where,
+        }: {
+          where: { id: string; organizationId: string; statement: { uploadedById: string } };
+        }) =>
+          Promise.resolve(
+            where.id === JOB_ID &&
+              where.organizationId === ORGANIZATION_ID &&
+              where.statement.uploadedById === USER_ID
+              ? {
+                  id: JOB_ID,
+                  statementId: STATEMENT_ID,
+                  status: 'SUCCEEDED',
+                  createdAt: new Date('2026-01-01T15:00:00Z'),
+                  statement: { sourceFileName: 'resultado-sintetico.pdf' },
+                  attempts: [
+                    { attemptNumber: 1, pageCount: 1, checks: [], warnings: [], artifacts: [] },
+                  ],
+                }
+              : null,
+          ),
+      ),
+    },
     $transaction: jest.fn(async (arg: unknown) => {
       if (typeof arg === 'function') {
         return (arg as (tx: unknown) => Promise<unknown>)(prisma);
       }
       return Promise.all(arg as Promise<unknown>[]);
     }),
+    artifact: {
+      findFirst: jest.fn(
+        ({
+          where,
+        }: {
+          where: {
+            id: string;
+            organizationId: string;
+            jobAttempt: { jobId: string };
+            statement: { uploadedById: string };
+          };
+        }) =>
+          Promise.resolve(
+            where.id === ARTIFACT_ID &&
+              where.organizationId === ORGANIZATION_ID &&
+              where.jobAttempt.jobId === JOB_ID &&
+              where.statement.uploadedById === USER_ID
+              ? {
+                  kind: 'RESULT_XLSX',
+                  objectKey: `worker/${ORGANIZATION_ID}/${'a'.repeat(32)}/sintetico.xlsx`,
+                }
+              : null,
+          ),
+      ),
+    },
     user: {
       findUnique: jest.fn(({ where }: { where: { emailNormalized?: string; id?: string } }) => {
         if (where.emailNormalized !== undefined) {
@@ -234,7 +306,10 @@ describe('Sesión de usuario (e2e)', () => {
       .overrideProvider(PrismaService)
       .useValue(doble.prisma)
       .overrideProvider(WorkerClientService)
-      .useValue({ processStatement: jest.fn(), fetchArtifact: jest.fn() })
+      .useValue({
+        processStatement: jest.fn(),
+        fetchArtifact: jest.fn().mockResolvedValue(Buffer.from('xlsx sintético')),
+      })
       .compile();
 
     app = moduleRef.createNestApplication();
@@ -256,6 +331,7 @@ describe('Sesión de usuario (e2e)', () => {
     usuario.role = 'ADMIN';
     usuario.failedAttempts = 0;
     usuario.lockedUntil = null;
+    delete usuario.plan;
   });
 
   async function entrar(): Promise<string> {
@@ -266,6 +342,103 @@ describe('Sesión de usuario (e2e)', () => {
     const cookies = respuesta.headers['set-cookie'] as unknown as string[];
     return cookies.find((cookie) => cookie.startsWith(SESSION_COOKIE)) ?? '';
   }
+
+  it('cierra las vistas de Personal al vencer la membresía en una sesión que ya existe', async () => {
+    usuario.role = 'MEMBER';
+    usuario.plan = {
+      code: 'PERSONAL',
+      expiresOn: new Date('2099-12-31T00:00:00Z'),
+      features: ['HISTORY', 'FINANCIAL_CENTER', 'FINANCIAL_CALENDAR'],
+    };
+    const cookie = await entrar();
+    await request(app.getHttpServer())
+      .get('/v1/jobs')
+      .set('Cookie', cookie)
+      .expect(200, { items: [], nextCursor: null });
+
+    usuario.plan.expiresOn = new Date('2000-01-01T00:00:00Z');
+    const estado = await request(app.getHttpServer())
+      .get('/v1/auth/me')
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(estado.body.plan).toMatchObject({
+      expired: true,
+      features: [],
+      accessEndsAt: '2000-01-02T05:00:00.000Z',
+    });
+    for (const feature of ['HISTORY', 'FINANCIAL_CENTER', 'FINANCIAL_CALENDAR']) {
+      await request(app.getHttpServer())
+        .get('/v1/jobs')
+        .query({ feature })
+        .set('Cookie', cookie)
+        .expect(403);
+    }
+    await request(app.getHttpServer()).delete('/v1/statements').set('Cookie', cookie).expect(403);
+    await request(app.getHttpServer())
+      .post('/v1/statements')
+      .set('Cookie', cookie)
+      .field('replaceStatementId', STATEMENT_ID)
+      .attach('document', Buffer.from('%PDF-1.7\nsynthetic'), {
+        filename: 'synthetic.pdf',
+        contentType: 'application/pdf',
+      })
+      .expect(403);
+
+    const detalle = await request(app.getHttpServer())
+      .get(`/v1/jobs/${JOB_ID}`)
+      .set('Cookie', cookie)
+      .expect(200);
+    await request(app.getHttpServer())
+      .get(`/v1/jobs/${OTRO_USER_ID}`)
+      .set('Cookie', cookie)
+      .expect(404);
+    await request(app.getHttpServer())
+      .get(`/v1/jobs/${JOB_ID}/artifacts/${ARTIFACT_ID}/content`)
+      .set('Cookie', cookie)
+      .expect('Content-Disposition', `attachment; filename="${JOB_ID}.xlsx"`)
+      .expect(200);
+
+    const procesar = jest.spyOn(app.get(StatementsService), 'process').mockResolvedValueOnce(
+      Object.assign(new JobResponseDto(), detalle.body as JobResponseDto, {
+        replacedStatements: [
+          { statementId: REPLACED_STATEMENT_ID, sourceFileName: 'anterior.pdf' },
+        ],
+      }),
+    );
+    try {
+      const carga = await request(app.getHttpServer())
+        .post('/v1/statements')
+        .set('Cookie', cookie)
+        .attach('document', Buffer.from('%PDF-1.7\nsynthetic'), {
+          filename: 'synthetic.pdf',
+          contentType: 'application/pdf',
+        })
+        .expect(201);
+      expect(carga.body).toMatchObject({ replacedStatements: [], replacedStatementCount: 1 });
+      expect(procesar).toHaveBeenCalledWith(expect.objectContaining({ membershipExpired: true }));
+    } finally {
+      procesar.mockRestore();
+    }
+  });
+
+  it('Gratuito consulta su resultado y Básica heredada conserva su Centro Financiero', async () => {
+    usuario.role = 'MEMBER';
+    usuario.plan = { code: 'GRATUITO', expiresOn: null, features: [] };
+    const cookie = await entrar();
+    await request(app.getHttpServer()).get('/v1/jobs').set('Cookie', cookie).expect(403);
+    await request(app.getHttpServer()).get(`/v1/jobs/${JOB_ID}`).set('Cookie', cookie).expect(200);
+    usuario.plan = {
+      code: 'BASICA',
+      expiresOn: new Date('2000-01-01T00:00:00Z'),
+      features: ['FINANCIAL_CENTER'],
+    };
+    await request(app.getHttpServer()).get('/v1/jobs').set('Cookie', cookie).expect(403);
+    await request(app.getHttpServer())
+      .get('/v1/jobs')
+      .query({ feature: 'FINANCIAL_CENTER' })
+      .set('Cookie', cookie)
+      .expect(200);
+  });
 
   it('el panel exige permisos y se limita a la organización de la sesión', async () => {
     const ruta = '/v1/commercial-report';

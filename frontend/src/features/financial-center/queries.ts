@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 
 import { useSession } from '@/app/use-session';
 import { useJobHistory } from '@/features/statements/queries';
+import type { FeatureCode } from '@/features/access/access';
 import { isConsolidable, useStatementSelection } from '@/features/statements/statement-selection';
 import { fetchArtifactText, fetchJob, type ApiClientOptions } from '@/lib/api-client';
 import { ApiError, isRetriable } from '@/lib/api-error';
@@ -115,8 +116,8 @@ export interface SelectedStatementsState extends FinancialStatementsState {
  * Lo que comparten el Centro Financiero y el Calendario: el historial, la
  * selección hecha en él y los estados de cuenta leídos de esos documentos.
  */
-export function useSelectedStatements(): SelectedStatementsState {
-  const history = useJobHistory();
+export function useSelectedStatements(feature: FeatureCode): SelectedStatementsState {
+  const history = useJobHistory(feature);
   const { isIncluded } = useStatementSelection();
 
   const consolidables = useMemo(

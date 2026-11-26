@@ -54,6 +54,7 @@ export const jobSchema = z.object({
   artifacts: z.array(artifactSchema),
   reused: z.boolean(),
   // Lo que el cupo retiró para guardar este documento. Opcional con una API anterior.
+  replacedStatementCount: z.number().int().nonnegative().optional(),
   replacedStatements: z
     .array(z.object({ statementId: z.string(), sourceFileName: z.string().nullish() }))
     .optional(),

@@ -9,7 +9,7 @@ import { paginasCompradas } from '@/lib/page-balance';
 
 import { describirVigencia, estadoDeVigencia, formatearDia, hoyLocal } from '@/lib/plan-dates';
 
-import { NOMBRE_FUNCION, resumenDePlan, type FeatureCode } from './access';
+import { esPersonalVencido, NOMBRE_FUNCION, resumenDePlan, type FeatureCode } from './access';
 import { usePlans, useSupportPhone } from './queries';
 
 function enumerar(nombres: readonly string[]): string {
@@ -29,6 +29,22 @@ export function FuncionNoIncluida({ funcion }: { funcion: FeatureCode }): ReactN
   const planes = usePlans();
   const conLaFuncion = (planes.data ?? []).filter((plan) => plan.features.includes(funcion));
   const nombre = NOMBRE_FUNCION[funcion];
+
+  if (esPersonalVencido(usuario)) {
+    return (
+      <div className="mx-auto w-full max-w-3xl">
+        <Alert variant="warning" title="Venció tu membresía ATLAS Personal">
+          <p>
+            Renueva el plan para recuperar {nombre}. Tus compras de páginas conservan su propia
+            vigencia.
+          </p>
+          <Link to="/saldo" className="mt-2 inline-block font-medium text-foreground underline">
+            Consultar Mi saldo
+          </Link>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto w-full max-w-3xl">

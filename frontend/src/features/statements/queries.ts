@@ -7,6 +7,7 @@ import {
 } from '@tanstack/react-query';
 
 import { useSession } from '@/app/use-session';
+import { FEATURE, type FeatureCode } from '@/features/access/access';
 import { pageHistoryQueryKey } from '@/features/balance/queries';
 import {
   findSheetCsv,
@@ -162,17 +163,24 @@ export function jobHistoryQueryKey(): readonly unknown[] {
   return ['jobs'];
 }
 
-export function useJobHistory(): UseQueryResult<JobList, ApiError> {
+export function useJobHistory(
+  feature: FeatureCode = FEATURE.HISTORY,
+): UseQueryResult<JobList, ApiError> {
   const options = useOpcionesDeApi();
+  const { tieneFuncion } = useSession();
 
   return useQuery<JobList, ApiError>({
-    queryKey: jobHistoryQueryKey(),
-    enabled: options !== null,
+    queryKey: [...jobHistoryQueryKey(), feature],
+    enabled: options !== null && tieneFuncion(feature),
     queryFn: async ({ signal }) => {
       if (!options) {
         throw new ApiError('AUTHENTICATION_REQUIRED', 401);
       }
-      return fetchJobHistory(options, { limit: HISTORY_PAGE_SIZE }, signal);
+      return fetchJobHistory(
+        options,
+        { limit: HISTORY_PAGE_SIZE, ...(feature === FEATURE.HISTORY ? {} : { feature }) },
+        signal,
+      );
     },
     retry: (attempt, error) => attempt < MAX_ATTEMPTS - 1 && isRetriable(error),
   });

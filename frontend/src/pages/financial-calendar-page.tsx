@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 
 import { Alert } from '@/components/ui/alert';
+import { FEATURE } from '@/features/access/access';
 import { FinancialCalendarView } from '@/features/financial-calendar/financial-calendar-view';
 import { ConsolidatingLoader } from '@/features/financial-center/consolidating-loader';
 import {
@@ -14,7 +15,7 @@ import { formatCount } from '@/lib/format';
 /** Los mismos documentos que el Centro Financiero: los marcados en el Historial. */
 export function FinancialCalendarPage(): ReactNode {
   const { history, consolidables, chosen, statements, isPending, failedJobIds } =
-    useSelectedStatements();
+    useSelectedStatements(FEATURE.FINANCIAL_CALENDAR);
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">

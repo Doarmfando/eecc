@@ -16,8 +16,11 @@ fuera de Git antes de iniciar y pertenece al workspace del usuario.
 | `269163e` | Lotes, consumo FEFO y alta administrativa de compras pagadas por Yape. |
 | `afd818a` | Interfaz de saldo y registro de compras. |
 | `5bce51b` | Historial comercial propio y primer informe de impacto. |
+| `359af1f` | Simulación y corte manual a Personal para cuentas compatibles. |
+| `a477f1a` | Cobros manuales y cancelación de renovación de Personal. |
+| `cafc3f8` | Panel comercial y exportación CSV. |
 
-El commit que incorpora esta entrega añade `backend/api-backend/src/cli/migrate-personal.ts` y
+El migrador vive en `backend/api-backend/src/cli/migrate-personal.ts` y
 `personal-migration.ts`. La simulación devuelve conteos de candidatas y excepciones. El corte
 manual activa Personal, establece Gratuito como plan por defecto, separa el plan interno de
 administración y migra las membresías compatibles. Preserva el periodo, el vencimiento, el
@@ -47,10 +50,10 @@ simulación sin argumentos. `--apply` queda reservado para la ventana autorizada
    superior a la cuota de Personal y dos Atlas con otros roles. Confirmar la regla de renovación
    y el reparto de páginas antes de escribir ajustes. La herramienta actual conserva esos casos
    íntegros y el reporte requiere revisarse al cortar.
-2. Revisar las restricciones de Personal vencido y las acciones de historial. En este punto
-   `tieneFuncion` usa el catálogo sin consultar `expired` y `GET /v1/jobs` filtra por dueño sin
-   verificar la función de historial. Preservar la consulta y descarga del trabajo propio que
-   permite Gratuito. Completar los avisos de vencimiento de lotes y la matriz de 28 pruebas del prompt.
+2. Implementar el aviso de lotes por vencer a partir del saldo vigente en *Mi saldo*. Usar
+   fechas de Lima, incluir solo lotes con páginas disponibles y probar el límite de vigencia.
+3. Completar la matriz de 28 escenarios del prompt con pruebas sintéticas y registrar qué
+   escenarios requieren una base PostgreSQL local con migraciones aplicadas.
 
 El modelo comercial vive en [ADR-0019](../decisiones/ADR-0019-modelo-comercial-de-cuatro-productos.md).
 La evidencia de consumo anterior a su registro puede ser irrecuperable. Los fixtures deben seguir
@@ -71,3 +74,15 @@ en `report.dto.ts` y las fuentes en `report.queries.ts`. El CSV usa el mismo res
 panel muestra estimaciones cuando se configura un costo variable por página.
 La prueba `test/commercial-report.e2e-spec.ts` usa `RUN_COMMERCIAL_REPORT_TESTS=1` y un esquema
 sintético `test_commercial_report_*` con las migraciones aplicadas.
+
+## Acceso al vencer Personal
+
+`AuthService.resolveSession` actualiza el acceso en cada solicitud. `GET /v1/jobs` exige
+`HISTORY` por defecto y verifica la función solicitada cuando alimenta el Centro Financiero o
+el Calendario. El reemplazo manual y el borrado masivo también exigen Historial. La carga
+puede usar páginas compradas al vencer. El detalle, la descarga y el borrado individual
+conservan la autorización por propietario. El reemplazo automático informa un conteo a las
+sesiones sin Historial. Hay pruebas de API en `test/auth.e2e-spec.ts` y de interfaz en
+`src/pages/plan-membership.test.tsx`. Pasaron 385 pruebas de API y 426 de frontend con
+`npm run check`. También pasaron las siete pruebas de `test/page-lots.e2e-spec.ts` en
+PostgreSQL local, incluida la conversión con saldo comprado al vencer la membresía.
