@@ -26,6 +26,7 @@ import { FinancialCenterPage } from '@/pages/financial-center-page';
 import { HistoryPage } from '@/pages/history-page';
 import { JobPage } from '@/pages/job-page';
 import { LoginPage } from '@/pages/login-page';
+import { MemberDetailPage } from '@/pages/member-detail-page';
 import { MembersPage } from '@/pages/members-page';
 import { PlansPage } from '@/pages/plans-page';
 import { UploadPage } from '@/pages/upload-page';
@@ -402,6 +403,14 @@ function Contenido(): ReactNode {
         element={
           <Protegida soloAdmin>
             <MembersPage />
+          </Protegida>
+        }
+      />
+      <Route
+        path="/usuarios/:userId"
+        element={
+          <Protegida soloAdmin>
+            <MemberDetailPage />
           </Protegida>
         }
       />

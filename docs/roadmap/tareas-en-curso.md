@@ -424,3 +424,16 @@ calendario en diciembre de 2026)
 - [x] Commit, push y verificado en producción (Railway/Fortex): la sesión ya no trae
   `maxRetainedStatements` por plan, `retainedStatementsPerUser` es el global (3), y
   `GET /v1/users/:userId` devuelve el detalle con `pagesUsed`.
+
+## 20. El detalle de usuario pasa a página propia, tabla sin Documentos/Último acceso (2026-11-26)
+
+- Pedido, resumido: quitar "Documentos" y "Último acceso" de la tabla de *Usuarios* y que el
+  detalle de una cuenta sea "tipo panel administrativo": una página propia por usuario, no
+  una ventana emergente.
+- [x] Front: ruta `/usuarios/:userId` (`MemberDetailPage`, protegida igual que `/usuarios`);
+  "Ver el detalle" ahora es un enlace real a esa ruta. Se retiró el diálogo
+  (`member-detail-dialog.tsx`); su contenido pasó a la página nueva con botón "Volver a
+  Usuarios". Columnas Documentos y Último acceso quitadas de la tabla.
+- [x] Pruebas y verificación: frontend typecheck, ESLint, Prettier; 397 pruebas (4 nuevas en
+  `member-detail-page.test.tsx`).
+- [ ] Pendiente: commit, push y verificar en producción.

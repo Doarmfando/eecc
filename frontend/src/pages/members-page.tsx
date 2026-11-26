@@ -15,6 +15,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useId, useMemo, useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 
 import { useSession } from '@/app/use-session';
 import { SupportDetails } from '@/components/shared/support-details';
@@ -32,7 +33,6 @@ import {
   EliminarDialog,
   type Credencial,
 } from '@/features/users/member-dialogs';
-import { MemberDetailDialog } from '@/features/users/member-detail-dialog';
 import { accionesSobre, nombreDeRol } from '@/features/users/roles';
 import { fetchMembers, updateMember, type Member } from '@/lib/session-client';
 import { describirVigencia, estadoDeVigencia, hoyLocal } from '@/lib/plan-dates';
@@ -86,13 +86,6 @@ function Vigencia({ miembro, hoy }: { miembro: Member; hoy: string }): ReactNode
 /** Rango de una cuenta; con una API anterior, el de los dos roles de entonces. */
 function rangoDe(miembro: Member): number {
   return miembro.roleRank ?? (miembro.role === 'MEMBER' ? 10 : 50);
-}
-
-function formatearFecha(iso: string | null): string {
-  if (!iso) {
-    return 'Nunca';
-  }
-  return new Date(iso).toLocaleString('es-PE', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
 function contar(cantidad: number, singular: string, plural: string): string {
@@ -176,40 +169,42 @@ function InsigniaEstado({ activa }: { activa: boolean }): ReactNode {
   );
 }
 
-/** Documentos que conserva frente al cupo: la barra deja ver quién está al límite. */
-function Documentos({ cantidad, limite }: { cantidad: number; limite: number }): ReactNode {
-  const proporcion = limite > 0 ? Math.min(cantidad / limite, 1) : 0;
-  return (
-    <div className="flex min-w-24 flex-col gap-1">
-      <span className="text-sm text-foreground">
-        {cantidad} <span className="text-muted-foreground">de {limite}</span>
-      </span>
-      <span aria-hidden className="h-1 w-full overflow-hidden rounded-full bg-muted">
-        <span
-          className={cn(
-            'block h-full rounded-full',
-            proporcion >= 1 ? 'bg-warning' : 'bg-primary/60',
-          )}
-          style={{ width: `${String(proporcion * 100)}%` }}
-        />
-      </span>
-    </div>
-  );
-}
-
+/** Normalmente un `onClick`; con `href`, un enlace real (a su propia página de detalle). */
 function BotonAccion({
   etiqueta,
   Icono,
   onClick,
+  href,
   disabled,
   peligro,
 }: {
   etiqueta: string;
   Icono: LucideIcon;
-  onClick: () => void;
+  onClick?: () => void;
+  href?: string;
   disabled?: boolean;
   peligro?: boolean;
 }): ReactNode {
+  const clase = cn(
+    'size-8 px-0 text-muted-foreground',
+    peligro && 'hover:bg-destructive/10 hover:text-destructive',
+  );
+  if (href) {
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        aria-label={etiqueta}
+        title={etiqueta}
+        className={clase}
+        asChild
+      >
+        <Link to={href}>
+          <Icono aria-hidden className="size-4" />
+        </Link>
+      </Button>
+    );
+  }
   return (
     <Button
       type="button"
@@ -219,10 +214,7 @@ function BotonAccion({
       title={etiqueta}
       disabled={disabled}
       onClick={onClick}
-      className={cn(
-        'size-8 px-0 text-muted-foreground',
-        peligro && 'hover:bg-destructive/10 hover:text-destructive',
-      )}
+      className={clase}
     >
       <Icono aria-hidden className="size-4" />
     </Button>
@@ -231,7 +223,6 @@ function BotonAccion({
 
 type Dialogo =
   | { tipo: 'crear' }
-  | { tipo: 'detalle'; miembro: Member }
   | { tipo: 'editar'; miembro: Member }
   | { tipo: 'clave'; miembro: Member }
   | { tipo: 'eliminar'; miembro: Member };
@@ -250,9 +241,6 @@ export function MembersPage(): ReactNode {
   const [dialogo, setDialogo] = useState<Dialogo | null>(null);
   const [credencial, setCredencial] = useState<Credencial | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
-
-  // El mismo cupo para cualquiera, sin importar su membresía (ADR-0007).
-  const limite = usuario?.retainedStatementsPerUser ?? 3;
 
   const miembros = useQuery({
     queryKey: CLAVE_MIEMBROS,
@@ -461,8 +449,6 @@ export function MembersPage(): ReactNode {
                     <th className="px-5 py-3 font-medium">Usuario</th>
                     <th className="px-3 py-3 font-medium">Rol y membresía</th>
                     <th className="px-3 py-3 font-medium">Estado</th>
-                    <th className="px-3 py-3 font-medium">Documentos</th>
-                    <th className="px-3 py-3 font-medium">Último acceso</th>
                     <th className="px-5 py-3 text-right font-medium">Acciones</th>
                   </tr>
                 </thead>
@@ -522,12 +508,6 @@ export function MembersPage(): ReactNode {
                         <td className="px-3 py-3">
                           <InsigniaEstado activa={activa} />
                         </td>
-                        <td className="px-3 py-3">
-                          <Documentos cantidad={miembro.documentCount} limite={limite} />
-                        </td>
-                        <td className="px-3 py-3 whitespace-nowrap text-muted-foreground">
-                          {formatearFecha(miembro.lastLoginAt)}
-                        </td>
                         <td className="px-5 py-3">
                           <div className="flex justify-end gap-0.5">
                             {/* Cada botón según lo que la API dice que se puede hacer con esta
@@ -535,9 +515,7 @@ export function MembersPage(): ReactNode {
                             <BotonAccion
                               etiqueta={`Ver el detalle de ${nombre}`}
                               Icono={Eye}
-                              onClick={() => {
-                                abrir({ tipo: 'detalle', miembro });
-                              }}
+                              href={`/usuarios/${miembro.userId}`}
                             />
                             <BotonAccion
                               etiqueta={
@@ -615,10 +593,6 @@ export function MembersPage(): ReactNode {
             setAviso(`Cuenta creada para ${miembro.email}.`);
           }
         }}
-      />
-      <MemberDetailDialog
-        miembro={dialogo?.tipo === 'detalle' ? dialogo.miembro : null}
-        onClose={cerrarDialogo}
       />
       <EditarCuentaDialog
         miembro={dialogo?.tipo === 'editar' ? dialogo.miembro : null}

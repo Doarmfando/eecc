@@ -152,7 +152,6 @@ type Respuestas = Partial<{
   edicion: () => Response;
   clave: () => Response;
   borrado: () => Response;
-  detalle: () => Response;
 }>;
 
 /** Doble que responde por método y ruta, para medir qué se pidió y no solo qué se pintó. */
@@ -164,12 +163,6 @@ function apiFalsa(respuestas: Respuestas = {}): ReturnType<typeof vi.fn> {
     }
     if (metodo === 'GET' && url.includes('/v1/plans')) {
       return Promise.resolve(jsonResponse(200, PLANES));
-    }
-    if (metodo === 'GET' && /\/v1\/users\/[0-9a-f-]+$/.test(url)) {
-      return Promise.resolve(
-        respuestas.detalle?.() ??
-          jsonResponse(200, { ...OTRA, monthlyPageQuota: 15, pagesUsed: 4 }),
-      );
     }
     if (metodo === 'GET') {
       return Promise.resolve(respuestas.lista?.() ?? jsonResponse(200, [YO, OTRA, JEFA]));
@@ -222,17 +215,13 @@ afterEach(() => {
 });
 
 describe('MembersPage: listado', () => {
-  it('muestra rol, estado, documentos y último acceso de cada cuenta', async () => {
+  it('muestra rol y estado de cada cuenta', async () => {
     await montar();
 
     const otra = filaDe('Otra persona');
     expect(within(otra).getByText('otra@empresa.pe')).toBeInTheDocument();
     expect(within(otra).getByText('Usuario')).toBeInTheDocument();
     expect(within(otra).getByText('Activa')).toBeInTheDocument();
-    // El administrador sabe cuántos archivos tiene cargados cada persona.
-    expect(within(otra).getByText(/de 3/).parentElement).toHaveTextContent('2 de 3');
-    // Quien nunca entró no debe aparecer con una fecha inventada.
-    expect(within(otra).getByText('Nunca')).toBeInTheDocument();
     expect(within(filaDe('Jefa de área')).getByText('Administrador')).toBeInTheDocument();
   });
 
@@ -651,16 +640,13 @@ describe('MembersPage: acceso y eliminación', () => {
 });
 
 describe('MembersPage: membresías y jerarquía', () => {
-  it('muestra la membresía de cada cuenta, y el mismo cupo de documentos para cualquiera', async () => {
+  it('muestra la membresía de cada cuenta', async () => {
     await montar();
 
     const otra = filaDe('Otra persona');
     expect(within(otra).getByText('Básica')).toBeInTheDocument();
-    expect(within(otra).getByText(/de 3/).parentElement).toHaveTextContent('2 de 3');
     const jefa = filaDe('Jefa de área');
     expect(within(jefa).getByText('Atlas')).toBeInTheDocument();
-    // El cupo de documentos ya no depende del plan (ADR-0007): mismo número que Otra.
-    expect(within(jefa).getByText(/de 3/).parentElement).toHaveTextContent('3 de 3');
   });
 
   it('el alta siempre pide rol y membresía', async () => {
@@ -925,45 +911,13 @@ describe('MembersPage: recarga de páginas (Atlas)', () => {
   });
 });
 
-describe('MembersPage: detalle de una cuenta', () => {
-  it('muestra cuánto ha consumido y sus datos básicos', async () => {
-    const fetchMock = await montar();
-    const user = userEvent.setup();
+describe('MembersPage: enlace al detalle de una cuenta', () => {
+  it('lleva a la página propia de esa cuenta', async () => {
+    await montar();
 
-    await user.click(screen.getByRole('button', { name: 'Ver el detalle de Otra persona' }));
-    const dialogo = await screen.findByRole('dialog');
-
-    await waitFor(() => {
-      expect(dialogo.textContent).toMatch(/4 de 15 páginas acumuladas este mes/);
-    });
-    expect(within(dialogo).getByText('Usuario')).toBeInTheDocument();
-    expect(within(dialogo).getByText('Básica')).toBeInTheDocument();
-    expect(within(dialogo).getByText('2')).toBeInTheDocument();
-    const [url] = peticiones(fetchMock, 'GET').find(([u]) => u.includes(OTRA.userId)) ?? [];
-    expect(url).toContain(`/v1/users/${OTRA.userId}`);
-  });
-
-  it('sin tope fijo, dice que se cotiza en vez de una barra', async () => {
-    await montar({
-      detalle: () => jsonResponse(200, { ...OTRA, monthlyPageQuota: null, pagesUsed: 7 }),
-    });
-    const user = userEvent.setup();
-
-    await user.click(screen.getByRole('button', { name: 'Ver el detalle de Otra persona' }));
-    const dialogo = await screen.findByRole('dialog');
-
-    expect(await within(dialogo).findByText(/no tiene tope fijo, se cotiza/)).toBeInTheDocument();
-  });
-
-  it('explica el motivo si no se pudo cargar', async () => {
-    await montar({ detalle: () => jsonResponse(403, { code: 'INSUFFICIENT_ROLE' }) });
-    const user = userEvent.setup();
-
-    await user.click(screen.getByRole('button', { name: 'Ver el detalle de Otra persona' }));
-    const dialogo = await screen.findByRole('dialog');
-
-    expect(
-      await within(dialogo).findByText('Solo un administrador puede gestionar cuentas.'),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Ver el detalle de Otra persona' })).toHaveAttribute(
+      'href',
+      `/usuarios/${OTRA.userId}`,
+    );
   });
 });

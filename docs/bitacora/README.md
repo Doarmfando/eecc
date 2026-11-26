@@ -13,6 +13,23 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-11-26 — El detalle de usuario pasa a ser una página propia, y la tabla se aligera
+
+- Contexto: tras ver el detalle como ventana emergente, el responsable del producto pidió
+  quitar "Documentos" y "Último acceso" como columnas de la tabla de *Usuarios* y que el
+  detalle sea "tipo panel administrativo": una vista propia por usuario, no un modal.
+- Hecho: nueva ruta `/usuarios/:userId` (`MemberDetailPage`), protegida igual que `/usuarios`
+  (`soloAdmin`). El botón "Ver el detalle" de cada fila es ahora un enlace real (con `href`,
+  no un `onClick`) hacia esa ruta. Se retiró `member-detail-dialog.tsx`: su contenido pasó a
+  la página nueva, con botón "Volver a Usuarios".
+- Hecho: la tabla de *Usuarios* ya no muestra "Documentos" ni "Último acceso" como columnas;
+  esos datos (y la barra de páginas acumuladas, rol, membresía, vigencia, estado y fecha de
+  alta) se ven en la página de detalle de cada cuenta.
+- Verificación automática: frontend `npm run check` — typecheck, ESLint y Prettier limpios,
+  397 pruebas (4 nuevas en `member-detail-page.test.tsx`; las que antes probaban el modal se
+  adaptaron o se quitaron porque ya no aplican).
+- Pendiente: nada abierto de este pedido.
+
 ## 2026-11-26 — El cupo de documentos vuelve a ser global, y detalle de consumo por usuario
 
 - Contexto: revisando la tabla de precios definitiva, el responsable del producto pidió quitar
