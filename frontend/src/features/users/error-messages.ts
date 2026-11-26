@@ -28,6 +28,8 @@ const MENSAJES: Record<string, string> = {
     'Ya existe un producto con ese código. Elige otro: no se puede reutilizar.',
   PRODUCT_NOT_FOUND: 'Ese producto ya no existe. Recarga la página.',
   QUANTITY_BELOW_MINIMUM: 'Esa compra no llega al mínimo de páginas del producto.',
+  INVALID_REPORT_DATES: 'Elige fechas válidas en orden, con un rango de hasta 366 días.',
+  REPORT_ORGANIZATION_FORBIDDEN: 'El informe solo está disponible para tu organización activa.',
   PAYMENT_REFERENCE_INVALID: 'Revisa el número de operación ingresado.',
   PAYMENT_REFERENCE_USED: 'Ese número de operación ya está registrado.',
   PERSONAL_PAID_PERIOD_PROTECTED:

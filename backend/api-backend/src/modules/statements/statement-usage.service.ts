@@ -44,7 +44,7 @@ import {
  * quedó `PENDING`: el camino normal siempre la resuelve, esto solo cubre que el
  * proceso se caiga a media subida.
  */
-const MARGEN_DE_RESERVA_MS = 5 * 60 * 1000;
+export const MARGEN_DE_RESERVA_MS = 5 * 60 * 1000;
 const TAMANO_HISTORIAL = 20;
 
 /**

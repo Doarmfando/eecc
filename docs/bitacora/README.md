@@ -13,6 +13,17 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-11-26 — Panel comercial por organización
+
+- Administración → Comercial reúne cuentas, ingresos por producto, ticket, periodos pagados
+  vigentes, créditos, consumo por cuenta e intentos. Los filtros producen un informe que también
+  se puede descargar como CSV. El panel separa las páginas vendidas de las procesadas.
+- El costo variable y el margen bruto estimados usan un costo configurado en soles. Los cobros
+  de monedas distintas aparecen por separado. Los intentos sin registro de consumo se cuentan
+  a partir de la evidencia disponible y los rechazos aparecen como otra categoría.
+- El ensayo local verifica límites del día de Lima, aislamiento, compras, consumo atribuido,
+  periodos pagados, reservas vigentes, créditos vencidos y exportación de la interfaz.
+
 ## 2026-11-26 — Cobros manuales y cancelación de renovación de Personal
 
 - El administrador registra pagos confirmados en el detalle de la cuenta. Cada cobro guarda su

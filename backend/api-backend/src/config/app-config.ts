@@ -132,6 +132,11 @@ export class AppConfig {
   @MinLength(1)
   BUSINESS_TIMEZONE = 'America/Lima';
 
+  /** Base opcional para estimar el costo variable de páginas registradas, en soles. */
+  @IsString()
+  @Matches(/^(?:\d{1,6}(?:\.\d{1,8})?)?$/)
+  COMMERCIAL_ESTIMATED_COST_PEN_PER_PAGE = '';
+
   /**
    * Carpeta con el frontend ya compilado. Vacío significa no servirlo.
    *

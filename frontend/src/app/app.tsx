@@ -23,6 +23,7 @@ import { FuncionNoIncluida, PlanBadge } from '@/features/access/plan-gate';
 import { AccountMenu } from '@/features/auth/account-menu';
 import { cn } from '@/lib/utils';
 import { BalancePage } from '@/pages/balance-page';
+import { CommercialReportPage } from '@/pages/commercial-report-page';
 import { FinancialCalendarPage } from '@/pages/financial-calendar-page';
 import { FinancialCenterPage } from '@/pages/financial-center-page';
 import { HistoryPage } from '@/pages/history-page';
@@ -108,6 +109,7 @@ function useEnlacesDeAdministracion(): Enlace[] {
   const enlaces: Enlace[] = [];
   if (puedeAdministrar) {
     enlaces.push({ to: '/usuarios', etiqueta: 'Usuarios', Icono: Users });
+    enlaces.push({ to: '/comercial', etiqueta: 'Comercial', Icono: ChartColumn });
   }
   if (puedeAdministrarPlanes) {
     enlaces.push({ to: '/planes', etiqueta: 'Planes', Icono: Gem });
@@ -423,6 +425,14 @@ function Contenido(): ReactNode {
         element={
           <Protegida soloAdmin>
             <MemberDetailPage />
+          </Protegida>
+        }
+      />
+      <Route
+        path="/comercial"
+        element={
+          <Protegida soloAdmin>
+            <CommercialReportPage />
           </Protegida>
         }
       />

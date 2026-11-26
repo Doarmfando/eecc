@@ -160,6 +160,10 @@ El extractor se escribió **sin muestra**, adivinando la plantilla, y se corrigi
 
 ## Base de datos
 
+- **Los días comerciales del reporte viajan como `YYYY-MM-DD` a PostgreSQL.** Pasar un instante
+  a medianoche UTC y convertirlo con `::date` puede mover el día según la zona de la conexión.
+  Los límites de eventos se calculan aparte como instantes con la zona del negocio.
+
 - **`@updatedAt` de Prisma no lleva `DEFAULT` en la base.** Una migración escrita a mano con `DEFAULT CURRENT_TIMESTAMP` en esa columna deja deriva (`prisma migrate diff` la detecta). Crear la columna sin valor por defecto y pasar `CURRENT_TIMESTAMP` en los `INSERT` de la semilla. Comprobar siempre con `prisma migrate diff --from-url … --to-schema-datamodel …` tras aplicar una migración manual.
 - **`pg_restore --clean` solo borra lo que está en el respaldo.** Para volver a un respaldo tomado antes de una migración que creó tablas, `DROP SCHEMA public CASCADE; CREATE SCHEMA public;` y después restaurar; si no, las tablas nuevas sobreviven y la migración siguiente falla.
 - **Pasar de enum a catálogo sin perder datos:** añadir la columna de código como nula, copiarla con `"role"::text`, ponerla `NOT NULL`, borrar la columna y el tipo, y solo entonces la clave foránea. Todo en una transacción.

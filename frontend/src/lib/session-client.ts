@@ -2,6 +2,11 @@ import { z } from 'zod';
 
 import { ApiError } from './api-error';
 import {
+  commercialReportSchema,
+  type CommercialReport,
+  type ReportFilters,
+} from './commercial-report';
+import {
   parsePageBalance,
   parsePageLot,
   parsePageLots,
@@ -324,6 +329,23 @@ export async function fetchMembers(baseUrl: string, signal?: AbortSignal): Promi
     method: 'GET',
     ...(signal ? { signal } : {}),
   })) as Member[];
+}
+
+export async function fetchCommercialReport(
+  baseUrl: string,
+  organizationId: string,
+  filters: ReportFilters,
+  signal: AbortSignal,
+): Promise<CommercialReport> {
+  const query = new URLSearchParams({ organizationId });
+  for (const [key, value] of Object.entries(filters)) {
+    if (value) query.set(key, value);
+  }
+  const result = commercialReportSchema.safeParse(
+    await pedir(baseUrl, `v1/commercial-report?${query.toString()}`, { method: 'GET', signal }),
+  );
+  if (!result.success) throw new ApiError('RESPONSE_CONTRACT_MISMATCH', 200);
+  return result.data;
 }
 
 export async function fetchMemberDetail(

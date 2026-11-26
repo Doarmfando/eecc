@@ -267,6 +267,26 @@ describe('Sesión de usuario (e2e)', () => {
     return cookies.find((cookie) => cookie.startsWith(SESSION_COOKIE)) ?? '';
   }
 
+  it('el panel exige permisos y se limita a la organización de la sesión', async () => {
+    const ruta = '/v1/commercial-report';
+    await request(app.getHttpServer()).get(ruta).expect(401);
+    usuario.role = 'MEMBER';
+    const miembro = await entrar();
+    await request(app.getHttpServer()).get(ruta).set('Cookie', miembro).expect(403);
+    usuario.role = 'ADMIN';
+    const admin = await entrar();
+    await request(app.getHttpServer())
+      .get(ruta)
+      .set('Cookie', admin)
+      .query({ organizationId: OTRO_USER_ID })
+      .expect(403);
+    await request(app.getHttpServer())
+      .get(ruta)
+      .set('Cookie', admin)
+      .query({ status: 'RUNNING' })
+      .expect(400);
+  });
+
   it('exige sesión administrativa y valida el importe al registrar Personal', async () => {
     const ruta = `/v1/personal/users/${OTRO_USER_ID}/payments`;
     const datos = { reference: 'YAPE-42', priceCents: 1990, currency: 'PEN' };

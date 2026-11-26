@@ -134,7 +134,7 @@ Plan completo en [`tareas-en-curso.md`](../roadmap/tareas-en-curso.md) §21.
 | 2b, 4 | Lotes de páginas, FEFO, compras registradas por un administrador | Implementada en la rama           |
 | 5     | Saldo, cotización e historiales comerciales                      | Implementada en la rama           |
 | 6     | Migración de clientes: Básica/Especial → Personal, renombre      | Candidatos compatibles ensayados localmente. Excepciones y producción pendientes. |
-| 7     | Panel comercial con métricas                                     | Pendiente                          |
+| 7     | Panel comercial con métricas                                     | Implementado en la rama con las fuentes registradas. |
 
 ## Criterio de revisión
 
@@ -170,3 +170,28 @@ La propia cuenta puede cancelar la renovación desde *Mi saldo*. La cancelación
 de auditoría y conserva el último día pagado, el saldo vigente y los periodos ya programados.
 Un nuevo pago confirmado reanuda la renovación manual. La edición general de cuentas no puede
 recortar ni cambiar ese periodo. El cobro recurrente sigue pendiente de una pasarela operativa.
+
+## Anexo — 2026-11-26 — Panel comercial
+
+El panel consulta PostgreSQL con una sola instantánea de solo lectura. La organización se obtiene
+de la sesión. El filtro por cuenta se aplica al informe. El producto acota compras, créditos y
+procesamientos atribuidos. El estado filtra las operaciones y su desglose por cuenta. El rango
+usa días de la zona comercial, inclusive en ambos extremos, y cubre hasta 366 días.
+
+- Los ingresos y el ticket usan los pagos de `personal_payments` y las compras confirmadas de
+  `page_lots`. Los totales se separan por moneda. El equivalente mensual vigente usa periodos
+  de Personal confirmados que cubren el día de consulta, incluidas las vigencias ya pagadas que
+  tienen su renovación cancelada. No representa cobros automáticos futuros.
+- Las cuentas y los saldos se muestran al corte actual. La conversión mide las altas Gratuito
+  con auditoría disponible en el rango y compras posteriores registradas hasta su final. Los
+  créditos otorgados, consumidos y vencidos usan las fechas del periodo. El saldo incluye lotes
+  emitidos y periodos pagados que aún no tienen lote, sin contarlos dos veces. La cobertura de
+  lotes virtuales heredados depende de su materialización en la base.
+- Las operaciones usan primero el registro de consumo. Los intentos existentes sin una fila de
+  consumo completan la evidencia. Las solicitudes rechazadas se cuentan aparte y solo se
+  atribuye uso a productos cuando existe una asignación confirmada al lote. Los intentos antiguos
+  que desaparecieron con su documento pueden faltar en el informe.
+- `COMMERCIAL_ESTIMATED_COST_PEN_PER_PAGE` habilita el cálculo variable por páginas con conteo.
+  El margen bruto estimado en PEN usa ventas confirmadas y costo del consumo atribuido al
+  producto en el periodo. No incorpora gastos fijos, impuestos ni comisiones. El CSV conserva
+  las métricas y excluye contenido bancario y nombres de cuentas.

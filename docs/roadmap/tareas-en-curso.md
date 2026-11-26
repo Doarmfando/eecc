@@ -488,7 +488,9 @@ calendario en diciembre de 2026)
     simula y aplica el corte de los casos compatibles. Se ensayó con datos sintéticos. Queda
     acordar la transición de los ajustes pactados y los Atlas de otros roles, además de autorizar
     y coordinar el corte de producción. [Informe y reglas del corte](migracion-a-personal.md).
-  - [ ] **7. Panel comercial con métricas.**
+  - [x] **7. Panel comercial con métricas.** Ingresos confirmados, créditos, intentos y consumo
+    atribuido, filtros y CSV. Los costos y márgenes se estiman solo con un costo por página
+    configurado. Implementado y verificado en la rama local.
   - [ ] **8. ADR nuevo del modelo de cuatro productos** (reemplaza la mayor parte de ADR-0018).
     Ya existe ADR-0019 con el modelo y las decisiones; se completa con lotes y migración.
 - [x] Decisiones del responsable del producto (2026-11-26), elegidas en el chat:

@@ -119,6 +119,18 @@ La persona puede consultar su vigencia y sus cobros en **Mi saldo**. **Cancelar 
 conserva los periodos ya pagados, incluidos los registrados anticipadamente. La renovación se
 registra cuando se confirma el siguiente pago.
 
+### Panel comercial
+
+Abre **Administración → Comercial**. El informe corresponde a la organización activa. Usa los
+filtros de fecha, cuenta, producto o estado del procesamiento y selecciona **Aplicar filtros**.
+**Exportar CSV** descarga las cifras del informe consultado, con importes en céntimos y cuentas
+identificadas por su clave interna. Las cuentas y el saldo disponible muestran un corte al momento
+de consultar. Las ventas, concesiones, vencimientos y consumos usan el periodo elegido.
+
+Para mostrar costos y margen estimados, define `COMMERCIAL_ESTIMATED_COST_PEN_PER_PAGE` en la
+API con tu estimación de costo variable por página en soles. El valor se mantiene vacío hasta
+contar con una base representativa. Consulta [las reglas del panel](docs/decisiones/ADR-0019-modelo-comercial-de-cuatro-productos.md#anexo--2026-11-26--panel-comercial).
+
 No existe registro abierto: nadie entra sin que un administrador lo dé de alta.
 
 **Solo se admiten correos `@hotmail.com`, `@empresa.pe` y `@eecc.local`.** La lista se cambia con `ALLOWED_EMAIL_DOMAINS` en el `.env` de la API (separada por comas; vacía admite cualquiera). Solo afecta a altas y cambios de correo: una cuenta que ya existía sigue pudiendo entrar.

@@ -47,13 +47,7 @@ simulación sin argumentos. `--apply` queda reservado para la ventana autorizada
    superior a la cuota de Personal y dos Atlas con otros roles. Confirmar la regla de renovación
    y el reparto de páginas antes de escribir ajustes. La herramienta actual conserva esos casos
    íntegros y el reporte requiere revisarse al cortar.
-2. Implementar el panel comercial del §12 con los datos verificables. `personal_payments` da los
-   cobros confirmados de Personal. `page_lots` da compras de
-   Recargas y Profesional, `page_consumption_entries` da consumo y `page_lot_allocations` atribuye
-   el uso. Contabilizar los intentos fallidos con la evidencia disponible y declarar las fuentes
-   de costos antes de mostrar márgenes. Mantener aislamiento por organización y exportes sin datos
-   bancarios.
-3. Revisar las restricciones de Personal vencido y las acciones de historial. En este punto
+2. Revisar las restricciones de Personal vencido y las acciones de historial. En este punto
    `tieneFuncion` usa el catálogo sin consultar `expired` y `GET /v1/jobs` filtra por dueño sin
    verificar la función de historial. Preservar la consulta y descarga del trabajo propio que
    permite Gratuito. Completar los avisos de vencimiento de lotes y la matriz de 28 pruebas del prompt.
@@ -69,3 +63,11 @@ confirmados por Yape. Se registran desde el detalle de la cuenta y la persona pu
 renovación desde *Mi saldo* sin perder la vigencia pagada. La prueba
 `test/personal-payments.e2e-spec.ts` usa un esquema sintético `test_personal_payments_*` con
 `RUN_PERSONAL_PAYMENT_TESTS=1`. El precio publicado del catálogo por sí solo no es un ingreso.
+
+## Panel comercial
+
+La página `/comercial` y `GET /v1/commercial-report` ya están en la rama. Verifica el contrato
+en `report.dto.ts` y las fuentes en `report.queries.ts`. El CSV usa el mismo resultado y el
+panel muestra estimaciones cuando se configura un costo variable por página.
+La prueba `test/commercial-report.e2e-spec.ts` usa `RUN_COMMERCIAL_REPORT_TESTS=1` y un esquema
+sintético `test_commercial_report_*` con las migraciones aplicadas.

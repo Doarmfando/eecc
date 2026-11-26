@@ -57,6 +57,9 @@ Existente hoy en `backend/api-backend`:
   propia. El administrador consulta y registra pagos ya confirmados en `/v1/personal/users/{id}`
   y `/v1/personal/users/{id}/payments`. Se verifica la organización, el rango del administrador
   y el importe del catálogo. El pago, la vigencia y la auditoría se escriben juntos.
+- `GET /v1/commercial-report` agrega cuentas, pagos, créditos y operaciones para la organización
+  activa de una sesión con `USERS_MANAGE`. Acepta `from`, `to`, `userId`, `product` y `status`.
+  La UI descarga el mismo informe como CSV, con claves internas en lugar de nombres de cuentas.
 
 La carga, el detalle y el historial incluyen `sourceFileName` cuando se conoce el
 nombre del PDF. Es una etiqueta privada para su dueño, independiente de las
