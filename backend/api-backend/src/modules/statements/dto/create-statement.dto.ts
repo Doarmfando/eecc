@@ -115,16 +115,3 @@ export class JobResponseDto {
   @ApiProperty({ type: [ReplacedStatementDto] })
   replacedStatements!: ReplacedStatementDto[];
 }
-
-/** Cuánto lleva consumido del acumulado de 30 días, para avisar antes de subir (ADR-0018). */
-export class MonthlyUsageDto {
-  @ApiProperty({ description: 'Páginas ya procesadas en los últimos 30 días' })
-  pagesUsed!: number;
-
-  @ApiProperty({
-    nullable: true,
-    type: Number,
-    description: 'Páginas acumuladas que admite el plan; nulo: sin tope fijo, se cotiza',
-  })
-  monthlyPageQuota!: number | null;
-}

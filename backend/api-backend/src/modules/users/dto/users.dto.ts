@@ -8,6 +8,7 @@ import {
   IsOptional,
   IsString,
   Matches,
+  Max,
   MaxLength,
   Min,
   MinLength,
@@ -21,6 +22,8 @@ import {
   SYSTEM_ROLE,
 } from '../../access/access-catalog';
 import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from '../../auth/password-hash';
+import { MAX_PAGES_PER_PURCHASE, PRODUCT_CODE_PATTERN } from '../../commercial/commercial-pricing';
+import { PageBalanceDto, PageBalanceLotDto } from '../../statements/dto/page-balance.dto';
 import { MEMBER_ACTIONS, type MemberAction } from '../member-rules';
 
 // Ejemplos para la documentación. Los valores válidos son los del catálogo de la
@@ -220,8 +223,51 @@ export class MemberDto {
 }
 
 export class MemberDetailDto extends MemberDto {
-  @ApiProperty({ description: 'Páginas que ya lleva consumidas en los últimos 30 días' })
+  @ApiProperty({ description: 'Páginas consumidas de su periodo en curso o de su prueba' })
   pagesUsed!: number;
+}
+
+/** Saldo de una cuenta y el historial de sus lotes, para quien la administra (ADR-0019). */
+export class MemberPageBalanceDto {
+  @ApiProperty({ type: PageBalanceDto }) balance!: PageBalanceDto;
+
+  @ApiProperty({
+    type: [PageBalanceLotDto],
+    description: 'Todos sus lotes, también vencidos o agotados, del más reciente al más antiguo',
+  })
+  history!: PageBalanceLotDto[];
+}
+
+/** Compra de Recargas o Profesional que un administrador ya cobró por Yape. */
+export class RegisterPurchaseDto {
+  @ApiProperty({ example: 'RECARGA' })
+  @IsString()
+  @Matches(PRODUCT_CODE_PATTERN)
+  productCode!: string;
+
+  @ApiPropertyOptional({
+    example: 40,
+    description: 'Páginas de una recarga (desde su mínimo). En un paquete no aplica.',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(MAX_PAGES_PER_PURCHASE)
+  pages?: number;
+
+  @ApiPropertyOptional({ example: '12345678', description: 'Número de operación de Yape' })
+  @IsOptional()
+  @Transform(recortar)
+  @IsString()
+  @MaxLength(100)
+  paymentReference?: string;
+
+  @ApiPropertyOptional({ description: 'Nota interna de quien registra' })
+  @IsOptional()
+  @Transform(recortar)
+  @IsString()
+  @MaxLength(255)
+  note?: string;
 }
 
 export class CreatedMemberDto {

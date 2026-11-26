@@ -74,6 +74,17 @@ enum PageReservationStatus {
   RELEASED
 }
 
+/// De dónde sale un lote de páginas (ADR-0019). `TRIAL`: la prueba gratuita, una
+/// vez por persona. `MEMBERSHIP_PERIOD`: lo que incluye la membresía en un
+/// periodo. `PURCHASE`: una compra de Recargas o Profesional que registró un
+/// administrador. `ADJUSTMENT`: un ajuste administrativo con su motivo.
+enum PageLotSource {
+  TRIAL
+  MEMBERSHIP_PERIOD
+  PURCHASE
+  ADJUSTMENT
+}
+
 enum WarningSeverity {
   INFO
   WARNING
@@ -106,6 +117,7 @@ model Organization {
   auditEvents            AuditEvent[]
   pageConsumptionEntries PageConsumptionEntry[]
   pageReservations       PageReservation[]
+  pageLots               PageLot[]
 
   @@map("organizations")
 }
@@ -134,6 +146,8 @@ model User {
   sessions               Session[]
   pageConsumptionEntries PageConsumptionEntry[]
   pageReservations       PageReservation[]
+  pageLots               PageLot[]                @relation("PageLotOwner")
+  registeredPageLots     PageLot[]                @relation("PageLotRegistrar")
 
   @@map("users")
 }
@@ -184,6 +198,10 @@ model OrganizationMembership {
   /// de lo que ya trae su plan Básica o Especial — la "recarga Atlas" que se
   /// cotiza y se cobra por fuera. Nulo: usa el de su plan, sin cambios.
   monthlyPageQuotaOverride Int?             @map("monthly_page_quota_override")
+  /// Desde cuándo se cuentan los periodos mensuales de su membresía (ADR-0019):
+  /// la activación del plan actual, o la renovación de uno que ya había vencido.
+  /// Renovar antes de que venza no lo mueve: los periodos siguen su cadencia.
+  periodAnchorAt           DateTime         @default(now()) @map("period_anchor_at") @db.Timestamptz(6)
   status                   MembershipStatus @default(ACTIVE)
   createdAt                DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -282,6 +300,7 @@ model MembershipPlan {
   features        PlanFeature[]
   memberships     OrganizationMembership[]
   defaultForRoles Role[]                   @relation("RoleDefaultPlan")
+  pageLots        PageLot[]
 
   @@map("membership_plans")
 }
@@ -316,6 +335,8 @@ model CommercialProduct {
   sortOrder    Int               @default(0) @map("sort_order")
   createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  pageLots PageLot[]
 
   @@map("commercial_products")
 }
@@ -463,12 +484,16 @@ model PageConsumptionEntry {
   /// contra esta columna, nunca releyendo el intento.
   occurredAt     DateTime         @map("occurred_at") @db.Timestamptz(6)
   countedStatus  JobAttemptStatus @map("counted_status")
+  /// Reserva con la que se registró: sus asignaciones dicen de qué lotes salió.
+  /// Nula en lo registrado antes de los lotes y en planes sin tope.
+  reservationId  String?          @map("reservation_id") @db.Uuid
   createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
-  jobAttempt   JobAttempt?  @relation(fields: [jobAttemptId], references: [id], onDelete: SetNull)
-  statement    Statement?   @relation(fields: [statementId], references: [id], onDelete: SetNull)
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  jobAttempt   JobAttempt?      @relation(fields: [jobAttemptId], references: [id], onDelete: SetNull)
+  statement    Statement?       @relation(fields: [statementId], references: [id], onDelete: SetNull)
+  reservation  PageReservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
 
   // Un intento no se cuenta dos veces; varias filas con `job_attempt_id` nulo
   // (el intento ya no se puede referenciar) no chocan entre sí.
@@ -500,8 +525,84 @@ model PageReservation {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
 
+  allocations        PageLotAllocation[]
+  consumptionEntries PageConsumptionEntry[]
+
   @@index([organizationId, userId, status, createdAt])
   @@map("page_reservations")
+}
+
+/// Lote de páginas: una fuente de saldo con su cantidad y su vencimiento
+/// (ADR-0019). Se consume primero el que vence antes (FEFO).
+///
+/// Un lote no se edita ni se borra desde la aplicación: lo consumido sale de sus
+/// asignaciones confirmadas (`page_lot_allocations`) y lo apartado, de las que
+/// siguen pendientes. Así no hay contadores que se desincronicen, y una reserva
+/// olvidada deja de apartar con el tiempo igual que antes. El precio y el
+/// vencimiento se copian al crearlo: cambiar el catálogo no toca lo ya vendido.
+model PageLot {
+  id               String        @id @default(uuid()) @db.Uuid
+  organizationId   String        @map("organization_id") @db.Uuid
+  userId           String?       @map("user_id") @db.Uuid
+  source           PageLotSource
+  /// `TRIAL` y `MEMBERSHIP_PERIOD`: el plan del que sale.
+  planCode         String?       @map("plan_code") @db.VarChar(32)
+  /// `PURCHASE`: el producto comprado.
+  productCode      String?       @map("product_code") @db.VarChar(32)
+  /// `TRIAL` (`TRIAL`) y `MEMBERSHIP_PERIOD` (`PERIOD:<día de inicio>`): impide
+  /// crear dos veces el mismo lote. Nulo en compras y ajustes, que se apilan.
+  periodKey        String?       @map("period_key") @db.VarChar(40)
+  quantity         Int
+  /// Páginas que ya se habían consumido en ese periodo antes de que existieran
+  /// los lotes: solo en el primer periodo de cada persona tras la migración, leídas
+  /// del registro de consumo, nunca inventadas.
+  carriedOverPages Int           @default(0) @map("carried_over_pages")
+  startsAt         DateTime      @map("starts_at") @db.Timestamptz(6)
+  /// Nulo: no vence (la prueba gratuita).
+  expiresAt        DateTime?     @map("expires_at") @db.Timestamptz(6)
+  /// `PURCHASE`: lo que se cobró, copiado del catálogo al registrar la compra.
+  pricePaid        Decimal?      @map("price_paid") @db.Decimal(10, 2)
+  currency         String?       @db.Char(3)
+  /// Número de operación de Yape u otra referencia del pago.
+  paymentReference String?       @map("payment_reference") @db.VarChar(100)
+  /// Motivo de un ajuste, o una nota de quien registró la compra.
+  note             String?       @db.VarChar(255)
+  registeredById   String?       @map("registered_by_id") @db.Uuid
+  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?               @relation("PageLotOwner", fields: [userId], references: [id], onDelete: SetNull)
+  registeredBy User?               @relation("PageLotRegistrar", fields: [registeredById], references: [id], onDelete: SetNull)
+  // `Restrict`: un plan o producto con lotes no se borra; se retira.
+  plan         MembershipPlan?     @relation(fields: [planCode], references: [code], onDelete: Restrict)
+  product      CommercialProduct?  @relation(fields: [productCode], references: [code], onDelete: Restrict)
+  allocations  PageLotAllocation[]
+
+  @@unique([organizationId, userId, periodKey])
+  @@index([organizationId, userId, expiresAt])
+  @@map("page_lots")
+}
+
+/// Cuánto de una reserva sale de cada lote. Al reservar se reparte el techo en
+/// orden FEFO; al confirmar la subida se fija cuánto se consumió de verdad de
+/// cada uno, también en orden FEFO. Una reserva liberada deja sus asignaciones
+/// sin consumo.
+model PageLotAllocation {
+  id            String @id @default(uuid()) @db.Uuid
+  reservationId String @map("reservation_id") @db.Uuid
+  lotId         String @map("lot_id") @db.Uuid
+  reservedPages Int    @map("reserved_pages")
+  /// Nulo mientras la reserva no se confirma.
+  consumedPages Int?   @map("consumed_pages")
+
+  reservation PageReservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  // `NoAction` y no `Restrict`: al borrar una organización, lotes y reservas caen
+  // en la misma sentencia y la comprobación debe esperar al final de ella.
+  lot         PageLot         @relation(fields: [lotId], references: [id], onDelete: NoAction)
+
+  @@unique([reservationId, lotId])
+  @@index([lotId])
+  @@map("page_lot_allocations")
 }
 
 model JobWarning {

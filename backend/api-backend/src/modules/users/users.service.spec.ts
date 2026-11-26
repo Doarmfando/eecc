@@ -21,7 +21,9 @@ const ACTOR = { userId: ACTOR_ID, rank: 50 };
 
 interface Dobles {
   service: UsersService;
-  pagesUsedInCurrentPeriod: jest.Mock;
+  saldo: jest.Mock;
+  historial: jest.Mock;
+  compraRegistrada: jest.Mock;
   usuarioBuscado: jest.Mock;
   usuarioCreado: jest.Mock;
   usuarioActualizado: jest.Mock;
@@ -210,14 +212,28 @@ function construir(
     resolvePlanCode: planResuelto,
   } as unknown as AccessService;
 
-  const pagesUsedInCurrentPeriod = jest.fn().mockResolvedValue(opciones.pagesUsed ?? 0);
+  const saldo = jest.fn().mockResolvedValue({
+    unlimited: false,
+    membershipExpired: false,
+    pagesAvailable: 8,
+    periodQuota: 15,
+    periodUsed: opciones.pagesUsed ?? 0,
+    period: null,
+    lots: [],
+  });
+  const historial = jest.fn().mockResolvedValue([]);
+  const compraRegistrada = jest.fn().mockResolvedValue({ id: 'lote-id', quantity: 40 });
   const statementUsage = {
-    pagesUsedInCurrentPeriod,
+    balance: saldo,
+    history: historial,
+    registerPurchase: compraRegistrada,
   } as unknown as StatementUsageService;
 
   return {
     service: new UsersService(prisma, retention, access, statementUsage, config),
-    pagesUsedInCurrentPeriod,
+    saldo,
+    historial,
+    compraRegistrada,
     usuarioBuscado,
     usuarioCreado,
     usuarioActualizado,
@@ -293,8 +309,8 @@ describe('UsersService.list', () => {
 });
 
 describe('UsersService.detail', () => {
-  it('trae lo mismo que el listado, más cuánto lleva consumido', async () => {
-    const { service, pagesUsedInCurrentPeriod } = construir({ pagesUsed: 7 });
+  it('trae lo mismo que el listado, más cuánto lleva consumido de su periodo', async () => {
+    const { service, saldo } = construir({ pagesUsed: 7 });
 
     const detalle = await service.detail(ORGANIZATION_ID, ACTOR, MIEMBRO_ID);
 
@@ -304,7 +320,7 @@ describe('UsersService.detail', () => {
       monthlyPageQuota: 15,
       pagesUsed: 7,
     });
-    expect(pagesUsedInCurrentPeriod).toHaveBeenCalledWith(ORGANIZATION_ID, MIEMBRO_ID);
+    expect(saldo).toHaveBeenCalledWith(ORGANIZATION_ID, MIEMBRO_ID);
   });
 
   it('rechaza una cuenta que no existe en la organización', async () => {
@@ -313,6 +329,61 @@ describe('UsersService.detail', () => {
     await expect(service.detail(ORGANIZATION_ID, ACTOR, MIEMBRO_ID)).rejects.toMatchObject({
       response: { code: 'MEMBER_NOT_FOUND' },
     });
+  });
+});
+
+describe('UsersService: saldo y compras de páginas (ADR-0019)', () => {
+  it('el saldo de una cuenta trae sus lotes vigentes y su historial', async () => {
+    const { service, saldo, historial } = construir();
+
+    const resultado = await service.pageBalance(ORGANIZATION_ID, MIEMBRO_ID);
+
+    expect(resultado.balance.pagesAvailable).toBe(8);
+    expect(resultado.history).toEqual([]);
+    expect(saldo).toHaveBeenCalledWith(ORGANIZATION_ID, MIEMBRO_ID);
+    expect(historial).toHaveBeenCalledWith(ORGANIZATION_ID, MIEMBRO_ID);
+  });
+
+  it('no muestra el saldo de una cuenta de otra organización', async () => {
+    const { service, saldo } = construir({ membresiaExistente: null });
+
+    await expect(service.pageBalance(ORGANIZATION_ID, MIEMBRO_ID)).rejects.toMatchObject({
+      response: { code: 'MEMBER_NOT_FOUND' },
+    });
+    expect(saldo).not.toHaveBeenCalled();
+  });
+
+  it('registra una compra a nombre de quien la registra', async () => {
+    const { service, compraRegistrada } = construir();
+
+    await service.registerPurchase(
+      ORGANIZATION_ID,
+      ACTOR,
+      MIEMBRO_ID,
+      { productCode: 'RECARGA', pages: 40, paymentReference: 'YAPE-1', note: '' },
+      'req-1',
+    );
+
+    expect(compraRegistrada).toHaveBeenCalledWith({
+      organizationId: ORGANIZATION_ID,
+      userId: MIEMBRO_ID,
+      actorUserId: ACTOR_ID,
+      productCode: 'RECARGA',
+      pages: 40,
+      paymentReference: 'YAPE-1',
+      requestId: 'req-1',
+    });
+  });
+
+  it('no deja registrar compras a una cuenta de rango superior', async () => {
+    const { service, compraRegistrada } = construir({
+      membresiaExistente: membresiaFila({ roleCode: 'SUPER_ADMIN' }),
+    });
+
+    await expect(
+      service.registerPurchase(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, { productCode: 'RECARGA' }),
+    ).rejects.toMatchObject({ response: { code: 'ROLE_ABOVE_YOURS' } });
+    expect(compraRegistrada).not.toHaveBeenCalled();
   });
 });
 
@@ -709,6 +780,8 @@ describe('UsersService y la membresía', () => {
     const escrito = membresiaActualizada.mock.calls[0]?.[0] as { data: Record<string, unknown> };
     expect(escrito.data.planCode).toBe('ATLAS');
     expect(escrito.data.planChangedAt).toBeInstanceOf(Date);
+    // Un plan nuevo abre su propio periodo de páginas desde hoy (ADR-0019).
+    expect(escrito.data.periodAnchorAt).toBe(escrito.data.planChangedAt);
     expect(resultado.planCode).toBe('ATLAS');
     const evento = auditoria.mock.calls[0]?.[0] as { data: { metadata: unknown } };
     expect(evento.data.metadata).toEqual({ fields: ['planCode'], planCode: 'ATLAS' });
@@ -1042,10 +1115,12 @@ describe('UsersService y la vigencia de la membresía', () => {
     });
 
     const escrito = membresiaActualizada.mock.calls[0]?.[0] as {
-      data: { planExpiresOn: Date };
+      data: { planExpiresOn: Date; periodAnchorAt?: Date };
     };
     expect(escrito.data.planExpiresOn.toISOString()).toBe('2099-06-30T00:00:00.000Z');
     expect(renovada.planExpiresOn).toBe('2099-06-30');
+    // Ya había vencido: renovar abre un periodo nuevo desde hoy (ADR-0019).
+    expect(escrito.data.periodAnchorAt).toBeInstanceOf(Date);
     const evento = auditoria.mock.calls[0]?.[0] as { data: { metadata: unknown } };
     expect(evento.data.metadata).toEqual({
       fields: ['planExpiresOn'],
@@ -1057,6 +1132,17 @@ describe('UsersService y la vigencia de la membresía', () => {
     });
     await otra.service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, { planExpiresOn: '2099-06-30' });
     expect(otra.membresiaActualizada).not.toHaveBeenCalled();
+  });
+
+  it('renovar antes de que venza mantiene la cadencia de sus periodos', async () => {
+    const { service, membresiaActualizada } = construir({
+      membresiaExistente: membresiaFila({ planExpiresOn: new Date('2099-01-31T00:00:00Z') }),
+    });
+
+    await service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, { planExpiresOn: '2099-02-28' });
+
+    const escrito = membresiaActualizada.mock.calls[0]?.[0] as { data: Record<string, unknown> };
+    expect(escrito.data).not.toHaveProperty('periodAnchorAt');
   });
 
   it('una fecha pasada en la edición corta el acceso; null quita el vencimiento', async () => {

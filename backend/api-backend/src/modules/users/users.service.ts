@@ -22,7 +22,11 @@ import { isEmailDomainAllowed, parseEmailDomains, type AppConfig } from '../../c
 import { AccessService } from '../access/access.service';
 import { hashPassword, normalizeEmail } from '../auth/password-hash';
 import { StatementRetentionService } from '../statements/statement-retention.service';
-import { StatementUsageService } from '../statements/statement-usage.service';
+import {
+  StatementUsageService,
+  type PageBalance,
+  type PageBalanceLot,
+} from '../statements/statement-usage.service';
 import {
   allowedMemberActions,
   canAssignRole,
@@ -156,7 +160,7 @@ export class UsersService {
 
   /**
    * El detalle de una cuenta: lo mismo que el listado, más cuánto lleva
-   * consumido del acumulado de 30 días (ADR-0018) — la lista no lo trae para
+   * consumido de su periodo o su prueba (ADR-0019) — la lista no lo trae para
    * no sumar una consulta por fila; aquí sí, porque es una sola.
    */
   async detail(
@@ -166,8 +170,50 @@ export class UsersService {
   ): Promise<MemberSummary & { pagesUsed: number }> {
     const membership = await this.buscarMiembro(organizationId, userId);
     const hoy = this.hoy();
-    const pagesUsed = await this.statementUsage.pagesUsedInCurrentPeriod(organizationId, userId);
-    return { ...toMemberSummary(membership, actor, hoy), pagesUsed };
+    const saldo = await this.statementUsage.balance(organizationId, userId);
+    return { ...toMemberSummary(membership, actor, hoy), pagesUsed: saldo.periodUsed };
+  }
+
+  /**
+   * Saldo de páginas de una cuenta, en lotes, y el historial de sus lotes
+   * (también los vencidos): lo que un administrador mira antes de registrar una
+   * compra o de responder cuánto le queda a alguien (ADR-0019).
+   */
+  async pageBalance(
+    organizationId: string,
+    userId: string,
+  ): Promise<{ balance: PageBalance; history: PageBalanceLot[] }> {
+    await this.buscarMiembro(organizationId, userId);
+    const [balance, history] = await Promise.all([
+      this.statementUsage.balance(organizationId, userId),
+      this.statementUsage.history(organizationId, userId),
+    ]);
+    return { balance, history };
+  }
+
+  /**
+   * Registra una compra de Recargas o Profesional ya cobrada por Yape (ADR-0019).
+   * Exige lo mismo que cambiar su membresía: decide cuánto puede convertir.
+   */
+  async registerPurchase(
+    organizationId: string,
+    actor: MemberActor,
+    userId: string,
+    datos: { productCode: string; pages?: number; paymentReference?: string; note?: string },
+    requestId?: string,
+  ): Promise<PageBalanceLot> {
+    const membership = await this.buscarMiembro(organizationId, userId);
+    exigirAcciones(actor, { userId, rank: membership.role.rank }, ['CHANGE_PLAN']);
+    return this.statementUsage.registerPurchase({
+      organizationId,
+      userId,
+      actorUserId: actor.userId,
+      productCode: datos.productCode,
+      ...(datos.pages !== undefined ? { pages: datos.pages } : {}),
+      ...(datos.paymentReference ? { paymentReference: datos.paymentReference } : {}),
+      ...(datos.note ? { note: datos.note } : {}),
+      ...(requestId !== undefined ? { requestId } : {}),
+    });
   }
 
   /**
@@ -371,6 +417,8 @@ export class UsersService {
         membership.planCode,
       );
       datosMembresia.planChangedAt = new Date();
+      // Un plan nuevo abre su propio periodo desde hoy (ADR-0019).
+      datosMembresia.periodAnchorAt = datosMembresia.planChangedAt;
     }
     if (cambiaRecarga) {
       this.exigirRecargaValida(cambios.monthlyPageQuotaOverride);
@@ -378,6 +426,12 @@ export class UsersService {
     }
     if (cambiaVigencia) {
       datosMembresia.planExpiresOn = vigenciaNueva ? fromIsoDate(vigenciaNueva) : null;
+      // Renovar una membresía que ya había vencido abre un periodo nuevo desde
+      // hoy; renovarla antes de que venza mantiene la cadencia de sus periodos
+      // (ADR-0019).
+      if (isExpired(vigenciaActual, hoy) && !isExpired(vigenciaNueva, hoy)) {
+        datosMembresia.periodAnchorAt = new Date();
+      }
     }
     if (camposUsuario.length > 0) {
       await this.exigirCuentaExclusiva(organizationId, userId);

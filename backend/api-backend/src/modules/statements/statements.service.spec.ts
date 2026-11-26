@@ -99,13 +99,6 @@ function buildPrisma(
     auditEvent: { create: jest.fn(track('auditEvent')) },
     outboxEvent: { create: jest.fn(track('outboxEvent')) },
     pageConsumptionEntry: { create: jest.fn(track('pageConsumptionEntry')) },
-    // Se registra `where` y `data`: importa qué reserva se resolvió y cómo.
-    pageReservation: {
-      update: jest.fn((args: { where: unknown; data: unknown }) => {
-        recorder.created.push({ model: 'pageReservation', data: args });
-        return Promise.resolve({});
-      }),
-    },
   };
 
   const prisma = {
@@ -156,9 +149,9 @@ function buildService(
   // defecto no limita nada, como las pruebas que no fijan un plan nuevo.
   const usage = {
     reserveMonthlyQuota: jest.fn().mockResolvedValue({ maxPages: undefined, reservationId: null }),
+    settleReservation: jest.fn().mockResolvedValue(undefined),
     releaseReservation: jest.fn().mockResolvedValue(undefined),
-    assertTrialAvailable: jest.fn(),
-    markTrialUsed: jest.fn().mockResolvedValue(undefined),
+    hasPurchasedBalance: jest.fn().mockResolvedValue(false),
     ...usageOverrides,
   } as unknown as StatementUsageService;
 
@@ -574,10 +567,8 @@ describe('StatementsService', () => {
       monthlyPageQuota: 10,
     });
 
-    expect(reserveMonthlyQuota).toHaveBeenCalledWith(ORGANIZATION_ID, USER_ID, {
-      maxPagesPerDocument: 1000,
-      monthlyPageQuota: 10,
-    });
+    // La reserva lee la membresía ella misma, bajo lock: solo recibe el tope técnico.
+    expect(reserveMonthlyQuota).toHaveBeenCalledWith(ORGANIZATION_ID, USER_ID, 1000);
     expect(processStatement).toHaveBeenCalledWith(expect.objectContaining({ maxPages: 3 }));
   });
 
@@ -594,38 +585,34 @@ describe('StatementsService', () => {
     const reservaApartada = (): jest.Mock =>
       jest.fn().mockResolvedValue({ maxPages: 5, reservationId: 'reserva-id' });
 
-    function resolucion(recorder: TransactionRecorder): { where: unknown; data: unknown } {
-      return recorder.created.find((entry) => entry.model === 'pageReservation')?.data as {
-        where: unknown;
-        data: unknown;
-      };
-    }
-
-    it('con consumo real, la confirma en la misma transacción que lo registra', async () => {
+    it('con consumo real, la confirma por lo consumido en la misma transacción que lo registra', async () => {
       const recorder: TransactionRecorder = { created: [] };
       const { prisma } = buildPrisma(null, recorder);
       const releaseReservation = jest.fn();
+      const settleReservation = jest.fn().mockResolvedValue(undefined);
       const service = buildService(
         prisma,
         { processStatement: jest.fn().mockResolvedValue(workerPayload({ page_count: 2 })) },
         undefined,
         undefined,
-        { reserveMonthlyQuota: reservaApartada(), releaseReservation },
+        { reserveMonthlyQuota: reservaApartada(), releaseReservation, settleReservation },
       );
 
       await service.process(CON_TOPE);
 
-      expect(resolucion(recorder)).toEqual({
-        where: { id: 'reserva-id' },
-        data: { status: 'COMMITTED', settledAt: expect.any(Date) as unknown as Date },
-      });
-      expect(recorder.created.some((entry) => entry.model === 'pageConsumptionEntry')).toBe(true);
+      // El primer argumento es el cliente de la transacción que crea el intento.
+      expect(settleReservation).toHaveBeenCalledWith(expect.anything(), 'reserva-id', 2);
+      const entrada = recorder.created.find((entry) => entry.model === 'pageConsumptionEntry')
+        ?.data as Record<string, unknown>;
+      // El consumo queda enlazado a su reserva: así se sabe de qué lotes salió.
+      expect(entrada.reservationId).toBe('reserva-id');
       expect(releaseReservation).not.toHaveBeenCalled();
     });
 
     it('un intento fallido no consume: la reserva se libera, no se confirma', async () => {
       const recorder: TransactionRecorder = { created: [] };
       const { prisma } = buildPrisma(null, recorder);
+      const settleReservation = jest.fn().mockResolvedValue(undefined);
       const service = buildService(
         prisma,
         {
@@ -635,15 +622,12 @@ describe('StatementsService', () => {
         },
         undefined,
         undefined,
-        { reserveMonthlyQuota: reservaApartada() },
+        { reserveMonthlyQuota: reservaApartada(), settleReservation },
       );
 
       await service.process(CON_TOPE);
 
-      expect(resolucion(recorder)).toEqual({
-        where: { id: 'reserva-id' },
-        data: { status: 'RELEASED', settledAt: expect.any(Date) as unknown as Date },
-      });
+      expect(settleReservation).toHaveBeenCalledWith(expect.anything(), 'reserva-id', null);
     });
 
     it('si el worker falla, las páginas apartadas vuelven a estar libres', async () => {
@@ -684,11 +668,15 @@ describe('StatementsService', () => {
     it('sin tope de cobro no hay reserva que resolver', async () => {
       const recorder: TransactionRecorder = { created: [] };
       const { prisma } = buildPrisma(null, recorder);
-      const service = buildService(prisma);
+      const settleReservation = jest.fn();
+      const service = buildService(prisma, {}, undefined, undefined, { settleReservation });
 
       await service.process({ ...CON_TOPE, monthlyPageQuota: null });
 
-      expect(resolucion(recorder)).toBeUndefined();
+      expect(settleReservation).not.toHaveBeenCalled();
+      const entrada = recorder.created.find((entry) => entry.model === 'pageConsumptionEntry')
+        ?.data as Record<string, unknown>;
+      expect(entrada.reservationId).toBeNull();
     });
   });
 
@@ -784,74 +772,15 @@ describe('StatementsService', () => {
     expect(processStatement).not.toHaveBeenCalled();
   });
 
-  it('una conversión nueva con prueba única marca la prueba como gastada; reutilizar una ya subida no (ADR-0018)', async () => {
-    const recorder: TransactionRecorder = { created: [] };
-    const { prisma, findUnique } = buildPrisma(null, recorder);
-    const processStatement = jest.fn().mockResolvedValue(workerPayload({ page_count: 2 }));
-    const markTrialUsed = jest.fn().mockResolvedValue(undefined);
-    const service = buildService(prisma, { processStatement }, undefined, undefined, {
-      markTrialUsed,
-    });
-
-    await service.process({
-      organizationId: ORGANIZATION_ID,
-      userId: USER_ID,
-      content: pdfBuffer(),
-      fileName: 'estado.pdf',
-      mimeType: 'application/pdf',
-      maxPagesPerDocument: 1000,
-      monthlyPageQuota: 3,
-      trialOneTime: true,
-      trialAvailable: true,
-    });
-
-    expect(markTrialUsed).toHaveBeenCalledWith(ORGANIZATION_ID, USER_ID);
-
-    markTrialUsed.mockClear();
-    findUnique.mockResolvedValue({
-      id: 'job-id',
-      statementId: 'statement-id',
-      createdAt: CREATED_AT,
-      status: JobStatus.SUCCEEDED,
-      attempts: [
-        {
-          attemptNumber: 1,
-          extractorId: 'bcp-coordinate-v1',
-          extractorVersion: '0.1.0',
-          rowCount: 4,
-          movementCount: 1,
-          pageCount: 2,
-          checks: [{ code: 'BCP_ROWS_PRESENT', status: 'PASSED' }],
-          warnings: [],
-          artifacts: [],
-        },
-      ],
-    });
-
-    await service.process({
-      organizationId: ORGANIZATION_ID,
-      userId: USER_ID,
-      content: pdfBuffer(),
-      fileName: 'estado.pdf',
-      mimeType: 'application/pdf',
-      maxPagesPerDocument: 1000,
-      monthlyPageQuota: 3,
-      trialOneTime: true,
-      trialAvailable: true,
-    });
-
-    expect(markTrialUsed).not.toHaveBeenCalled();
-  });
-
-  it('si la prueba única ya se gastó, rechaza antes de llamar al worker (ADR-0018)', async () => {
+  it('la prueba gratuita agotada se rechaza en la reserva, antes de llamar al worker (ADR-0019)', async () => {
     const recorder: TransactionRecorder = { created: [] };
     const { prisma } = buildPrisma(null, recorder);
     const processStatement = jest.fn();
-    const assertTrialAvailable = jest.fn().mockImplementation(() => {
-      throw new ForbiddenException({ code: 'TRIAL_ALREADY_USED' });
-    });
+    const reserveMonthlyQuota = jest
+      .fn()
+      .mockRejectedValue(new ForbiddenException({ code: 'TRIAL_ALREADY_USED' }));
     const service = buildService(prisma, { processStatement }, undefined, undefined, {
-      assertTrialAvailable,
+      reserveMonthlyQuota,
     });
 
     await expect(
@@ -863,12 +792,54 @@ describe('StatementsService', () => {
         mimeType: 'application/pdf',
         maxPagesPerDocument: 1000,
         monthlyPageQuota: 3,
-        trialOneTime: true,
-        trialAvailable: false,
       }),
     ).rejects.toMatchObject({ response: { code: 'TRIAL_ALREADY_USED' } });
-    expect(assertTrialAvailable).toHaveBeenCalledWith(true, false);
     expect(processStatement).not.toHaveBeenCalled();
+  });
+
+  describe('membresía vencida (ADR-0017 y ADR-0019)', () => {
+    const VENCIDA = {
+      organizationId: ORGANIZATION_ID,
+      userId: USER_ID,
+      content: pdfBuffer(),
+      fileName: 'estado.pdf',
+      mimeType: 'application/pdf',
+      maxPagesPerDocument: 1000,
+      monthlyPageQuota: 50,
+      membershipExpired: true,
+    };
+
+    it('sin páginas compradas no convierte, ni siquiera llega a reservar', async () => {
+      const recorder: TransactionRecorder = { created: [] };
+      const { prisma } = buildPrisma(null, recorder);
+      const reserveMonthlyQuota = jest.fn();
+      const hasPurchasedBalance = jest.fn().mockResolvedValue(false);
+      const service = buildService(prisma, {}, undefined, undefined, {
+        reserveMonthlyQuota,
+        hasPurchasedBalance,
+      });
+
+      await expect(service.process(VENCIDA)).rejects.toMatchObject({
+        response: { code: 'MEMBERSHIP_EXPIRED' },
+      });
+      expect(hasPurchasedBalance).toHaveBeenCalledWith(ORGANIZATION_ID, USER_ID);
+      expect(reserveMonthlyQuota).not.toHaveBeenCalled();
+    });
+
+    it('con páginas compradas vigentes convierte con ellas: son suyas hasta que venzan', async () => {
+      const recorder: TransactionRecorder = { created: [] };
+      const { prisma } = buildPrisma(null, recorder);
+      const reserveMonthlyQuota = jest
+        .fn()
+        .mockResolvedValue({ maxPages: 40, reservationId: 'reserva-id' });
+      const service = buildService(prisma, {}, undefined, undefined, {
+        reserveMonthlyQuota,
+        hasPurchasedBalance: jest.fn().mockResolvedValue(true),
+      });
+
+      await expect(service.process(VENCIDA)).resolves.toMatchObject({ status: 'SUCCEEDED' });
+      expect(reserveMonthlyQuota).toHaveBeenCalledWith(ORGANIZATION_ID, USER_ID, 1000);
+    });
   });
 
   it('si el worker no aplicó el límite, la API no registra el documento y lo descarta', async () => {

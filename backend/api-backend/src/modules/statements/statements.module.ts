@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 
 import type { AppConfig } from '../../config/app-config';
 import { AuthModule } from '../auth/auth.module';
+import { CommercialModule } from '../commercial/commercial.module';
 import { StorageModule } from '../storage/storage.module';
 import { WorkerClientModule } from '../worker-client/worker-client.module';
 import { StatementRetentionService } from './statement-retention.service';
@@ -14,6 +15,8 @@ import { StatementsService } from './statements.service';
 @Module({
   imports: [
     AuthModule,
+    // Una compra registrada copia precio y vigencia del catálogo comercial (ADR-0019).
+    CommercialModule,
     StorageModule,
     WorkerClientModule,
     MulterModule.registerAsync({

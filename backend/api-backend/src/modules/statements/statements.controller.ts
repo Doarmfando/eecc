@@ -26,8 +26,8 @@ import {
   CreateStatementDto,
   DeletedStatementsDto,
   JobResponseDto,
-  MonthlyUsageDto,
 } from './dto/create-statement.dto';
+import { PageBalanceDto, toPageBalanceDto } from './dto/page-balance.dto';
 import { StatementUsageService } from './statement-usage.service';
 import { StatementsService } from './statements.service';
 
@@ -52,25 +52,32 @@ export class StatementsController {
   ) {}
 
   /**
-   * Cuánto lleva consumido del acumulado de 30 días, antes de subir un documento
-   * nuevo. La interfaz lo usa para avisar si un PDF se va a pasar del cupo del
-   * mes, sin tener que esperar al rechazo del servidor (ADR-0018).
+   * Saldo de páginas de quien consulta, en lotes (ADR-0019): lo que le queda de
+   * su periodo o su prueba y de cada compra, en el orden en que se gastan. La
+   * interfaz lo usa para avisar si un PDF no le alcanza antes de subirlo.
    */
   @Get('usage')
   @RequirePermissions(PERMISSION.STATEMENTS_CONVERT)
-  @ApiOperation({ summary: 'Páginas acumuladas en los últimos 30 días y el tope del plan' })
-  @ApiResponse({ status: HttpStatus.OK, type: MonthlyUsageDto })
+  @ApiOperation({ summary: 'Saldo de páginas: periodo, prueba y compras vigentes' })
+  @ApiResponse({ status: HttpStatus.OK, type: PageBalanceDto })
   async usageThisPeriod(
     @CurrentOrganization() organization: OrganizationContext,
-  ): Promise<MonthlyUsageDto> {
+  ): Promise<PageBalanceDto> {
     if (!organization.userId || !organization.plan) {
-      return { pagesUsed: 0, monthlyPageQuota: null };
+      // Una credencial de servicio no tiene membresía ni saldo: sin tope.
+      return {
+        pagesUsed: 0,
+        monthlyPageQuota: null,
+        unlimited: true,
+        membershipExpired: false,
+        pagesAvailable: null,
+        period: null,
+        lots: [],
+      };
     }
-    const pagesUsed = await this.usage.pagesUsedInCurrentPeriod(
-      organization.organizationId,
-      organization.userId,
+    return toPageBalanceDto(
+      await this.usage.balance(organization.organizationId, organization.userId),
     );
-    return { pagesUsed, monthlyPageQuota: organization.plan.monthlyPageQuota };
   }
 
   @Post()
@@ -114,8 +121,6 @@ export class StatementsController {
         ? {
             maxPagesPerDocument: organization.plan.maxPagesPerDocument,
             monthlyPageQuota: organization.plan.monthlyPageQuota,
-            trialOneTime: organization.plan.trialOneTime,
-            trialAvailable: organization.plan.trialAvailable,
             membershipExpired: organization.plan.expired,
           }
         : {}),

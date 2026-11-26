@@ -53,3 +53,63 @@ export function isValidIsoDate(dia: string): boolean {
 export function isExpired(expiresOn: string | null, today: string): boolean {
   return expiresOn !== null && expiresOn < today;
 }
+
+/**
+ * `dia` más `meses` meses, con el día recortado al último del mes cuando no
+ * existe: el 31 de enero más un mes es el 28 (o 29) de febrero. Se calcula
+ * siempre desde el mismo `dia`, así que el 31 de enero más dos meses vuelve a
+ * ser el 31 de marzo, no el 28.
+ */
+export function addMonthsToIsoDate(dia: string, meses: number): string {
+  const [anio, mes, diaDelMes] = dia.split('-').map(Number) as [number, number, number];
+  const indice = anio * 12 + (mes - 1) + meses;
+  const anioNuevo = Math.floor(indice / 12);
+  const mesNuevo = indice - anioNuevo * 12;
+  const ultimo = new Date(Date.UTC(anioNuevo, mesNuevo + 1, 0)).getUTCDate();
+  const fecha = new Date(Date.UTC(anioNuevo, mesNuevo, Math.min(diaDelMes, ultimo)));
+  return toIsoDate(fecha);
+}
+
+/** Diferencia entre la hora local de esa zona y UTC en ese instante, en milisegundos. */
+function desfase(instante: number, timeZone: string): number {
+  const partes = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(new Date(instante));
+  const valor = (tipo: Intl.DateTimeFormatPartTypes): number =>
+    Number(partes.find((parte) => parte.type === tipo)?.value ?? 0);
+  const comoUtc = Date.UTC(
+    valor('year'),
+    valor('month') - 1,
+    valor('day'),
+    valor('hour'),
+    valor('minute'),
+    valor('second'),
+  );
+  return comoUtc - Math.floor(instante / 1000) * 1000;
+}
+
+/**
+ * El instante en que empieza `dia` en esa zona horaria: la medianoche de Lima del
+ * 26 de noviembre es `2026-11-26T05:00:00Z`. Dos pasadas por si la zona cambia de
+ * horario justo ese día (Lima no lo hace, pero la zona es configurable).
+ */
+export function startOfBusinessDay(dia: string, timeZone: string): Date {
+  const medianocheUtc = fromIsoDate(dia).getTime();
+  const primero = medianocheUtc - desfase(medianocheUtc, timeZone);
+  const segundo = medianocheUtc - desfase(primero, timeZone);
+  return new Date(segundo);
+}
+
+/** `dia` más `dias` días de calendario. */
+export function addDaysToIsoDate(dia: string, dias: number): string {
+  const fecha = fromIsoDate(dia);
+  fecha.setUTCDate(fecha.getUTCDate() + dias);
+  return toIsoDate(fecha);
+}

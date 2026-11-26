@@ -25,11 +25,18 @@ import {
   CreatedMemberDto,
   MemberDetailDto,
   MemberDto,
+  MemberPageBalanceDto,
+  RegisterPurchaseDto,
   SetPasswordDto,
   TemporaryPasswordDto,
   UpdateMemberDto,
 } from './dto/users.dto';
 import { UsersService } from './users.service';
+import {
+  PageBalanceLotDto,
+  toPageBalanceDto,
+  toPageBalanceLotDto,
+} from '../statements/dto/page-balance.dto';
 
 /**
  * Gestión de las cuentas de una organización. Solo para quien tenga
@@ -60,6 +67,46 @@ export class UsersController {
     @Param('userId', new ParseUUIDPipe({ version: '4' })) userId: string,
   ): Promise<MemberDetailDto> {
     return this.users.detail(actor.organizationId, quienGestiona(actor), userId);
+  }
+
+  /** Saldo en lotes e historial de compras de una cuenta (ADR-0019). */
+  @Get(':userId/page-balance')
+  @ApiOperation({ summary: 'Saldo de páginas de una cuenta y el historial de sus lotes' })
+  @ApiResponse({ status: 200, type: MemberPageBalanceDto })
+  async pageBalance(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('userId', new ParseUUIDPipe({ version: '4' })) userId: string,
+  ): Promise<MemberPageBalanceDto> {
+    const { balance, history } = await this.users.pageBalance(actor.organizationId, userId);
+    return { balance: toPageBalanceDto(balance), history: history.map(toPageBalanceLotDto) };
+  }
+
+  /**
+   * Registra una compra de Recargas o Profesional que ya se cobró por Yape: el
+   * saldo se activa en el acto, con precio y vigencia del catálogo de hoy.
+   */
+  @Post(':userId/page-lots')
+  @ApiOperation({ summary: 'Registra una compra de páginas ya cobrada' })
+  @ApiResponse({ status: 201, type: PageBalanceLotDto })
+  async registerPurchase(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('userId', new ParseUUIDPipe({ version: '4' })) userId: string,
+    @Body() body: RegisterPurchaseDto,
+    @Req() request: RequestWithContext,
+  ): Promise<PageBalanceLotDto> {
+    const lote = await this.users.registerPurchase(
+      actor.organizationId,
+      quienGestiona(actor),
+      userId,
+      {
+        productCode: body.productCode,
+        ...(body.pages !== undefined ? { pages: body.pages } : {}),
+        ...(body.paymentReference !== undefined ? { paymentReference: body.paymentReference } : {}),
+        ...(body.note !== undefined ? { note: body.note } : {}),
+      },
+      request.requestId,
+    );
+    return toPageBalanceLotDto(lote);
   }
 
   @Post()
