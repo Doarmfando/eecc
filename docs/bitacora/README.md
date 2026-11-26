@@ -13,6 +13,16 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-11-26 — Cobros manuales y cancelación de renovación de Personal
+
+- El administrador registra pagos confirmados en el detalle de la cuenta. Cada cobro guarda su
+  referencia única por organización, importe, moneda, páginas y periodo. Se protege el periodo ya
+  pagado frente a cambios generales de membresía y se preserva la cuota activa al renovar antes.
+- En *Mi saldo* se consultan los pagos y se cancela la renovación conservando la vigencia pagada.
+  La API autoriza por organización y rango y deja una auditoría por pago o cancelación.
+- El ensayo con Postgres sintético cubre activación, reintentos, renovación anticipada, cambios de
+  precio, rechazo de referencias duplicadas y conservación de la cadencia en meses cortos.
+
 ## 2026-11-26 — Migrador manual a Personal y plan interno Administración
 
 - El migrador simula por defecto y publica conteos. El corte explícito migra los casos compatibles,

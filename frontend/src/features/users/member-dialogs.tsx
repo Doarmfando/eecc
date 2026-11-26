@@ -183,10 +183,11 @@ function planesOfrecidos(
   vence: boolean,
   actual?: string,
 ): PlanOption[] {
-  if (!vence) {
-    return [...planes];
-  }
-  return planes.filter((plan) => plan.monthlyPageQuota !== null || plan.code === actual);
+  return planes.filter(
+    (plan) =>
+      plan.code === actual ||
+      (plan.code !== 'PERSONAL' && (!vence || plan.monthlyPageQuota !== null)),
+  );
 }
 
 const SIN_ROLES: readonly RoleOption[] = [];
@@ -671,11 +672,16 @@ function EditarCuentaContenido({
                   onChange={field.onChange}
                   desde={desde}
                   error={errores.planExpiresOn?.message}
-                  disabled={planBloqueado}
+                  disabled={planBloqueado || miembro.planCode === 'PERSONAL'}
                   permitirQuitar
                 />
               )}
             />
+            {miembro.planCode === 'PERSONAL' ? (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Renueva Personal registrando el pago en el detalle de la cuenta.
+              </p>
+            ) : null}
           </fieldset>
         ) : null}
 

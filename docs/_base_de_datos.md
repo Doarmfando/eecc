@@ -155,6 +155,15 @@ El `idempotency_key` externo se valida por longitud/formato y se almacena con or
 - La aplicación y el worker deben tolerar temporalmente la versión anterior/siguiente del contrato durante despliegues.
 - Nunca editar una migración ya aplicada; crear una migración correctiva.
 
+### Pagos de ATLAS Personal
+
+`personal_payments` pertenece a una organización y conserva la relación con su membresía mientras
+exista. Guarda la referencia normalizada, el importe en `DECIMAL(10,2)`, moneda, páginas pagadas,
+fecha de registro, inicio inclusivo, fin exclusivo y día de anclaje de la cadena de periodos. La
+referencia es única por organización y el inicio es único por membresía. Al borrar la membresía,
+el vínculo se pone en nulo para conservar la evidencia comercial. La cancelación de renovación
+queda en `organization_memberships.personal_renewal_cancelled_at` y se audita al registrarla.
+
 ## Seguridad, respaldo y retención
 
 - TLS en conexiones y cifrado administrado en disco/backups.

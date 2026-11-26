@@ -1,6 +1,7 @@
 import { Loader2 } from 'lucide-react';
 import { useId, useState, type ReactNode } from 'react';
 
+import { useSession } from '@/app/use-session';
 import { SupportDetails } from '@/components/shared/support-details';
 import { Alert } from '@/components/ui/alert';
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
@@ -9,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { useSupportPhone } from '@/features/access/queries';
 import { PageHistory } from '@/features/balance/page-history';
 import { PageLotsList } from '@/features/balance/page-lots-list';
+import { PersonalCard } from '@/features/balance/personal-card';
 import { describirProducto } from '@/features/balance/products';
 import { useCommercialProducts, useQuote } from '@/features/balance/queries';
 import { useMonthlyUsage } from '@/features/statements/queries';
@@ -87,6 +89,7 @@ function Calculadora({ recarga }: { recarga: CommercialProduct }): ReactNode {
  * la registra al confirmarlo. Esta página dice cuánto cuesta y a quién escribir.
  */
 export function BalancePage(): ReactNode {
+  const { usuario } = useSession();
   const saldo = useMonthlyUsage();
   const productos = useCommercialProducts();
   const telefono = useSupportPhone();
@@ -176,6 +179,9 @@ export function BalancePage(): ReactNode {
           . Las páginas se activan apenas se confirma el pago.
         </p>
       </Card>
+      {usuario?.plan && ['GRATUITO', 'PERSONAL'].includes(usuario.plan.code) ? (
+        <PersonalCard />
+      ) : null}
       <PageHistory kind="purchases" />
       <PageHistory kind="consumption" />
     </div>

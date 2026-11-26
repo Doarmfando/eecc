@@ -107,6 +107,18 @@ Crea las cuentas que falten con una contraseña generada (se muestra una sola ve
 
 **Teléfono de soporte.** Ponlo en `SUPPORT_PHONE` del `.env` de la API: los avisos de error lo muestran junto al código y la referencia que hay que dictar.
 
+### Cobros manuales de ATLAS Personal
+
+Con el catálogo comercial activo, da de alta la cuenta en Gratuito. Cuando confirmes el pago por
+Yape, abre **Usuarios → Ver detalle → ATLAS Personal → Registrar pago de Personal**. Verifica el
+importe que muestra la pantalla e ingresa el número de operación. Una renovación anticipada
+empieza después del último día cubierto. Reutilizar la referencia de ese mismo pago conserva el
+registro original.
+
+La persona puede consultar su vigencia y sus cobros en **Mi saldo**. **Cancelar renovación**
+conserva los periodos ya pagados, incluidos los registrados anticipadamente. La renovación se
+registra cuando se confirma el siguiente pago.
+
 No existe registro abierto: nadie entra sin que un administrador lo dé de alta.
 
 **Solo se admiten correos `@hotmail.com`, `@empresa.pe` y `@eecc.local`.** La lista se cambia con `ALLOWED_EMAIL_DOMAINS` en el `.env` de la API (separada por comas; vacía admite cualquiera). Solo afecta a altas y cambios de correo: una cuenta que ya existía sigue pudiendo entrar.

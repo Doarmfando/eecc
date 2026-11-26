@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 import { ApiError } from './api-error';
 import {
   parsePageBalance,
@@ -431,6 +433,59 @@ export async function registerPurchase(
     throw new ApiError('RESPONSE_CONTRACT_MISMATCH', 201);
   }
   return lote;
+}
+
+const personalPaymentSchema = z.object({
+  id: z.string().uuid(),
+  priceCents: z.number().int().positive(),
+  currency: z.string().length(3),
+  pages: z.number().int().positive(),
+  startsOn: z.string().date(),
+  paidThrough: z.string().date(),
+  recordedAt: z.string().datetime(),
+});
+const personalStateSchema = z.object({
+  canRegister: z.boolean(),
+  currentPlan: z.string(),
+  expiresOn: z.string().date().nullable(),
+  renewalCancelledAt: z.string().datetime().nullable(),
+  priceCents: z.number().int().nullable(),
+  currency: z.string().length(3).nullable(),
+  payments: z.array(personalPaymentSchema),
+});
+
+export type PersonalState = z.infer<typeof personalStateSchema>;
+export type PersonalPaymentInput = { reference: string; priceCents: number; currency: string };
+
+export async function fetchPersonalState(
+  baseUrl: string,
+  userId: string | undefined,
+  signal: AbortSignal,
+): Promise<PersonalState> {
+  const path = userId ? `v1/personal/users/${encodeURIComponent(userId)}` : 'v1/personal';
+  const result = personalStateSchema.safeParse(
+    await pedir(baseUrl, path, { method: 'GET', signal }),
+  );
+  if (!result.success) throw new ApiError('RESPONSE_CONTRACT_MISMATCH', 200);
+  return result.data;
+}
+
+export async function recordPersonalPayment(
+  baseUrl: string,
+  userId: string,
+  input: PersonalPaymentInput,
+): Promise<void> {
+  const result = personalPaymentSchema.safeParse(
+    await pedir(baseUrl, `v1/personal/users/${encodeURIComponent(userId)}/payments`, {
+      method: 'POST',
+      body: input,
+    }),
+  );
+  if (!result.success) throw new ApiError('RESPONSE_CONTRACT_MISMATCH', 201);
+}
+
+export async function cancelPersonalRenewal(baseUrl: string): Promise<void> {
+  await pedir(baseUrl, 'v1/personal/cancel-renewal', { method: 'POST' });
 }
 
 /** Todo el catálogo de saldo, activo o retirado; solo con el permiso `PLANS_MANAGE`. */

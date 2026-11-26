@@ -251,6 +251,8 @@ export class UsersService {
       rol.defaultPlanCode,
     );
     exigirPlanParaRol(planCode, rol.code);
+    if (planCode === PLAN.PERSONAL)
+      throw new BadRequestException({ code: 'PERSONAL_PAYMENT_REQUIRED' });
     // Un usuario normal nace con fecha de vencimiento, y no en el pasado: darlo
     // de alta ya vencido sería una cuenta que no puede hacer nada. Un rol que no
     // vence (los administradores) nunca la lleva, aunque se envíe.
@@ -410,6 +412,15 @@ export class UsersService {
     }
     exigirAcciones(actor, { userId, rank: membership.role.rank }, acciones);
 
+    if (
+      (cambiaPlan && cambios.planCode === PLAN.PERSONAL) ||
+      (membership.planCode === PLAN.PERSONAL &&
+        cambiaVigencia &&
+        datosMembresia.roleCode === undefined)
+    ) {
+      throw new BadRequestException({ code: 'PERSONAL_PAYMENT_REQUIRED' });
+    }
+
     if (typeof datosMembresia.roleCode === 'string' && !canAssignRole(actor.rank, rolFinal.rank)) {
       throw new ForbiddenException({ code: 'ROLE_ABOVE_YOURS' });
     }
@@ -453,6 +464,20 @@ export class UsersService {
 
     try {
       const actualizada = await this.prisma.$transaction(async (tx) => {
+        if (cambiaPlan || cambiaVigencia || cambiaRecarga) {
+          const key = `${organizationId}:${userId}`;
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))`;
+          const periodoPagado = await tx.personalPayment.findFirst({
+            where: {
+              organizationId,
+              membership: { userId },
+              endsOn: { gt: fromIsoDate(hoy) },
+            },
+            select: { id: true },
+          });
+          if (periodoPagado)
+            throw new ConflictException({ code: 'PERSONAL_PAID_PERIOD_PROTECTED' });
+        }
         if (camposUsuario.length > 0) {
           await tx.user.update({ where: { id: userId }, data: datosUsuario });
         }

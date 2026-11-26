@@ -118,6 +118,7 @@ model Organization {
   pageConsumptionEntries PageConsumptionEntry[]
   pageReservations       PageReservation[]
   pageLots               PageLot[]
+  personalPayments       PersonalPayment[]
 
   @@map("organizations")
 }
@@ -179,43 +180,68 @@ model Session {
 /// producto **usa** y con qué límites. Son independientes: un administrador puede
 /// tener cualquier membresía. Ver ADR-0016.
 model OrganizationMembership {
-  id                       String           @id @default(uuid()) @db.Uuid
-  organizationId           String           @map("organization_id") @db.Uuid
-  userId                   String           @map("user_id") @db.Uuid
-  roleCode                 String           @map("role_code") @db.VarChar(32)
-  planCode                 String           @map("plan_code") @db.VarChar(32)
+  id                         String           @id @default(uuid()) @db.Uuid
+  organizationId             String           @map("organization_id") @db.Uuid
+  userId                     String           @map("user_id") @db.Uuid
+  roleCode                   String           @map("role_code") @db.VarChar(32)
+  planCode                   String           @map("plan_code") @db.VarChar(32)
   /// Desde cuándo tiene la membresía actual. Los cambios quedan en `audit_events`.
-  planChangedAt            DateTime         @default(now()) @map("plan_changed_at") @db.Timestamptz(6)
+  planChangedAt              DateTime         @default(now()) @map("plan_changed_at") @db.Timestamptz(6)
   /// Último día de vigencia, en la zona horaria del negocio. Nulo: no vence. Solo
   /// la llevan los roles con `plan_expiry_required`; vencida, no se convierte (ADR-0017).
-  planExpiresOn            DateTime?        @map("plan_expires_on") @db.Date
+  planExpiresOn              DateTime?        @map("plan_expires_on") @db.Date
   /// Cuándo consumió la prueba gratuita de un plan `trial_one_time`. Nulo: no la
   /// ha usado. No se reinicia al cambiar de plan y nunca se vuelve a poner en
   /// nulo (ADR-0018).
-  trialUsedAt              DateTime?        @map("trial_used_at") @db.Timestamptz(6)
+  trialUsedAt                DateTime?        @map("trial_used_at") @db.Timestamptz(6)
   /// Tope de páginas al mes puesto a mano por un administrador (rango ADMIN
   /// basta, no hace falta SUPER_ADMIN), para una persona concreta por encima
   /// de lo que ya trae su plan Básica o Especial — la "recarga Atlas" que se
   /// cotiza y se cobra por fuera. Nulo: usa el de su plan, sin cambios.
-  monthlyPageQuotaOverride Int?             @map("monthly_page_quota_override")
+  monthlyPageQuotaOverride   Int?             @map("monthly_page_quota_override")
   /// Desde cuándo se cuentan los periodos mensuales de su membresía (ADR-0019):
   /// la activación del plan actual, o la renovación de uno que ya había vencido.
   /// Renovar antes de que venza no lo mueve: los periodos siguen su cadencia.
-  periodAnchorAt           DateTime         @default(now()) @map("period_anchor_at") @db.Timestamptz(6)
-  status                   MembershipStatus @default(ACTIVE)
-  createdAt                DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt                DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  periodAnchorAt             DateTime         @default(now()) @map("period_anchor_at") @db.Timestamptz(6)
+  personalRenewalCancelledAt DateTime?        @map("personal_renewal_cancelled_at") @db.Timestamptz(6)
+  status                     MembershipStatus @default(ACTIVE)
+  createdAt                  DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                  DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   // `Restrict`: un rol o un plan en uso no se borra del catálogo; se retira.
-  role         Role           @relation(fields: [roleCode], references: [code], onDelete: Restrict)
-  plan         MembershipPlan @relation(fields: [planCode], references: [code], onDelete: Restrict)
+  role             Role              @relation(fields: [roleCode], references: [code], onDelete: Restrict)
+  plan             MembershipPlan    @relation(fields: [planCode], references: [code], onDelete: Restrict)
+  personalPayments PersonalPayment[]
 
   @@unique([organizationId, userId])
   @@index([userId, status])
   @@index([planCode])
   @@map("organization_memberships")
+}
+
+/// Un cobro manual confirmado por un periodo de ATLAS Personal.
+model PersonalPayment {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  membershipId   String?  @map("membership_id") @db.Uuid
+  reference      String   @db.VarChar(100)
+  amount         Decimal  @db.Decimal(10, 2)
+  currency       String   @db.Char(3)
+  pages          Int
+  startsOn       DateTime @map("starts_on") @db.Date
+  endsOn         DateTime @map("ends_on") @db.Date
+  anchorOn       DateTime @map("anchor_on") @db.Date
+  recordedAt     DateTime @default(now()) @map("recorded_at") @db.Timestamptz(6)
+
+  organization Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  membership   OrganizationMembership? @relation(fields: [membershipId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, reference])
+  @@unique([membershipId, startsOn])
+  @@index([organizationId, recordedAt])
+  @@map("personal_payments")
 }
 
 /// Rol dentro de una organización. Es un catálogo y no un enum para que añadir un

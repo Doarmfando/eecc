@@ -18,11 +18,13 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import {
   addDaysToIsoDate,
   businessToday,
+  fromIsoDate,
   isExpired,
   startOfBusinessDay,
   toIsoDate,
 } from '../../common/time/business-date';
 import type { AppConfig } from '../../config/app-config';
+import { PLAN } from '../access/access-catalog';
 import { CommercialService } from '../commercial/commercial.service';
 import type { PageHistoryDto } from './dto/page-history.dto';
 import {
@@ -123,6 +125,7 @@ const MIEMBRO_SELECT = {
 } satisfies Prisma.OrganizationMembershipSelect;
 
 type Miembro = Prisma.OrganizationMembershipGetPayload<{ select: typeof MIEMBRO_SELECT }>;
+type PeriodoPagado = { startsOn: Date; endsOn: Date; pages: number };
 
 const LOTE_INCLUDE = {
   product: { select: { name: true } },
@@ -192,7 +195,7 @@ export class StatementUsageService {
     if (!miembro) {
       return saldoVacio();
     }
-    const reglas = this.reglas(miembro, ahora);
+    const reglas = await this.reglas(this.prisma, organizationId, userId, miembro, ahora);
     if (reglas.ilimitado) {
       return { ...saldoVacio(), unlimited: true, pagesAvailable: null };
     }
@@ -385,7 +388,7 @@ export class StatementUsageService {
       if (!miembro) {
         throw new ForbiddenException({ code: 'MEMBERSHIP_NOT_FOUND' });
       }
-      const reglas = this.reglas(miembro, ahora);
+      const reglas = await this.reglas(tx, organizationId, uploadedById, miembro, ahora);
       if (reglas.ilimitado) {
         return { maxPages: maxPagesPerDocument ?? undefined, reservationId: null };
       }
@@ -537,19 +540,32 @@ export class StatementUsageService {
     return aLoteVisible(lote, this.conSaldo(lote, ahora));
   }
 
-  private reglas(miembro: Miembro, ahora: Date): Reglas {
+  private async reglas(
+    tx: Prisma.TransactionClient,
+    organizationId: string,
+    userId: string,
+    miembro: Miembro,
+    ahora: Date,
+  ): Promise<Reglas> {
     const hoy = businessToday(this.zonaHoraria, ahora);
     const vigencia = miembro.planExpiresOn ? toIsoDate(miembro.planExpiresOn) : null;
     const expirada = isExpired(vigencia, hoy);
     // La recarga manual de un administrador manda sobre el tope del plan
     // mientras exista (ADR-0018); se retira al migrar a lotes (ADR-0019).
-    const cuota = miembro.monthlyPageQuotaOverride ?? miembro.plan.monthlyPageQuota;
+    const pagado =
+      !expirada && miembro.plan.code === PLAN.PERSONAL
+        ? await this.periodoPagado(tx, organizationId, userId, hoy)
+        : null;
+    const cuota =
+      pagado?.pages ?? miembro.monthlyPageQuotaOverride ?? miembro.plan.monthlyPageQuota;
     const prueba = miembro.plan.trialOneTime;
 
     let periodo: Reglas['periodo'] = null;
     if (!expirada && !prueba && cuota !== null) {
       const ancla = businessToday(this.zonaHoraria, miembro.periodAnchorAt);
-      const { inicio, fin } = periodoVigente(ancla, hoy);
+      const { inicio, fin } = pagado
+        ? { inicio: toIsoDate(pagado.startsOn), fin: toIsoDate(pagado.endsOn) }
+        : periodoVigente(ancla, hoy);
       periodo = {
         clave: claveDePeriodo(inicio),
         startsAt: startOfBusinessDay(inicio, this.zonaHoraria),
@@ -565,6 +581,25 @@ export class StatementUsageService {
       pruebaPendiente: !expirada && prueba && cuota !== null && miembro.trialUsedAt === null,
       periodo,
     };
+  }
+
+  private periodoPagado(
+    tx: Prisma.TransactionClient,
+    organizationId: string,
+    userId: string,
+    hoy: string,
+  ): Promise<PeriodoPagado | null> {
+    const fecha = fromIsoDate(hoy);
+    return tx.personalPayment.findFirst({
+      where: {
+        organizationId,
+        membership: { userId },
+        startsOn: { lte: fecha },
+        endsOn: { gt: fecha },
+      },
+      select: { startsOn: true, endsOn: true, pages: true },
+      orderBy: { startsOn: 'desc' },
+    });
   }
 
   private async leerMiembro(

@@ -481,6 +481,9 @@ calendario en diciembre de 2026)
     registran como lotes. Los ajustes antiguos quedan pendientes de la etapa 6.
   - [x] **5. UI de usuario.** Saldo agregado y por lote, cotización e historiales de compras y
     consumo. Implementada y verificada localmente en `feature/lotes-de-paginas`.
+  - [x] **5b. Cobros manuales de Personal.** La cuenta Gratuito puede activar Personal con un
+    pago confirmado por Yape. Se registran periodos y renovaciones, y se cancela la renovación
+    desde *Mi saldo* manteniendo lo pagado. La pasarela de pago sigue pendiente.
   - [~] **6. Migración de datos existentes — requiere autorización aparte.** El migrador local
     simula y aplica el corte de los casos compatibles. Se ensayó con datos sintéticos. Queda
     acordar la transición de los ajustes pactados y los Atlas de otros roles, además de autorizar

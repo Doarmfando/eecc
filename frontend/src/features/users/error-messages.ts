@@ -28,6 +28,19 @@ const MENSAJES: Record<string, string> = {
     'Ya existe un producto con ese código. Elige otro: no se puede reutilizar.',
   PRODUCT_NOT_FOUND: 'Ese producto ya no existe. Recarga la página.',
   QUANTITY_BELOW_MINIMUM: 'Esa compra no llega al mínimo de páginas del producto.',
+  PAYMENT_REFERENCE_INVALID: 'Revisa el número de operación ingresado.',
+  PAYMENT_REFERENCE_USED: 'Ese número de operación ya está registrado.',
+  PERSONAL_PAID_PERIOD_PROTECTED:
+    'La cuenta ya tiene un periodo de Personal pagado. Usa el registro de pagos para renovar su vigencia.',
+  PERSONAL_PAYMENT_REQUIRED:
+    'Activa o renueva Personal registrando un pago confirmado en el detalle de la cuenta. Para una cuenta nueva, elige Gratuito primero.',
+  PERSONAL_TRANSITION_REQUIRED:
+    'Esta cuenta requiere revisar las condiciones de su plan antes de registrar Personal.',
+  PERSONAL_UNAVAILABLE: 'ATLAS Personal no está disponible para esta operación.',
+  PERSONAL_PRICE_CHANGED:
+    'El precio cambió. Cierra y vuelve a consultar la membresía antes de registrar el pago.',
+  PERSONAL_SCHEDULE_CONFLICT:
+    'La vigencia administrada no coincide con los periodos ya pagados. Revisa el historial antes de registrar otro pago.',
   MEMBERSHIP_NOT_FOUND: 'Esa cuenta ya no tiene membresía en la organización. Recarga la página.',
   PRODUCT_PRICING_SHAPE_INVALID:
     'Un paquete necesita cuántas páginas trae, y una recarga su mínimo de páginas por compra.',

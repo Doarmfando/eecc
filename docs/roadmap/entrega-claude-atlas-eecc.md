@@ -47,15 +47,13 @@ simulación sin argumentos. `--apply` queda reservado para la ventana autorizada
    superior a la cuota de Personal y dos Atlas con otros roles. Confirmar la regla de renovación
    y el reparto de páginas antes de escribir ajustes. La herramienta actual conserva esos casos
    íntegros y el reporte requiere revisarse al cortar.
-2. Implementar registro de cobros confirmados y cancelación de renovación para Personal. La
-   vigencia actual se administra manualmente. El precio publicado del catálogo no constituye un
-   ingreso. La renovación automática depende de una pasarela operativa.
-3. Implementar el panel comercial del §12 con los datos verificables. `page_lots` da compras de
+2. Implementar el panel comercial del §12 con los datos verificables. `personal_payments` da los
+   cobros confirmados de Personal. `page_lots` da compras de
    Recargas y Profesional, `page_consumption_entries` da consumo y `page_lot_allocations` atribuye
    el uso. Contabilizar los intentos fallidos con la evidencia disponible y declarar las fuentes
    de costos antes de mostrar márgenes. Mantener aislamiento por organización y exportes sin datos
    bancarios.
-4. Revisar las restricciones de Personal vencido y las acciones de historial. En este punto
+3. Revisar las restricciones de Personal vencido y las acciones de historial. En este punto
    `tieneFuncion` usa el catálogo sin consultar `expired` y `GET /v1/jobs` filtra por dueño sin
    verificar la función de historial. Preservar la consulta y descarga del trabajo propio que
    permite Gratuito. Completar los avisos de vencimiento de lotes y la matriz de 28 pruebas del prompt.
@@ -63,3 +61,11 @@ simulación sin argumentos. `--apply` queda reservado para la ventana autorizada
 El modelo comercial vive en [ADR-0019](../decisiones/ADR-0019-modelo-comercial-de-cuatro-productos.md).
 La evidencia de consumo anterior a su registro puede ser irrecuperable. Los fixtures deben seguir
 siendo sintéticos y la bitácora debe recibir cada cambio material.
+
+## Cobro manual de Personal
+
+La migración `20261126165000_personal_payments` y el servicio `PersonalService` incorporan pagos
+confirmados por Yape. Se registran desde el detalle de la cuenta y la persona puede cancelar la
+renovación desde *Mi saldo* sin perder la vigencia pagada. La prueba
+`test/personal-payments.e2e-spec.ts` usa un esquema sintético `test_personal_payments_*` con
+`RUN_PERSONAL_PAYMENT_TESTS=1`. El precio publicado del catálogo por sí solo no es un ingreso.

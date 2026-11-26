@@ -101,6 +101,8 @@ function buildPrismaDouble(passwordHash: string): {
   const prisma = {
     $connect: jest.fn().mockResolvedValue(undefined),
     $disconnect: jest.fn().mockResolvedValue(undefined),
+    $executeRaw: jest.fn().mockResolvedValue(0),
+    personalPayment: { findFirst: jest.fn().mockResolvedValue(null) },
     $transaction: jest.fn(async (arg: unknown) => {
       if (typeof arg === 'function') {
         return (arg as (tx: unknown) => Promise<unknown>)(prisma);
@@ -264,6 +266,22 @@ describe('Sesión de usuario (e2e)', () => {
     const cookies = respuesta.headers['set-cookie'] as unknown as string[];
     return cookies.find((cookie) => cookie.startsWith(SESSION_COOKIE)) ?? '';
   }
+
+  it('exige sesión administrativa y valida el importe al registrar Personal', async () => {
+    const ruta = `/v1/personal/users/${OTRO_USER_ID}/payments`;
+    const datos = { reference: 'YAPE-42', priceCents: 1990, currency: 'PEN' };
+    await request(app.getHttpServer()).post(ruta).send(datos).expect(401);
+    usuario.role = 'MEMBER';
+    const miembro = await entrar();
+    await request(app.getHttpServer()).post(ruta).set('Cookie', miembro).send(datos).expect(403);
+    usuario.role = 'ADMIN';
+    const administrador = await entrar();
+    await request(app.getHttpServer())
+      .post(ruta)
+      .set('Cookie', administrador)
+      .send({ ...datos, priceCents: 0 })
+      .expect(400);
+  });
 
   it('permite ver el consumo propio sin acceso al historial documental', async () => {
     const ruta = '/v1/statements/usage/history/consumption';

@@ -53,6 +53,10 @@ Existente hoy en `backend/api-backend`:
   con 20 entradas por página y cursor. Filtra por usuario y organización de la sesión. El consumo
   se lee del registro comercial y cada entrada devuelve fecha y cantidad de páginas. Las compras
   incluyen producto, precio y vencimiento comercial, sin notas internas ni referencias de pago.
+- `GET /v1/personal` y `POST /v1/personal/cancel-renewal` consultan y cancelan la renovación
+  propia. El administrador consulta y registra pagos ya confirmados en `/v1/personal/users/{id}`
+  y `/v1/personal/users/{id}/payments`. Se verifica la organización, el rango del administrador
+  y el importe del catálogo. El pago, la vigencia y la auditoría se escriben juntos.
 
 La carga, el detalle y el historial incluyen `sourceFileName` cuando se conoce el
 nombre del PDF. Es una etiqueta privada para su dueño, independiente de las

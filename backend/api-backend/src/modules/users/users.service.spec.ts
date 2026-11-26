@@ -107,6 +107,7 @@ function construir(
     /** Lo que devuelve la búsqueda de usuario por correo. */
     usuarioExistente?: Record<string, unknown> | null;
     membresiaExistente?: Record<string, unknown> | null;
+    periodoPagado?: boolean;
     /** Membresías del usuario en otras organizaciones. */
     otrasMembresias?: number;
     falloAlActualizar?: Error;
@@ -163,6 +164,10 @@ function construir(
     : jest.fn().mockResolvedValue(2);
 
   const cliente = {
+    $executeRaw: jest.fn().mockResolvedValue(0),
+    personalPayment: {
+      findFirst: jest.fn().mockResolvedValue(opciones.periodoPagado ? { id: 'pago' } : null),
+    },
     user: {
       findUnique: usuarioBuscado,
       create: usuarioCreado,
@@ -805,6 +810,14 @@ describe('UsersService y la membresía', () => {
     await service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, { planCode: 'BASICA' });
 
     expect(planResuelto).not.toHaveBeenCalled();
+    expect(membresiaActualizada).not.toHaveBeenCalled();
+  });
+
+  it('un cambio genérico de plan no corta el periodo de Personal ya pagado', async () => {
+    const { service, membresiaActualizada } = construir({ periodoPagado: true });
+    await expect(
+      service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, { planCode: 'ATLAS' }),
+    ).rejects.toMatchObject({ response: { code: 'PERSONAL_PAID_PERIOD_PROTECTED' } });
     expect(membresiaActualizada).not.toHaveBeenCalled();
   });
 

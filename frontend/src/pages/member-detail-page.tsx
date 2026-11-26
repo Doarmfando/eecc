@@ -8,6 +8,7 @@ import { SupportDetails } from '@/components/shared/support-details';
 import { Alert } from '@/components/ui/alert';
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
 import { MemberBalanceCard } from '@/features/balance/member-balance-card';
+import { PersonalCard } from '@/features/balance/personal-card';
 import { mensajeDeError } from '@/features/users/error-messages';
 import { nombreDeRol } from '@/features/users/roles';
 import { describirVigencia, hoyLocal } from '@/lib/plan-dates';
@@ -104,6 +105,10 @@ export function MemberDetailPage(): ReactNode {
             nombre={detalle.data.displayName}
             puedeRegistrar={detalle.data.actions?.includes('CHANGE_PLAN') ?? false}
           />
+          {detalle.data.actions?.includes('CHANGE_PLAN') &&
+          ['PERSONAL', 'GRATUITO'].includes(detalle.data.planCode ?? '') ? (
+            <PersonalCard userId={detalle.data.userId} />
+          ) : null}
 
           <Card>
             <dl className="divide-y divide-border/70">

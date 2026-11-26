@@ -38,6 +38,7 @@ export const FEATURE = {
 
 export const PLAN = {
   BASICA: 'BASICA',
+  PERSONAL: 'PERSONAL',
   ATLAS: 'ATLAS',
   ADMINISTRACION: 'ADMINISTRACION',
 } as const;

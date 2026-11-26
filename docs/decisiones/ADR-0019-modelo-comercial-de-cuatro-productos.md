@@ -153,3 +153,20 @@ conserva ancla, vigencia, compras y consumo previo sin otorgar un segundo lote d
 plan interno `ADMINISTRACION` se asigna a los roles administrativos y los planes heredados se
 retiran de las altas. Las membresías con condiciones pactadas o Atlas en otros roles conservan
 su plan mientras se decide su transición. Ver [informe de impacto](../roadmap/migracion-a-personal.md).
+
+## Anexo — 2026-11-26 — Cobros manuales de Personal
+
+`personal_payments` registra un periodo por cada cobro confirmado en Yape, con su importe en
+`DECIMAL`, moneda, páginas, fechas comerciales y referencia única por organización. Un reintento
+del mismo cobro devuelve el registro existente. Confirmar un pago registra la tarifa validada
+contra el catálogo y conserva el precio y las páginas contratadas de los periodos previos.
+
+Para Gratuito o Personal vencido, el periodo empieza el día comercial del registro. Una renovación
+anticipada empieza después de la vigencia comprometida. Los periodos consecutivos conservan su
+ancla de facturación aunque el mes tenga menos días. La API obtiene la cuota vigente del cobro
+correspondiente y usa los lotes habituales para reservar y consumir páginas.
+
+La propia cuenta puede cancelar la renovación desde *Mi saldo*. La cancelación deja un evento
+de auditoría y conserva el último día pagado, el saldo vigente y los periodos ya programados.
+Un nuevo pago confirmado reanuda la renovación manual. La edición general de cuentas no puede
+recortar ni cambiar ese periodo. El cobro recurrente sigue pendiente de una pasarela operativa.

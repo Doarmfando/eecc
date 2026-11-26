@@ -146,6 +146,7 @@ function construir(inicial: Partial<Estado> = {}): {
 
   const cliente = {
     $executeRaw: jest.fn().mockResolvedValue(0),
+    personalPayment: { findFirst: jest.fn().mockResolvedValue(null) },
     organizationMembership: {
       findUnique: jest.fn(() => Promise.resolve(estado.miembro)),
       updateMany: jest.fn(({ data }: { data: { trialUsedAt: Date } }) => {
