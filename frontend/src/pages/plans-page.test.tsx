@@ -179,9 +179,8 @@ describe('PlansPage: nuevo plan', () => {
     const dialogo = await screen.findByRole('dialog');
     await user.click(within(dialogo).getByRole('button', { name: 'Crear plan' }));
 
-    await waitFor(() => {
-      expect(screen.getByRole('dialog')).toBeInTheDocument();
-    });
+    expect(await within(dialogo).findByText('Escribe un código')).toBeInTheDocument();
+    expect(within(dialogo).getByText('Escribe un nombre')).toBeInTheDocument();
     expect(peticiones(fetchMock, 'POST')).toHaveLength(0);
   });
 

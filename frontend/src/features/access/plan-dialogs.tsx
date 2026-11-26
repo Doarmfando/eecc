@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { mensajeDeError } from '@/features/users/error-messages';
+import { FieldError } from '@/features/users/form-fields';
 import type { CreatePlanInput, PlanAdminOption, UpdatePlanInput } from '@/lib/session-client';
 
 import { FEATURE, NOMBRE_FUNCION, type FeatureCode } from './access';
@@ -130,10 +131,15 @@ function CamposDePlan({
   form,
   onChange,
   esNuevo,
+  errorCodigo,
+  errorNombre,
 }: {
   form: FormularioDePlan;
   onChange: (cambios: Partial<FormularioDePlan>) => void;
   esNuevo: boolean;
+  /** Solo se evalúan tras un intento de enviar: no se tacha un campo vacío sin motivo. */
+  errorCodigo?: string;
+  errorNombre?: string;
 }): ReactNode {
   const codigoId = useId();
   const nombreId = useId();
@@ -153,12 +159,15 @@ function CamposDePlan({
             autoComplete="off"
             placeholder="PRO"
             readOnly={!esNuevo}
+            aria-invalid={errorCodigo ? true : undefined}
             value={form.code}
             onChange={(event) => {
               onChange({ code: event.target.value.toUpperCase() });
             }}
           />
-          {esNuevo ? (
+          {errorCodigo ? (
+            <FieldError message={errorCodigo} />
+          ) : esNuevo ? (
             <p className="text-xs text-muted-foreground">
               Mayúsculas; no se puede cambiar después.
             </p>
@@ -169,11 +178,13 @@ function CamposDePlan({
           <Input
             id={nombreId}
             autoComplete="off"
+            aria-invalid={errorNombre ? true : undefined}
             value={form.name}
             onChange={(event) => {
               onChange({ name: event.target.value });
             }}
           />
+          <FieldError message={errorNombre} />
         </div>
       </div>
 
@@ -304,10 +315,12 @@ export function CrearPlanDialog({
   onCerrar: () => void;
 }): ReactNode {
   const [form, setForm] = useState<FormularioDePlan>(formularioVacio());
+  const [intento, setIntento] = useState(false);
   const crear = useCreatePlan();
 
   function cerrarYLimpiar(): void {
     setForm(formularioVacio());
+    setIntento(false);
     crear.reset();
     onCerrar();
   }
@@ -333,6 +346,7 @@ export function CrearPlanDialog({
           onSubmit={(event) => {
             event.preventDefault();
             if (form.code.trim() === '' || form.name.trim() === '') {
+              setIntento(true);
               return;
             }
             crear.mutate(
@@ -347,6 +361,8 @@ export function CrearPlanDialog({
               setForm((actual) => ({ ...actual, ...cambios }));
             }}
             esNuevo
+            errorCodigo={intento && form.code.trim() === '' ? 'Escribe un código' : undefined}
+            errorNombre={intento && form.name.trim() === '' ? 'Escribe un nombre' : undefined}
           />
 
           {crear.isError ? (
