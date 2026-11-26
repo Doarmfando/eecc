@@ -709,6 +709,46 @@ describe('MembersPage: membresías y jerarquía', () => {
   });
 });
 
+describe('MembersPage: Atlas ya no se elige, es una recarga (ADR-0018)', () => {
+  it('no ofrece Atlas al editar la membresía de un usuario normal', async () => {
+    await montar();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'Editar a Otra persona' }));
+    const dialogo = await screen.findByRole('dialog');
+
+    expect(await within(dialogo).findByRole('radio', { name: /^Básica/ })).toBeInTheDocument();
+    expect(within(dialogo).queryByRole('radio', { name: /^Atlas/ })).not.toBeInTheDocument();
+  });
+
+  it('sigue mostrando Atlas si la cuenta ya lo tenía, aunque sea un usuario normal', async () => {
+    await montar({
+      lista: () => jsonResponse(200, [YO, { ...OTRA, ...ATLAS }]),
+    });
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'Editar a Otra persona' }));
+    const dialogo = await screen.findByRole('dialog');
+
+    expect(await within(dialogo).findByRole('radio', { name: /^Atlas/ })).toBeChecked();
+  });
+
+  it('limpia la membresía elegida si pasaba de Administrador (Atlas) a Usuario', async () => {
+    await montar();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Nuevo usuario' }));
+    const dialogo = await screen.findByRole('dialog');
+
+    await user.click(await within(dialogo).findByRole('radio', { name: /^Administrador/ }));
+    expect(within(dialogo).getByRole('radio', { name: /^Atlas/ })).toBeChecked();
+
+    await user.click(within(dialogo).getByRole('radio', { name: /^Usuario/ }));
+    expect(within(dialogo).queryByRole('radio', { name: /^Atlas/ })).not.toBeInTheDocument();
+    await user.click(within(dialogo).getByRole('button', { name: 'Crear usuario' }));
+    expect(await within(dialogo).findByText('Elige la membresía')).toBeInTheDocument();
+  });
+});
+
 describe('MembersPage: vigencia de la membresía', () => {
   it('el alta de un usuario normal pide hasta cuándo vale, con atajos', async () => {
     const fetchMock = await montar();
@@ -719,7 +759,10 @@ describe('MembersPage: vigencia de la membresía', () => {
     await user.type(within(dialogo).getByLabelText('Nombre'), 'Cliente nuevo');
     await user.type(within(dialogo).getByLabelText('Correo'), 'cliente@empresa.pe');
     await user.click(await within(dialogo).findByRole('radio', { name: /^Usuario/ }));
-    await user.click(within(dialogo).getByRole('radio', { name: /^Atlas/ }));
+    // Atlas ya no se ofrece a un usuario normal: es una recarga que pone un
+    // administrador después (ADR-0018), no un plan que se elige al alta.
+    expect(within(dialogo).queryByRole('radio', { name: /^Atlas/ })).not.toBeInTheDocument();
+    await user.click(within(dialogo).getByRole('radio', { name: /^Básica/ }));
     expect(within(dialogo).getByLabelText('Vence el')).toHaveValue(sumarMeses(hoyLocal(), 1));
     await user.click(within(dialogo).getByRole('button', { name: '3 meses' }));
     await user.click(within(dialogo).getByRole('button', { name: 'Crear usuario' }));
@@ -727,7 +770,7 @@ describe('MembersPage: vigencia de la membresía', () => {
     await waitFor(() => {
       expect(cuerpo(peticiones(fetchMock, 'POST')[0]?.[1])).toMatchObject({
         role: 'MEMBER',
-        planCode: 'ATLAS',
+        planCode: 'BASICA',
         planExpiresOn: sumarMeses(hoyLocal(), 3),
       });
     });

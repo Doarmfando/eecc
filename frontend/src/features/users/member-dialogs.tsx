@@ -193,6 +193,24 @@ function rolesQueVencen(roles: readonly RoleOption[] | undefined): Set<string> {
   return new Set((roles ?? []).filter((rol) => rol.planExpiryRequired).map((rol) => rol.code));
 }
 
+/**
+ * Un plan sin tope de páginas (Atlas) ya no se elige para una cuenta que vence
+ * (un usuario normal): es una recarga que pone un administrador después, no
+ * una membresía de catálogo (ADR-0018). Solo lo usan ADMIN/SUPER_ADMIN, que no
+ * vencen. Si la cuenta ya lo tenía, se mantiene a la vista igual, para no
+ * esconder su propia membresía.
+ */
+function planesOfrecidos(
+  planes: readonly PlanOption[],
+  vence: boolean,
+  actual?: string,
+): PlanOption[] {
+  if (!vence) {
+    return [...planes];
+  }
+  return planes.filter((plan) => plan.monthlyPageQuota !== null || plan.code === actual);
+}
+
 const SIN_ROLES: readonly RoleOption[] = [];
 const SIN_PLANES: readonly PlanOption[] = [];
 
@@ -318,6 +336,16 @@ export function CrearCuentaDialog({
                     // membresía. Para un usuario no hay propuesta y se elige.
                     if (rol.defaultPlanCode) {
                       form.setValue('planCode', rol.defaultPlanCode, { shouldValidate: true });
+                    } else if (rol.planExpiryRequired) {
+                      // Una cuenta que vence no puede quedarse con un plan sin tope
+                      // (Atlas): ya no se ofrece para elegir, así que se limpia si
+                      // quedó elegido desde un rol anterior que sí lo proponía.
+                      const elegido = (planes.data ?? SIN_PLANES).find(
+                        (plan) => plan.code === form.getValues('planCode'),
+                      );
+                      if (elegido && elegido.monthlyPageQuota === null) {
+                        form.setValue('planCode', '', { shouldValidate: true });
+                      }
                     }
                     // Un usuario normal nace con vencimiento: se propone un mes, a la
                     // vista y editable, para que el alta siga siendo rápida.
@@ -339,7 +367,7 @@ export function CrearCuentaDialog({
               render={({ field }) => (
                 <PlanChoice
                   name={field.name}
-                  plans={planes.data ?? SIN_PLANES}
+                  plans={planesOfrecidos(planes.data ?? SIN_PLANES, pideVigencia)}
                   value={field.value}
                   onChange={field.onChange}
                 />
@@ -607,7 +635,11 @@ function EditarCuentaContenido({
             render={({ field }) => (
               <PlanChoice
                 name={field.name}
-                plans={planes.data ?? SIN_PLANES}
+                plans={planesOfrecidos(
+                  planes.data ?? SIN_PLANES,
+                  pideVigencia,
+                  miembro.planCode ?? undefined,
+                )}
                 value={field.value}
                 onChange={field.onChange}
                 disabled={planBloqueado}
