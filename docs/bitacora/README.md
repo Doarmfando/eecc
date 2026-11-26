@@ -36,6 +36,16 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
   problema previo del proveedor `v8` de Vitest que duplica cada archivo en el reporte (una fila
   con cobertura real y otra en cero) — reproducido también en `main` sin estos cambios, así que
   no es una regresión de esta entrada.
+- Corrección (encontrada al revisar esta misma entrada, no en el pedido): el formulario de alta
+  y edición de *Usuarios* seguía ofreciendo Atlas como membresía elegible para cualquier rol —
+  el back ya lo trataba como recarga desde el pivote anterior, pero el front nunca dejó de
+  listarlo, así que un administrador sí podía asignárselo a mano a un usuario normal, saltándose
+  la recarga. Ahora un plan sin tope fijo (`monthlyPageQuota` nulo, hoy solo Atlas) solo se
+  ofrece para un rol que no vence (ADMIN/SUPER_ADMIN); si una cuenta que vence ya lo tenía de
+  antes, se sigue viendo para no esconderle su propia membresía. Pruebas nuevas en
+  `members-page.test.tsx` (Atlas no aparece al editar un usuario normal, sigue visible si ya lo
+  tenía, se limpia la elección al pasar de Administrador a Usuario en el alta); 391 pruebas en
+  total.
 
 ## 2026-11-25 — Atlas pasa a ser una recarga administrada, y el catálogo de planes se puede editar desde la app
 
