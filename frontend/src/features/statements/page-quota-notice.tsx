@@ -1,7 +1,9 @@
+import { Loader2 } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 
 import { useSession } from '@/app/use-session';
 import { Alert } from '@/components/ui/alert';
+import { Progress } from '@/components/ui/progress';
 import { countPdfPages } from '@/lib/pdf-pages';
 
 import { useMonthlyUsage } from './queries';
@@ -47,7 +49,7 @@ export function PageQuotaNotice({ selectedFile }: { selectedFile: File | null })
 
   if (plan.trialOneTime && plan.trialAvailable === false) {
     return (
-      <Alert variant="destructive" title="Ya usaste tu prueba gratuita">
+      <Alert variant="destructive" title="Ya usaste tu prueba gratuita" className="mt-3">
         No se renueva. Pide a un administrador una membresía de pago para seguir convirtiendo.
       </Alert>
     );
@@ -56,42 +58,68 @@ export function PageQuotaNotice({ selectedFile }: { selectedFile: File | null })
   const quota = usage.data?.monthlyPageQuota ?? plan.monthlyPageQuota;
   if (quota === null || quota === undefined) {
     return (
-      <p className="text-xs text-muted-foreground">
+      <p className="mt-3 text-xs text-muted-foreground">
         Membresía <strong>{plan.name}</strong>: volumen de páginas a cotizar, sin tope fijo.
       </p>
     );
   }
 
   const usado = usage.data?.pagesUsed ?? 0;
-  const total = filePages !== null ? usado + filePages : null;
-  const seExcede = total !== null && total > quota;
 
-  return (
-    <p
-      className={
-        seExcede ? 'text-xs font-medium text-destructive' : 'text-xs text-muted-foreground'
-      }
-      aria-live="polite"
-    >
-      Membresía <strong>{plan.name}</strong>: llevas <strong>{usado}</strong> de{' '}
-      <strong>{quota}</strong> páginas acumuladas este mes.
-      {counting ? ' Contando las páginas de tu archivo…' : null}
-      {filePages !== null ? (
-        seExcede ? (
+  // Contando páginas de un PDF pesado puede tardar un momento: sin esto, la
+  // pantalla se queda en silencio entre elegir el archivo y saber si entra.
+  if (counting) {
+    return (
+      <div
+        className="mt-3 flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3"
+        aria-live="polite"
+      >
+        <Loader2 aria-hidden className="size-4 shrink-0 animate-spin text-primary" />
+        <div className="min-w-0 flex-1 space-y-2">
+          <p className="text-sm font-medium text-foreground">
+            Analizando tu archivo: contando sus páginas…
+          </p>
+          <Progress aria-label="Contando las páginas del archivo" />
+        </div>
+      </div>
+    );
+  }
+
+  if (filePages !== null) {
+    const total = usado + filePages;
+    const seExcede = total > quota;
+    return (
+      <Alert
+        variant={seExcede ? 'destructive' : 'default'}
+        title={
+          seExcede
+            ? `No te alcanza el cupo: ${String(filePages)} páginas`
+            : `Este archivo tiene ${String(filePages)} páginas`
+        }
+        className="mt-3"
+      >
+        Membresía <strong>{plan.name}</strong>: llevas <strong>{usado}</strong> de{' '}
+        <strong>{quota}</strong> páginas acumuladas este mes.{' '}
+        {seExcede ? (
           <>
-            {' '}
             Este archivo tiene <strong>{filePages}</strong> páginas: te pasarías del cupo por{' '}
-            <strong>{usado + filePages - quota}</strong>. Espera a que se renueve tu cupo o pide a
-            un administrador otra membresía.
+            <strong>{total - quota}</strong>. Espera a que se renueve tu cupo o pide a un
+            administrador otra membresía.
           </>
         ) : (
           <>
-            {' '}
             Este archivo tiene <strong>{filePages}</strong> páginas; te quedarían{' '}
-            <strong>{quota - usado - filePages}</strong> este mes.
+            <strong>{quota - total}</strong> este mes.
           </>
-        )
-      ) : null}
+        )}
+      </Alert>
+    );
+  }
+
+  return (
+    <p className="mt-3 text-xs text-muted-foreground" aria-live="polite">
+      Membresía <strong>{plan.name}</strong>: llevas <strong>{usado}</strong> de{' '}
+      <strong>{quota}</strong> páginas acumuladas este mes.
     </p>
   );
 }

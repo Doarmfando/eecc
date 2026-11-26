@@ -46,6 +46,29 @@ describe('PageQuotaNotice', () => {
     });
   });
 
+  it('mientras cuenta las páginas de un archivo pesado, avisa que está analizando', async () => {
+    stubUsage(2, 10);
+    let resolver: (paginas: number) => void = () => undefined;
+    countPdfPages.mockReturnValue(
+      new Promise<number>((resolve) => {
+        resolver = resolve;
+      }),
+    );
+    const archivo = new File(['contenido'], 'estado.pdf', { type: 'application/pdf' });
+    renderWithProviders(<PageQuotaNotice selectedFile={archivo} />, { usuario: BASIC_USER });
+
+    expect(
+      await screen.findByText('Analizando tu archivo: contando sus páginas…'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/páginas acumuladas este mes/)).not.toBeInTheDocument();
+
+    resolver(5);
+    expect(await screen.findByText('Este archivo tiene 5 páginas')).toBeInTheDocument();
+    expect(
+      screen.queryByText('Analizando tu archivo: contando sus páginas…'),
+    ).not.toBeInTheDocument();
+  });
+
   it('con un archivo elegido que no se pasaría del cupo, dice cuánto quedaría', async () => {
     stubUsage(2, 10);
     countPdfPages.mockResolvedValue(5);

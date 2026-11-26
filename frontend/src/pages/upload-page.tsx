@@ -236,6 +236,7 @@ export function UploadPage(): ReactNode {
                     passwordProblem={passwordProblemOf(upload.error)}
                     onSubmit={handleSubmit}
                     onFileSelected={setSelectedFile}
+                    afterFile={<PageQuotaNotice selectedFile={selectedFile} />}
                   />
                 </div>
               </>
@@ -245,10 +246,6 @@ export function UploadPage(): ReactNode {
               </p>
             )}
           </div>
-        </div>
-
-        <div className="mt-3">
-          <PageQuotaNotice selectedFile={selectedFile} />
         </div>
       </Card>
 

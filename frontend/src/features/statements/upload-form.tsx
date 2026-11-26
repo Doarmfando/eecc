@@ -33,6 +33,7 @@ export function UploadForm({
   passwordProblem = null,
   onSubmit,
   onFileSelected,
+  afterFile,
 }: {
   /** Reservado para estados en los que el envío no procede; por defecto, activo. */
   disabled?: boolean;
@@ -41,6 +42,8 @@ export function UploadForm({
   onSubmit: (values: UploadFormValues) => void;
   /** El archivo recién elegido, para avisar cuántas páginas trae antes de enviarlo. */
   onFileSelected?: (file: File | null) => void;
+  /** Aviso de cupo de páginas, justo debajo del archivo elegido: ahí es donde se mira. */
+  afterFile?: ReactNode;
 }): ReactNode {
   const fileInputId = useId();
   const yearInputId = useId();
@@ -205,6 +208,7 @@ export function UploadForm({
             `Solo estados de cuenta bancarios reconocidos, hasta ${formatBytes(MAX_CLIENT_BYTES)}.`
           )}
         </p>
+        {afterFile}
       </div>
 
       <div className="grid gap-5 rounded-lg border border-border/60 bg-muted/20 p-4 sm:grid-cols-2">
