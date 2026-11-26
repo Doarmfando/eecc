@@ -7,7 +7,11 @@ import { createQueryClient } from '@/app/query-client';
 import { SessionContext, type SessionValue } from '@/app/session-context';
 import { NotificationRegion } from '@/components/notifications/notification-region';
 import { NotificationsProvider } from '@/components/notifications/notifications-provider';
-import { puedeGestionarCuentas, tieneFuncion } from '@/features/access/access';
+import {
+  puedeAdministrarPlanes,
+  puedeGestionarCuentas,
+  tieneFuncion,
+} from '@/features/access/access';
 import type { SessionUser } from '@/lib/session-client';
 
 export const TEST_BASE_URL = 'http://127.0.0.1:3000';
@@ -80,6 +84,7 @@ export function renderWithProviders(
     cerrar,
     aviso,
     puedeAdministrar: puedeGestionarCuentas(usuario),
+    puedeAdministrarPlanes: puedeAdministrarPlanes(usuario),
     tieneFuncion: (funcion) => tieneFuncion(usuario, funcion),
   };
 

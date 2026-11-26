@@ -21,6 +21,8 @@ const MENSAJES: Record<string, string> = {
     'Esa cuenta, o el rol que quieres darle, está por encima del tuyo. Pídeselo a un superadministrador.',
   ROLE_NOT_FOUND: 'Ese rol ya no existe. Recarga la página.',
   PLAN_NOT_FOUND: 'Esa membresía ya no está disponible. Recarga la página y elige otra.',
+  PLAN_ALREADY_EXISTS: 'Ya existe un plan con ese código. Elige otro: no se puede reutilizar.',
+  MONTHLY_PAGE_QUOTA_OVERRIDE_INVALID: 'La recarga debe ser un número entero mayor que cero.',
   PLAN_EXPIRY_REQUIRED: 'Indica hasta cuándo vale la membresía de este usuario.',
   PLAN_EXPIRY_IN_PAST: 'La fecha de vencimiento no puede ser anterior a hoy.',
   PLAN_EXPIRY_INVALID: 'Esa fecha de vencimiento no existe. Revísala.',

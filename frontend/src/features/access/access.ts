@@ -24,6 +24,8 @@ export const NOMBRE_FUNCION: Record<FeatureCode, string> = {
 
 export const PERMISSION = {
   USERS_MANAGE: 'USERS_MANAGE',
+  /** Crear o modificar el catálogo de membresías; solo lo tiene SUPER_ADMIN (ADR-0018). */
+  PLANS_MANAGE: 'PLANS_MANAGE',
 } as const;
 
 /**
@@ -37,6 +39,15 @@ export function puedeGestionarCuentas(usuario: SessionUser | null): boolean {
   return usuario.permissions
     ? usuario.permissions.includes(PERMISSION.USERS_MANAGE)
     : usuario.role === 'ADMIN';
+}
+
+/**
+ * Si puede administrar el catálogo de planes (crear uno, cambiar precio o
+ * páginas). Sin permisos en la sesión (API anterior a ADR-0018), nadie: es una
+ * función nueva y no existía forma de deducirla del rol.
+ */
+export function puedeAdministrarPlanes(usuario: SessionUser | null): boolean {
+  return usuario?.permissions?.includes(PERMISSION.PLANS_MANAGE) ?? false;
 }
 
 /**

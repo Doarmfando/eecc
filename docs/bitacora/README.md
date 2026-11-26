@@ -13,6 +13,30 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-11-25 — Interfaz para la recarga y para administrar el catálogo de planes
+
+- Contexto: cerraba la `Pendiente` de la entrada anterior — la API ya aceptaba la recarga y el
+  catálogo dinámico, pero no había dónde tocarlos sin usar `/docs` de Swagger a mano.
+- Hecho: en *Editar usuario* (`member-dialogs.tsx`), nuevo campo "Recarga de páginas al mes" —
+  número entero positivo o vacío para quitarla y volver al tope del plan; deshabilitado junto
+  con el resto de membresía cuando quien edita no tiene `CHANGE_PLAN` sobre esa cuenta.
+- Hecho: pantalla *Planes* (`/planes`, solo `PLANS_MANAGE`) — tabla del catálogo completo
+  (activos y retirados) con "Nuevo plan" y "Editar" por fila; el formulario cubre nombre,
+  descripción, documentos guardados, páginas acumuladas al mes (vacío = se cotiza, como Atlas),
+  tope técnico por PDF, orden, los tres interruptores (prueba única, predeterminado, activo) y
+  las vistas que habilita. El código del plan no se puede cambiar una vez creado.
+- Hecho: enlace "Planes" en el sidebar y en la navegación móvil, visible solo con
+  `PLANS_MANAGE`; ruta protegida con el mismo aviso de permisos que ya usaba *Usuarios*.
+- Verificación automática: `npm run check` del frontend (typecheck, ESLint, Prettier; 388
+  pruebas, 50 archivos). Pruebas nuevas en `plans-page.test.tsx` (listar, crear, validar
+  código/nombre obligatorios, traducir el rechazo por código repetido, editar solo lo que se
+  toca, retirar un plan) y en `members-page.test.tsx` (agregar y quitar la recarga, rechazar un
+  valor inválido sin llegar al servidor, campo bloqueado sin `CHANGE_PLAN`).
+- Nota: el umbral global de cobertura (80%) sigue fallando en este entorno Windows por un
+  problema previo del proveedor `v8` de Vitest que duplica cada archivo en el reporte (una fila
+  con cobertura real y otra en cero) — reproducido también en `main` sin estos cambios, así que
+  no es una regresión de esta entrada.
+
 ## 2026-11-25 — Atlas pasa a ser una recarga administrada, y el catálogo de planes se puede editar desde la app
 
 - Contexto: el responsable del producto mandó una tabla de precios definitiva (Gratuito S/0,

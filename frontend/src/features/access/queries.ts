@@ -1,13 +1,25 @@
-import { useQuery, type UseQueryResult } from '@tanstack/react-query';
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type UseMutationResult,
+  type UseQueryResult,
+} from '@tanstack/react-query';
 
 import { useSession } from '@/app/use-session';
 import type { ApiError } from '@/lib/api-error';
 import {
+  createPlan,
   fetchPlans,
+  fetchPlansForAdmin,
   fetchRoles,
   fetchSupportContact,
+  updatePlan,
+  type CreatePlanInput,
+  type PlanAdminOption,
   type PlanOption,
   type RoleOption,
+  type UpdatePlanInput,
 } from '@/lib/session-client';
 
 /** El catálogo cambia por migración, no durante una sesión: basta pedirlo una vez. */
@@ -20,6 +32,55 @@ export function usePlans(): UseQueryResult<PlanOption[], ApiError> {
     enabled: estado === 'autenticado',
     queryFn: ({ signal }) => fetchPlans(baseUrl, signal),
     ...UNA_VEZ,
+  });
+}
+
+function planesAdminQueryKey(): readonly unknown[] {
+  return ['catalogo', 'planes-admin'];
+}
+
+/**
+ * Todo el catálogo, activo o retirado, para quien lo administra
+ * (`PLANS_MANAGE`, ADR-0018). A diferencia de `usePlans`, sí se refresca: es
+ * la pantalla donde se edita, no un dato que solo cambia por migración.
+ */
+export function usePlansForAdmin(): UseQueryResult<PlanAdminOption[], ApiError> {
+  const { baseUrl, estado, puedeAdministrarPlanes } = useSession();
+  return useQuery<PlanAdminOption[], ApiError>({
+    queryKey: planesAdminQueryKey(),
+    enabled: estado === 'autenticado' && puedeAdministrarPlanes,
+    queryFn: ({ signal }) => fetchPlansForAdmin(baseUrl, signal),
+  });
+}
+
+/** Al crear o cambiar un plan, se refresca tanto la vista de administrarlo como la de alta. */
+function useInvalidarCatalogoDePlanes(): () => void {
+  const queryClient = useQueryClient();
+  return () => {
+    void queryClient.invalidateQueries({ queryKey: planesAdminQueryKey() });
+    void queryClient.invalidateQueries({ queryKey: ['catalogo', 'planes'] });
+  };
+}
+
+export function useCreatePlan(): UseMutationResult<PlanAdminOption, ApiError, CreatePlanInput> {
+  const { baseUrl } = useSession();
+  const invalidar = useInvalidarCatalogoDePlanes();
+  return useMutation<PlanAdminOption, ApiError, CreatePlanInput>({
+    mutationFn: (datos) => createPlan(baseUrl, datos),
+    onSuccess: invalidar,
+  });
+}
+
+export function useUpdatePlan(): UseMutationResult<
+  PlanAdminOption,
+  ApiError,
+  { code: string; cambios: UpdatePlanInput }
+> {
+  const { baseUrl } = useSession();
+  const invalidar = useInvalidarCatalogoDePlanes();
+  return useMutation<PlanAdminOption, ApiError, { code: string; cambios: UpdatePlanInput }>({
+    mutationFn: ({ code, cambios }) => updatePlan(baseUrl, code, cambios),
+    onSuccess: invalidar,
   });
 }
 

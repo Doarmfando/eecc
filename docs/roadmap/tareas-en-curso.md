@@ -379,3 +379,27 @@ calendario en diciembre de 2026)
   provisional: «pendiente», los movimientos que un documento trae de otro periodo (como
   el del 31 de diciembre en el de enero); «acumulado», el saldo que se arrastra día a
   día; la tabla, los movimientos del mes en filas.
+
+## 18. Atlas como recarga administrada y catálogo de planes editable (pricing final, 2026-11-25)
+
+- Pedido, resumido: con la tabla de precios definitiva (Gratuito, Básico S/20, Especial
+  S/30, ambos a 15 páginas/mes con distintas vistas; Atlas deja de ser un plan elegible y
+  pasa a ser una recarga de páginas que un **administrador** (rango ADMIN, no solo
+  SUPER_ADMIN) le aplica a quien ya tiene Básico o Especial, tras cotizar y cobrar por
+  fuera) y que el catálogo de planes se administre desde la app, como filas de tabla, sin
+  que cada ajuste sea una migración. Detalle y cifras en el anexo de
+  [`ADR-0018`](../decisiones/ADR-0018-cobro-por-paginas-acumuladas-y-tope-tecnico.md).
+- [x] Back: `monthly_page_quota_override` por membresía, resuelto en `toMembershipAccess`
+  (prioridad sobre el tope del plan); permiso `PLANS_MANAGE` (solo `SUPER_ADMIN`);
+  `GET /v1/plans/admin`, `POST /v1/plans`, `PATCH /v1/plans/:code`.
+- [x] Front: campo «Recarga de páginas al mes» en *Editar usuario*; pantalla *Planes*
+  (`/planes`, solo `PLANS_MANAGE`) con listado, alta y edición del catálogo completo;
+  enlace en el sidebar y en la navegación móvil.
+- [x] Pruebas y verificación: API `npm run check` (309, con cobertura); frontend
+  `npm run check` (typecheck, ESLint, Prettier; 388 pruebas, 50 archivos) — el umbral
+  global de cobertura (80%) sigue sin cumplirse por un problema previo, no de esta
+  tarea, del proveedor `v8` de Vitest en este entorno Windows (duplica cada archivo en
+  el reporte); reproducido también en `main` sin estos cambios.
+- [ ] Pendiente: commit y push (fetch y rebase antes), verificar en producción
+  (Railway/Fortex) que `/planes` carga para un SUPER_ADMIN y que crear/editar un plan y
+  poner una recarga funcionan de punta a punta.

@@ -1,7 +1,11 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 
-import { puedeGestionarCuentas, tieneFuncion } from '@/features/access/access';
+import {
+  puedeAdministrarPlanes,
+  puedeGestionarCuentas,
+  tieneFuncion,
+} from '@/features/access/access';
 import { readBaseUrl } from '@/lib/env';
 import { fetchSession, logout as cerrarEnServidor, type SessionUser } from '@/lib/session-client';
 
@@ -79,6 +83,7 @@ export function SessionProvider({
       cerrar,
       aviso,
       puedeAdministrar: puedeGestionarCuentas(usuario),
+      puedeAdministrarPlanes: puedeAdministrarPlanes(usuario),
       tieneFuncion: (funcion) => tieneFuncion(usuario, funcion),
     }),
     [resolvedBaseUrl, estado, usuario, establecer, cerrar, aviso],

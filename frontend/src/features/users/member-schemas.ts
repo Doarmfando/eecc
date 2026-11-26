@@ -128,12 +128,20 @@ export function nuevaCuentaSchema(
     });
 }
 
+/** Vacío: usa el tope del plan. Si no, un entero positivo (la "recarga Atlas", ADR-0018). */
+const recarga = z
+  .string()
+  .refine((valor) => valor === '' || (/^\d+$/.test(valor) && Number(valor) > 0), {
+    message: 'Escribe un número entero mayor que cero',
+  });
+
 const edicionBase = z.object({
   displayName: nombre,
   email: correo,
   role: rol,
   planCode: plan,
   planExpiresOn: vigencia,
+  monthlyPageQuotaOverride: recarga,
 });
 
 export type Edicion = z.infer<typeof edicionBase>;

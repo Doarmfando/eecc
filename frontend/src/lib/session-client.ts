@@ -66,6 +66,8 @@ export interface Member {
   maxRetainedStatements?: number;
   maxPagesPerDocument?: number | null;
   monthlyPageQuota?: number | null;
+  /** Recarga puesta a mano por un administrador; nulo usa la del plan. */
+  monthlyPageQuotaOverride?: number | null;
   planChangedAt?: string;
   /** Último día de vigencia (`YYYY-MM-DD`); nulo si no vence. */
   planExpiresOn?: string | null;
@@ -89,6 +91,8 @@ export interface MemberChanges {
   planCode?: string;
   /** `YYYY-MM-DD` para renovar o cambiar la vigencia; `null` la quita. */
   planExpiresOn?: string | null;
+  /** Recarga de páginas al mes; `null` la quita y vuelve a la del plan. */
+  monthlyPageQuotaOverride?: number | null;
   membershipStatus?: 'ACTIVE' | 'REVOKED';
 }
 
@@ -104,6 +108,30 @@ export interface PlanOption {
   features: string[];
   isDefault: boolean;
 }
+
+/** Igual que `PlanOption`, más si se ofrece y en qué orden: la vista de administrarlo. */
+export interface PlanAdminOption extends PlanOption {
+  isActive: boolean;
+  sortOrder: number;
+}
+
+/** Lo que hace falta para crear un plan nuevo en el catálogo. */
+export interface CreatePlanInput {
+  code: string;
+  name: string;
+  description: string;
+  maxRetainedStatements: number;
+  maxPagesPerDocument?: number | null;
+  monthlyPageQuota?: number | null;
+  trialOneTime?: boolean;
+  isDefault?: boolean;
+  isActive?: boolean;
+  sortOrder?: number;
+  features?: string[];
+}
+
+/** Igual que al crear, pero todo opcional: solo se cambia lo que se envía. */
+export type UpdatePlanInput = Partial<Omit<CreatePlanInput, 'code'>>;
 
 /** Rol que quien consulta puede asignar: de rango igual o inferior al suyo. */
 export interface RoleOption {
@@ -215,6 +243,35 @@ export async function fetchPlans(baseUrl: string, signal?: AbortSignal): Promise
     method: 'GET',
     ...(signal ? { signal } : {}),
   })) as PlanOption[];
+}
+
+/** Todo el catálogo, activo o retirado; solo con el permiso `PLANS_MANAGE`. */
+export async function fetchPlansForAdmin(
+  baseUrl: string,
+  signal?: AbortSignal,
+): Promise<PlanAdminOption[]> {
+  return (await pedir(baseUrl, 'v1/plans/admin', {
+    method: 'GET',
+    ...(signal ? { signal } : {}),
+  })) as PlanAdminOption[];
+}
+
+export async function createPlan(
+  baseUrl: string,
+  datos: CreatePlanInput,
+): Promise<PlanAdminOption> {
+  return (await pedir(baseUrl, 'v1/plans', { method: 'POST', body: datos })) as PlanAdminOption;
+}
+
+export async function updatePlan(
+  baseUrl: string,
+  code: string,
+  cambios: UpdatePlanInput,
+): Promise<PlanAdminOption> {
+  return (await pedir(baseUrl, `v1/plans/${encodeURIComponent(code)}`, {
+    method: 'PATCH',
+    body: cambios,
+  })) as PlanAdminOption;
 }
 
 export async function fetchRoles(baseUrl: string, signal?: AbortSignal): Promise<RoleOption[]> {

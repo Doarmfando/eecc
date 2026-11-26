@@ -421,6 +421,11 @@ function cambiosDe(miembro: Member, valores: Edicion): MemberChanges {
   if (vigencia !== (miembro.planExpiresOn ?? null)) {
     cambios.planExpiresOn = vigencia;
   }
+  const recarga =
+    valores.monthlyPageQuotaOverride === '' ? null : Number(valores.monthlyPageQuotaOverride);
+  if (recarga !== (miembro.monthlyPageQuotaOverride ?? null)) {
+    cambios.monthlyPageQuotaOverride = recarga;
+  }
   return cambios;
 }
 
@@ -475,12 +480,14 @@ function EditarCuentaContenido({
       role: miembro.role,
       planCode: miembro.planCode ?? '',
       planExpiresOn: miembro.planExpiresOn ?? '',
+      monthlyPageQuotaOverride: miembro.monthlyPageQuotaOverride?.toString() ?? '',
     },
   });
   const errores = form.formState.errors;
   const planElegido = useWatch({ control: form.control, name: 'planCode' });
   const rolElegido = useWatch({ control: form.control, name: 'role' });
   const vigenciaId = useId();
+  const recargaId = useId();
   // La vigencia sigue al rol elegido: ascender a administrador la quita.
   const rolDelCatalogo = roles.data?.find((rol) => rol.code === rolElegido);
   const pideVigencia =
@@ -612,6 +619,32 @@ function EditarCuentaContenido({
             plan={planes.data?.find((plan) => plan.code === planElegido)}
             documentos={miembro.documentCount}
           />
+        </fieldset>
+
+        <fieldset>
+          <legend className="mb-2 text-sm font-medium">
+            <label htmlFor={recargaId}>Recarga de páginas al mes</label>
+          </legend>
+          <Input
+            id={recargaId}
+            type="number"
+            min={1}
+            step={1}
+            inputMode="numeric"
+            placeholder={
+              planes.data
+                ?.find((plan) => plan.code === planElegido)
+                ?.monthlyPageQuota?.toString() ?? 'Sin tope fijo'
+            }
+            disabled={planBloqueado}
+            aria-invalid={errores.monthlyPageQuotaOverride ? true : undefined}
+            {...form.register('monthlyPageQuotaOverride')}
+          />
+          <FieldError message={errores.monthlyPageQuotaOverride?.message} />
+          <p className="mt-2 text-xs text-muted-foreground">
+            Vacío usa el tope del plan elegido. Es la "recarga Atlas": súbesela a mano después de
+            cotizarla y cobrarla por fuera, sin cambiarle el plan.
+          </p>
         </fieldset>
 
         {pideVigencia ? (

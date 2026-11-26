@@ -17,6 +17,8 @@ export interface SessionValue {
   aviso: string | null;
   /** Si su rol tiene `USERS_MANAGE`: quien gestiona las cuentas de la organización. */
   puedeAdministrar: boolean;
+  /** Si su rol tiene `PLANS_MANAGE`: quien administra el catálogo de membresías. */
+  puedeAdministrarPlanes: boolean;
   /** Si su membresía incluye esa vista (Historial, Centro Financiero, Calendario…). */
   tieneFuncion: (funcion: FeatureCode) => boolean;
 }

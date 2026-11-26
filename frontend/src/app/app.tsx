@@ -1,5 +1,13 @@
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
-import { CalendarDays, ChartColumn, FileClock, Home, Users, type LucideIcon } from 'lucide-react';
+import {
+  CalendarDays,
+  ChartColumn,
+  FileClock,
+  Gem,
+  Home,
+  Users,
+  type LucideIcon,
+} from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
@@ -19,6 +27,7 @@ import { HistoryPage } from '@/pages/history-page';
 import { JobPage } from '@/pages/job-page';
 import { LoginPage } from '@/pages/login-page';
 import { MembersPage } from '@/pages/members-page';
+import { PlansPage } from '@/pages/plans-page';
 import { UploadPage } from '@/pages/upload-page';
 
 import { createQueryClient } from './query-client';
@@ -85,7 +94,21 @@ function useEnlacesVisibles(): Enlace[] {
   return ENLACES.filter((enlace) => !enlace.funcion || tieneFuncion(enlace.funcion));
 }
 
-const ENLACES_ADMINISTRACION: Enlace[] = [{ to: '/usuarios', etiqueta: 'Usuarios', Icono: Users }];
+/**
+ * Igual que `useEnlacesVisibles`, pero para la sección de administración: cada
+ * enlace depende de un permiso, no de una función del plan (ADR-0018).
+ */
+function useEnlacesDeAdministracion(): Enlace[] {
+  const { puedeAdministrar, puedeAdministrarPlanes } = useSession();
+  const enlaces: Enlace[] = [];
+  if (puedeAdministrar) {
+    enlaces.push({ to: '/usuarios', etiqueta: 'Usuarios', Icono: Users });
+  }
+  if (puedeAdministrarPlanes) {
+    enlaces.push({ to: '/planes', etiqueta: 'Planes', Icono: Gem });
+  }
+  return enlaces;
+}
 
 /**
  * Ilustración conceptual del pie del sidebar: un PDF se desvanece hacia abajo
@@ -130,8 +153,8 @@ function SidebarConversionArt(): ReactNode {
 }
 
 function Sidebar(): ReactNode {
-  const { puedeAdministrar } = useSession();
   const enlaces = useEnlacesVisibles();
+  const enlacesAdministracion = useEnlacesDeAdministracion();
 
   return (
     <aside
@@ -158,11 +181,11 @@ function Sidebar(): ReactNode {
       </div>
       {/* Solo se ofrece a quien puede usarla: un enlace que lleva a un aviso de
           permisos no informa, entorpece. */}
-      {puedeAdministrar ? (
+      {enlacesAdministracion.length > 0 ? (
         <div>
           <p className={seccionClass}>Administración</p>
           <nav aria-label="Administración" className="flex flex-col gap-1">
-            {ENLACES_ADMINISTRACION.map(({ to, etiqueta, Icono }) => (
+            {enlacesAdministracion.map(({ to, etiqueta, Icono }) => (
               <NavLink
                 key={to}
                 to={to}
@@ -187,9 +210,9 @@ function Sidebar(): ReactNode {
 
 /** En pantallas estrechas la barra lateral no cabe; sin esto no habría forma de navegar. */
 function NavegacionMovil(): ReactNode {
-  const { puedeAdministrar } = useSession();
   const visibles = useEnlacesVisibles();
-  const enlaces = puedeAdministrar ? [...visibles, ...ENLACES_ADMINISTRACION] : visibles;
+  const enlacesAdministracion = useEnlacesDeAdministracion();
+  const enlaces = [...visibles, ...enlacesAdministracion];
 
   return (
     <nav
@@ -257,13 +280,16 @@ function Layout({ children }: { children: ReactNode }): ReactNode {
 function RutaProtegida({
   children,
   soloAdmin,
+  soloPlanes,
   funcion,
 }: {
   children: ReactNode;
   soloAdmin?: boolean;
+  /** Solo con `PLANS_MANAGE`: hoy, un superadministrador. */
+  soloPlanes?: boolean;
   funcion?: FeatureCode | undefined;
 }): ReactNode {
-  const { estado, puedeAdministrar, tieneFuncion } = useSession();
+  const { estado, puedeAdministrar, puedeAdministrarPlanes, tieneFuncion } = useSession();
   const location = useLocation();
 
   if (estado === 'cargando') {
@@ -277,6 +303,13 @@ function RutaProtegida({
     return (
       <Alert variant="warning" title="No tienes permisos para esta sección">
         Solo un administrador puede gestionar usuarios.
+      </Alert>
+    );
+  }
+  if (soloPlanes && !puedeAdministrarPlanes) {
+    return (
+      <Alert variant="warning" title="No tienes permisos para esta sección">
+        Solo un superadministrador puede administrar el catálogo de planes.
       </Alert>
     );
   }
@@ -302,15 +335,17 @@ function NotFoundPage(): ReactNode {
 function Protegida({
   children,
   soloAdmin,
+  soloPlanes,
   funcion,
 }: {
   children: ReactNode;
   soloAdmin?: boolean;
+  soloPlanes?: boolean;
   funcion?: FeatureCode;
 }): ReactNode {
   return (
     <Layout>
-      <RutaProtegida soloAdmin={soloAdmin} funcion={funcion}>
+      <RutaProtegida soloAdmin={soloAdmin} soloPlanes={soloPlanes} funcion={funcion}>
         {children}
       </RutaProtegida>
     </Layout>
@@ -367,6 +402,14 @@ function Contenido(): ReactNode {
         element={
           <Protegida soloAdmin>
             <MembersPage />
+          </Protegida>
+        }
+      />
+      <Route
+        path="/planes"
+        element={
+          <Protegida soloPlanes>
+            <PlansPage />
           </Protegida>
         }
       />
