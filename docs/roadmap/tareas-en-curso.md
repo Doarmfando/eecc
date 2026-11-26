@@ -469,10 +469,14 @@ calendario en diciembre de 2026)
     cobro de los clientes actuales; pasa a la etapa 2b.
   - [ ] **2b. Primer lote real.** `page_lots` con el periodo de Personal como primer lote; las
     reservas reparten su techo entre lotes (FEFO); `toMembershipAccess` consulta el saldo real.
-    Necesita antes: definir el periodo (mes calendario en `America/Lima`, o desde la suscripción).
-  - [ ] **3. Catálogo de productos y precios.** Tabla `commercial_products` (Recargas/Profesional,
+    Periodo ya definido (decisión 1 abajo): desde la activación o renovación de cada persona.
+  - [x] **3. Catálogo de productos y precios.** Tabla `commercial_products` (Recargas/Profesional,
     aparte de `membership_plans` porque son compras apilables, no la identidad de la cuenta);
-    precio en `membership_plans`; administración bajo `PLANS_MANAGE`.
+    precio en `membership_plans`; administración bajo `PLANS_MANAGE` (`/v1/commercial-products`,
+    cotización con sugerencia del paquete que conviene); sección *Productos de saldo* y precio de
+    cada plan en la pantalla *Planes y membresías*. `PERSONAL` sembrado pero retirado hasta la
+    migración. [ADR-0019](../decisiones/ADR-0019-modelo-comercial-de-cuatro-productos.md).
+    En la rama `feature/catalogo-comercial`; **sin desplegar** hasta autorización.
   - [ ] **4. Lotes comprables y otorgamiento por un administrador.** Reemplaza
     `monthlyPageQuotaOverride` (la "recarga Atlas" manual) por lotes reales.
   - [ ] **5. UI de usuario.** Saldo agregado y por lote, compra, historial comercial.
@@ -481,16 +485,21 @@ calendario en diciembre de 2026)
     Script idempotente probado primero contra una copia de los datos reales.
   - [ ] **7. Panel comercial con métricas.**
   - [ ] **8. ADR nuevo del modelo de cuatro productos** (reemplaza la mayor parte de ADR-0018).
-- [?] Preguntas abiertas antes de la etapa 3 (para el responsable del producto):
-  1. "Atlas" ya es el código interno del plan sin tope de los administradores: ¿se renombra antes
-     de vender "Atlas Profesional"?
-  2. ¿Qué pasa con las páginas del periodo si alguien cancela Personal o baja a Gratuito?
-  3. ¿El usuario ve el saldo de cada compra por separado o solo el total?
-  4. Reembolsos: ¿revocan el lote o crean un movimiento compensatorio aparte?
-  5. Pago manual (Yape): ¿el lote se activa al declarar el pago o cuando un administrador lo
-     confirma?
-  6. Una recarga de, p. ej., 23 páginas: ¿se cobra exacto o se redondea?
-  7. ¿El saldo es siempre por organización (como el resto del sistema)?
-  8. Migración de overrides existentes: ¿se acepta tratar como 0 lo ya consumido del periodo?
-  9. Al borrar una cuenta, ¿el registro de consumo se conserva sin el usuario (como hoy los
-     documentos) o se purga por privacidad?
+    Ya existe ADR-0019 con el modelo y las decisiones; se completa con lotes y migración.
+- [x] Decisiones del responsable del producto (2026-11-26), elegidas en el chat:
+  1. **Periodo de Personal: desde que se activa o renueva**, no mes calendario. Cada persona tiene
+     su propio mes; encaja con "50 páginas por cada periodo pagado" y con cómo hoy se pone la
+     vigencia al cobrar por Yape.
+  2. **Compras de Recarga/Profesional: las registra un administrador** al confirmar el pago por
+     Yape (como hoy la recarga); el saldo se activa al registrarla. No hay bandeja de aprobación.
+  3. **"ATLAS" como plan interno de administradores se renombra**, para que "ATLAS" quede solo
+     como marca comercial (mismo comportamiento: sin tope).
+- Respondidas por el propio documento del pedido (no hizo falta preguntar):
+  - Cancelar Personal no corta el periodo ya pagado; al vencer Personal se conservan las páginas
+    vigentes de Recargas/Profesional.
+  - La persona ve el saldo de cada compra por separado, con su vencimiento.
+  - La recarga se cobra exacta por página (p. ej. 23 páginas = S/3.45), mínimo 20.
+  - El saldo es por persona dentro de su organización.
+  - No se inventa consumo histórico; ajustes administrativos auditados, como movimientos nuevos.
+  - El registro de consumo se conserva para auditoría (sobrevive al borrado del documento y de la
+    cuenta, con la referencia en nulo).

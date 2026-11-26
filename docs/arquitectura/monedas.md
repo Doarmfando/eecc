@@ -39,6 +39,14 @@ Si un documento dice las dos monedas, se considera que no declara ninguna.
 
 > El Banco de la Nación no imprime la moneda en la primera página de la muestra disponible: una cuenta suya en dólares se vería en soles. Ver la bitácora del 2026-10-06.
 
+## Precios del catálogo comercial
+
+Los precios de membresías y productos de saldo ([ADR-0019](../decisiones/ADR-0019-modelo-comercial-de-cuatro-productos.md)) siguen las mismas reglas, con un detalle por capa:
+
+- **Base**: `DECIMAL(10,2)` en soles (`price_amount`, `price`), con `currency` `CHAR(3)` que hoy siempre es `PEN`.
+- **API**: céntimos enteros (`priceCents`). La conversión vive solo en `backend/api-backend/src/common/money/cents.ts`.
+- **Campo de precio en la interfaz**: acepta punto o coma decimal (`19.90`, `19,9`) y rechaza un tercer decimal en vez de redondearlo, porque en un precio es un error de tipeo (`parsePriceInput` en `frontend/src/lib/money.ts`). Se muestra con `formatPrice`, que escribe el código de la moneda si no es una de las de la tabla.
+
 ## Añadir una moneda
 
 1. El extractor del banco debe devolver el código nuevo en `detect_currency`.

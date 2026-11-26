@@ -39,6 +39,22 @@ export function currencySymbol(currency: Currency): string {
 }
 
 /** `cents` es un entero (unidades × 100): evita que sumar muchas filas arrastre error de coma flotante. */
+function esMonedaConocida(currency: string): currency is Currency {
+  return currency in CURRENCY_SYMBOLS;
+}
+
+/**
+ * Precio del catálogo comercial. La API dice la moneda como texto (ISO 4217): si
+ * es una que la interfaz no conoce, se muestra su código en vez de un símbolo
+ * equivocado.
+ */
+export function formatPrice(cents: number, currency: string): string {
+  if (esMonedaConocida(currency)) {
+    return formatMoney(cents, currency);
+  }
+  return `${currency} ${AMOUNT_FORMATTER.format(cents / 100)}`;
+}
+
 export function formatMoney(cents: number, currency: Currency): string {
   if (!Number.isFinite(cents)) {
     return '—';

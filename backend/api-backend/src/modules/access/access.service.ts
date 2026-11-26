@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
+import { centsToDecimal, decimalToCents } from '../../common/money/cents';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { CreatePlanDto, UpdatePlanDto } from './dto/access.dto';
 import {
@@ -13,6 +14,9 @@ import {
 export interface PlanOption extends PlanSummary {
   description: string;
   isDefault: boolean;
+  /** Precio publicado en céntimos; nulo si el plan no se vende por catálogo (ADR-0019). */
+  priceCents: number | null;
+  currency: string;
 }
 
 export interface PlanAdminOption extends PlanOption {
@@ -47,8 +51,25 @@ const PLAN_SELECT = {
   monthlyPageQuota: true,
   trialOneTime: true,
   isDefault: true,
+  priceAmount: true,
+  currency: true,
   features: { select: { featureCode: true }, orderBy: { featureCode: 'asc' } },
 } as const;
+
+/** Lo que un plan del catálogo añade a su resumen, igual en cada lectura. */
+function datosDeCatalogo(plan: {
+  description: string;
+  isDefault: boolean;
+  priceAmount: Prisma.Decimal | null;
+  currency: string;
+}): Pick<PlanOption, 'description' | 'isDefault' | 'priceCents' | 'currency'> {
+  return {
+    description: plan.description,
+    isDefault: plan.isDefault,
+    priceCents: plan.priceAmount === null ? null : decimalToCents(plan.priceAmount),
+    currency: plan.currency,
+  };
+}
 
 /**
  * Lectura del catálogo de roles y membresías.
@@ -67,11 +88,7 @@ export class AccessService {
       orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
       select: PLAN_SELECT,
     });
-    return planes.map((plan) => ({
-      ...toPlanSummary(plan),
-      description: plan.description,
-      isDefault: plan.isDefault,
-    }));
+    return planes.map((plan) => ({ ...toPlanSummary(plan), ...datosDeCatalogo(plan) }));
   }
 
   /**
@@ -86,8 +103,7 @@ export class AccessService {
     });
     return planes.map((plan) => ({
       ...toPlanSummary(plan),
-      description: plan.description,
-      isDefault: plan.isDefault,
+      ...datosDeCatalogo(plan),
       isActive: plan.isActive,
       sortOrder: plan.sortOrder,
     }));
@@ -117,6 +133,10 @@ export class AccessService {
           isDefault: datos.isDefault ?? false,
           isActive: datos.isActive ?? true,
           sortOrder: datos.sortOrder ?? 0,
+          priceAmount:
+            datos.priceCents === undefined || datos.priceCents === null
+              ? null
+              : centsToDecimal(datos.priceCents),
         },
       });
       if (datos.features && datos.features.length > 0) {
@@ -149,6 +169,9 @@ export class AccessService {
     if (cambios.isDefault !== undefined) datos.isDefault = cambios.isDefault;
     if (cambios.isActive !== undefined) datos.isActive = cambios.isActive;
     if (cambios.sortOrder !== undefined) datos.sortOrder = cambios.sortOrder;
+    if (cambios.priceCents !== undefined) {
+      datos.priceAmount = cambios.priceCents === null ? null : centsToDecimal(cambios.priceCents);
+    }
 
     await this.prisma.$transaction(async (tx) => {
       if (Object.keys(datos).length > 0) {
@@ -175,8 +198,7 @@ export class AccessService {
     });
     return {
       ...toPlanSummary(plan),
-      description: plan.description,
-      isDefault: plan.isDefault,
+      ...datosDeCatalogo(plan),
       isActive: plan.isActive,
       sortOrder: plan.sortOrder,
     };

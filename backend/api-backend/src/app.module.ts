@@ -5,6 +5,7 @@ import { RequestIdMiddleware } from './common/http/request-id.middleware';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { AccessModule } from './modules/access/access.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { CommercialModule } from './modules/commercial/commercial.module';
 import { UsersModule } from './modules/users/users.module';
 import { validateConfig } from './config/app-config';
 import { HealthModule } from './modules/health/health.module';
@@ -21,6 +22,7 @@ import { StatementsModule } from './modules/statements/statements.module';
     PrismaModule,
     AuthModule,
     AccessModule,
+    CommercialModule,
     UsersModule,
     HealthModule,
     StatementsModule,

@@ -8,7 +8,9 @@ import { Card } from '@/components/ui/card';
 import { usePlansForAdmin } from '@/features/access/queries';
 import { NOMBRE_FUNCION } from '@/features/access/access';
 import { CrearPlanDialog, EditarPlanDialog } from '@/features/access/plan-dialogs';
+import { ProductsSection } from '@/features/commercial/products-section';
 import { mensajeDeError } from '@/features/users/error-messages';
+import { formatPrice } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { PlanAdminOption } from '@/lib/session-client';
 
@@ -55,6 +57,13 @@ function FilaDePlan({
           ? `${String(plan.monthlyPageQuota)} (una vez)`
           : (plan.monthlyPageQuota ?? 'Se cotiza')}
       </td>
+      <td className="px-4 py-3 align-top text-sm text-foreground tabular-nums">
+        {plan.priceCents === null ? (
+          <span className="text-muted-foreground">Sin precio</span>
+        ) : (
+          formatPrice(plan.priceCents, plan.currency)
+        )}
+      </td>
       <td className="px-4 py-3 align-top text-sm text-muted-foreground">
         {listaDeFunciones(plan.features)}
       </td>
@@ -87,7 +96,7 @@ export function PlansPage(): ReactNode {
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Crea un plan nuevo o cambia uno existente: precio, páginas acumuladas al mes y vistas
-            que habilita. Los cambios aplican sin desplegar nada.
+            que habilita. Más abajo, los productos de saldo. Los cambios aplican sin desplegar nada.
           </p>
         </div>
         <Button
@@ -116,6 +125,7 @@ export function PlansPage(): ReactNode {
               <tr className="border-b border-border/70 text-xs text-muted-foreground uppercase">
                 <th className="px-4 py-3 font-medium">Plan</th>
                 <th className="px-4 py-3 font-medium">Páginas/mes</th>
+                <th className="px-4 py-3 font-medium">Precio</th>
                 <th className="px-4 py-3 font-medium">Vistas</th>
                 <th className="px-4 py-3 font-medium">
                   <span className="sr-only">Acciones</span>
@@ -136,6 +146,8 @@ export function PlansPage(): ReactNode {
           </table>
         )}
       </Card>
+
+      <ProductsSection />
 
       <CrearPlanDialog
         open={creando}

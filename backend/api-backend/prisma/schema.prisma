@@ -271,6 +271,11 @@ model MembershipPlan {
   /// Un plan retirado no se ofrece en altas ni cambios; quien lo tiene lo conserva.
   isActive            Boolean  @default(true) @map("is_active")
   sortOrder           Int      @default(0) @map("sort_order")
+  /// Precio publicado por periodo (o único, si es de prueba). Nulo: no se vende
+  /// por catálogo (planes anteriores o el interno de administración). Informativo:
+  /// el cobro sigue siendo manual mientras no haya pasarela (ADR-0019).
+  priceAmount         Decimal? @map("price_amount") @db.Decimal(10, 2)
+  currency            String   @default("PEN") @db.Char(3)
   createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -279,6 +284,40 @@ model MembershipPlan {
   defaultForRoles Role[]                   @relation("RoleDefaultPlan")
 
   @@map("membership_plans")
+}
+
+/// `PER_PAGE`: se compra la cantidad de páginas que se quiera, desde un mínimo, a
+/// un precio por página (ATLAS Recargas). `PACKAGE`: cantidad fija a precio fijo
+/// (ATLAS Profesional 500/2000/6000).
+enum CommercialPricing {
+  PER_PAGE
+  PACKAGE
+}
+
+/// Producto de saldo: páginas que se compran aparte de la membresía y se suman a
+/// ella, con su propia vigencia (ADR-0019). Tabla aparte de `membership_plans`
+/// porque no es la identidad de la cuenta: una persona tiene un solo plan, pero
+/// puede tener varias compras a la vez, y estas no desbloquean vistas.
+model CommercialProduct {
+  code         String            @id @db.VarChar(32)
+  name         String            @db.VarChar(80)
+  description  String            @db.VarChar(255)
+  pricing      CommercialPricing
+  /// `PACKAGE`: páginas del paquete. `PER_PAGE`: nulo.
+  pageQuantity Int?              @map("page_quantity")
+  /// `PER_PAGE`: mínimo de páginas por compra. `PACKAGE`: nulo.
+  minimumPages Int?              @map("minimum_pages")
+  /// `PACKAGE`: precio del paquete. `PER_PAGE`: precio de una página.
+  price        Decimal           @db.Decimal(10, 2)
+  currency     String            @default("PEN") @db.Char(3)
+  /// Días calendario que dura el saldo desde que se registra la compra.
+  validityDays Int               @map("validity_days")
+  isActive     Boolean           @default(true) @map("is_active")
+  sortOrder    Int               @default(0) @map("sort_order")
+  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("commercial_products")
 }
 
 /// Parte del producto que un plan habilita, además de convertir, que tienen todos.

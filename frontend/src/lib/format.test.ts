@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatBytes, formatCount, formatMoney } from './format';
+import { formatBytes, formatCount, formatMoney, formatPrice } from './format';
 
 describe('formatBytes', () => {
   it('escala hasta la unidad legible más cercana', () => {
@@ -37,5 +37,16 @@ describe('formatMoney', () => {
 
   it('no inventa un importe cuando el dato es inválido', () => {
     expect(formatMoney(Number.NaN, 'USD')).toBe('—');
+  });
+});
+
+describe('formatPrice', () => {
+  it('usa el símbolo de las monedas conocidas', () => {
+    expect(formatPrice(1990, 'PEN')).toBe(formatMoney(1990, 'PEN'));
+    expect(formatPrice(15, 'PEN')).toMatch(/^S\/ 0[.,]15$/);
+  });
+
+  it('con una moneda desconocida muestra su código, no un símbolo equivocado', () => {
+    expect(formatPrice(1000, 'EUR')).toMatch(/^EUR 10[.,]00$/);
   });
 });

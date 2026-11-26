@@ -109,6 +109,9 @@ export interface PlanOption {
   trialOneTime: boolean;
   features: string[];
   isDefault: boolean;
+  /** Precio publicado en céntimos; nulo si no se vende por catálogo (ADR-0019). */
+  priceCents: number | null;
+  currency: string;
 }
 
 /** Igual que `PlanOption`, más si se ofrece y en qué orden: la vista de administrarlo. */
@@ -128,11 +131,56 @@ export interface CreatePlanInput {
   isDefault?: boolean;
   isActive?: boolean;
   sortOrder?: number;
+  /** Céntimos; nulo quita el precio publicado. */
+  priceCents?: number | null;
   features?: string[];
 }
 
 /** Igual que al crear, pero todo opcional: solo se cambia lo que se envía. */
 export type UpdatePlanInput = Partial<Omit<CreatePlanInput, 'code'>>;
+
+/** `PER_PAGE`: se cobra por página (Recargas). `PACKAGE`: paquete cerrado (Profesional). */
+export type CommercialPricing = 'PER_PAGE' | 'PACKAGE';
+
+/** Producto de saldo del catálogo comercial (ADR-0019). */
+export interface CommercialProduct {
+  code: string;
+  name: string;
+  description: string;
+  pricing: CommercialPricing;
+  /** Páginas del paquete (`PACKAGE`). */
+  pageQuantity: number | null;
+  /** Mínimo de páginas por compra (`PER_PAGE`). */
+  minimumPages: number | null;
+  /** Céntimos: del paquete entero o de una página, según `pricing`. */
+  priceCents: number;
+  currency: string;
+  /** Días que dura el saldo desde que se registra la compra. */
+  validityDays: number;
+}
+
+export interface CommercialProductAdmin extends CommercialProduct {
+  isActive: boolean;
+  sortOrder: number;
+}
+
+export interface CreateCommercialProductInput {
+  code: string;
+  name: string;
+  description: string;
+  pricing: CommercialPricing;
+  pageQuantity?: number | null;
+  minimumPages?: number | null;
+  priceCents: number;
+  validityDays: number;
+  isActive?: boolean;
+  sortOrder?: number;
+}
+
+/** El código y la forma de precio no se cambian: un paquete por página es otro producto. */
+export type UpdateCommercialProductInput = Partial<
+  Omit<CreateCommercialProductInput, 'code' | 'pricing' | 'pageQuantity' | 'minimumPages'>
+> & { pageQuantity?: number; minimumPages?: number };
 
 /** Rol que quien consulta puede asignar: de rango igual o inferior al suyo. */
 export interface RoleOption {
@@ -284,6 +332,38 @@ export async function updatePlan(
     method: 'PATCH',
     body: cambios,
   })) as PlanAdminOption;
+}
+
+/** Todo el catálogo de saldo, activo o retirado; solo con el permiso `PLANS_MANAGE`. */
+export async function fetchCommercialProductsForAdmin(
+  baseUrl: string,
+  signal?: AbortSignal,
+): Promise<CommercialProductAdmin[]> {
+  return (await pedir(baseUrl, 'v1/commercial-products/admin', {
+    method: 'GET',
+    ...(signal ? { signal } : {}),
+  })) as CommercialProductAdmin[];
+}
+
+export async function createCommercialProduct(
+  baseUrl: string,
+  datos: CreateCommercialProductInput,
+): Promise<CommercialProductAdmin> {
+  return (await pedir(baseUrl, 'v1/commercial-products', {
+    method: 'POST',
+    body: datos,
+  })) as CommercialProductAdmin;
+}
+
+export async function updateCommercialProduct(
+  baseUrl: string,
+  code: string,
+  cambios: UpdateCommercialProductInput,
+): Promise<CommercialProductAdmin> {
+  return (await pedir(baseUrl, `v1/commercial-products/${encodeURIComponent(code)}`, {
+    method: 'PATCH',
+    body: cambios,
+  })) as CommercialProductAdmin;
 }
 
 export async function fetchRoles(baseUrl: string, signal?: AbortSignal): Promise<RoleOption[]> {

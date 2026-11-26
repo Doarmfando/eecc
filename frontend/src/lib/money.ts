@@ -30,3 +30,31 @@ export function parseCents(raw: string): number | null {
 export function parseCentsOrZero(raw: string): number {
   return parseCents(raw) ?? 0;
 }
+
+/**
+ * Hasta S/ 999,999.99, como admite la API (`priceCents` ≤ 99,999,999). Coma o
+ * punto decimal, porque en Perú se escriben las dos.
+ */
+const PRICE_INPUT = /^(\d{1,6})(?:[.,](\d{1,2}))?$/;
+
+/**
+ * Lo que alguien escribe como precio («19.90», «19,9», «20») a céntimos enteros.
+ *
+ * `null` si no es un precio: con signo, más de dos decimales o letras. A
+ * diferencia de {@link parseCents}, aquí un tercer decimal no se redondea: en
+ * un precio es un error de tipeo y hay que decirlo, no adivinar.
+ */
+export function parsePriceInput(raw: string): number | null {
+  const match = PRICE_INPUT.exec(raw.trim());
+  if (!match) {
+    return null;
+  }
+  const [, whole = '0', fraction = ''] = match;
+  return Number(whole) * 100 + Number(fraction.padEnd(2, '0'));
+}
+
+/** Céntimos al texto que se pone en un campo de precio: `1990` → `"19.90"`. */
+export function centsToPriceInput(cents: number): string {
+  const whole = Math.trunc(cents / 100);
+  return `${String(whole)}.${String(cents % 100).padStart(2, '0')}`;
+}

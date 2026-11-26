@@ -9,6 +9,7 @@ import {
   IsOptional,
   IsString,
   Matches,
+  Max,
   MaxLength,
   Min,
   ValidateIf,
@@ -50,7 +51,21 @@ export class PlanDto {
 
   @ApiProperty({ description: 'Plan de las cuentas nuevas si no se indica otro' })
   isDefault!: boolean;
+
+  @ApiProperty({
+    nullable: true,
+    type: Number,
+    example: 1990,
+    description: 'Precio publicado en céntimos; nulo si no se vende por catálogo',
+  })
+  priceCents!: number | null;
+
+  @ApiProperty({ example: 'PEN' })
+  currency!: string;
 }
+
+/** Precio en céntimos: hasta S/ 999,999.99, nunca negativo ni con decimales. */
+const PRECIO_MAXIMO_CENTIMOS = 99_999_999;
 
 export class RoleDto {
   @ApiProperty({ example: 'MEMBER' }) code!: string;
@@ -140,6 +155,19 @@ export class CreatePlanDto {
   sortOrder?: number;
 
   @ApiPropertyOptional({
+    nullable: true,
+    type: Number,
+    example: 1990,
+    description: 'Precio publicado en céntimos. Nulo o sin indicarlo: no se vende por catálogo.',
+  })
+  @IsOptional()
+  @ValidateIf((_objeto, valor) => valor !== null)
+  @IsInt()
+  @Min(0)
+  @Max(PRECIO_MAXIMO_CENTIMOS)
+  priceCents?: number | null;
+
+  @ApiPropertyOptional({
     type: [String],
     example: ['HISTORY'],
     description: 'Vistas que habilita, del catálogo de funciones. Sin indicarlo, ninguna.',
@@ -200,6 +228,14 @@ export class UpdatePlanDto {
   @IsOptional()
   @IsInt()
   sortOrder?: number;
+
+  @ApiPropertyOptional({ nullable: true, type: Number, description: 'Precio en céntimos' })
+  @IsOptional()
+  @ValidateIf((_objeto, valor) => valor !== null)
+  @IsInt()
+  @Min(0)
+  @Max(PRECIO_MAXIMO_CENTIMOS)
+  priceCents?: number | null;
 
   @ApiPropertyOptional({
     type: [String],

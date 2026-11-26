@@ -13,6 +13,29 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-11-26 — Catálogo comercial: precio en las membresías y productos de saldo
+
+- Contexto: etapa 3 de la reestructuración comercial ([`tareas-en-curso.md`](../roadmap/tareas-en-curso.md)
+  §21). El responsable del producto decidió en el chat: periodo de Personal desde la activación o
+  renovación, compras de Recarga/Profesional registradas por un administrador al confirmar el
+  Yape, y «ATLAS» solo como marca (el plan interno se renombra en la migración de clientes).
+- Hecho: migración `catalogo_comercial` (solo agrega): precio y moneda en `membership_plans`,
+  tabla `commercial_products` con restricciones de forma de precio, y semillas de Recargas
+  (S/0.15 por página, mínimo 20) y Profesional 500/2000/6000 (S/29.90/59.90/89.90), todas a 90
+  días; `PERSONAL` (S/19.90, 50 páginas, todas las vistas) creado **retirado**; Gratuito con
+  precio 0. Módulo `commercial` en la API: lista, cotización con sugerencia del paquete que
+  conviene, y alta y edición bajo `PLANS_MANAGE`. Importes `DECIMAL(10,2)` en la base y céntimos
+  enteros en la API y la interfaz. Pantalla *Planes y membresías*: columna y campo de precio, y
+  sección *Productos de saldo*. [`ADR-0019`](../decisiones/ADR-0019-modelo-comercial-de-cuatro-productos.md).
+- Decisión: no cambia todavía qué se cobra a nadie; el tope al subir sigue siendo el de ADR-0018
+  hasta los lotes de páginas.
+- Verificación: migración aplicada en local sin diferencia con el esquema. Contra Postgres real,
+  con el servicio verdadero: 23 páginas de recarga cotizan S/3.45; 200 sugieren Profesional 500
+  (ahorro S/0.10); 1000 sugieren Profesional 2000; la restricción de la base rechaza un producto
+  mal formado aunque se salte la API. API `npm run check` (343 pruebas, cobertura 95 %), con una
+  prueba e2e de rutas y permisos; frontend typecheck, ESLint, Prettier, 413 pruebas y build.
+- Pendiente: autorización para desplegar; después, lotes de páginas (2b y 4).
+
 ## 2026-11-26 — Reserva de páginas: dos subidas simultáneas ya no pueden pasarse del tope
 
 - Contexto: segunda falla confirmada en el diagnóstico de la reestructuración comercial. El chequeo

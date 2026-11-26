@@ -1,5 +1,6 @@
 import { ValidationPipe, type INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { Prisma } from '@prisma/client';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
@@ -178,6 +179,36 @@ function buildPrismaDouble(passwordHash: string): {
     },
     auditEvent: { create: jest.fn().mockResolvedValue({}) },
     apiKey: { findUnique: jest.fn().mockResolvedValue(null) },
+    commercialProduct: {
+      findMany: jest.fn().mockResolvedValue([
+        {
+          code: 'RECARGA',
+          name: 'ATLAS Recargas',
+          description: 'd',
+          pricing: 'PER_PAGE',
+          pageQuantity: null,
+          minimumPages: 20,
+          price: new Prisma.Decimal('0.15'),
+          currency: 'PEN',
+          validityDays: 90,
+          isActive: true,
+          sortOrder: 10,
+        },
+        {
+          code: 'PROFESIONAL_500',
+          name: 'ATLAS Profesional 500',
+          description: 'd',
+          pricing: 'PACKAGE',
+          pageQuantity: 500,
+          minimumPages: null,
+          price: new Prisma.Decimal('29.90'),
+          currency: 'PEN',
+          validityDays: 90,
+          isActive: true,
+          sortOrder: 20,
+        },
+      ]),
+    },
   } as unknown as PrismaService;
 
   return { prisma, sesiones, usuario };
@@ -368,6 +399,46 @@ describe('Sesión de usuario (e2e)', () => {
     await request(app.getHttpServer())
       .delete(`/v1/users/${OTRO_USER_ID}`)
       .set('Cookie', cookie)
+      .expect(403);
+  });
+
+  it('ofrece y cotiza los productos de saldo con sesión; administrarlos exige PLANS_MANAGE', async () => {
+    await request(app.getHttpServer()).get('/v1/commercial-products').expect(401);
+
+    const cookie = await entrar();
+    const listado = await request(app.getHttpServer())
+      .get('/v1/commercial-products')
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(listado.body.map((producto: { code: string }) => producto.code)).toEqual([
+      'RECARGA',
+      'PROFESIONAL_500',
+    ]);
+    expect(listado.body[1].priceCents).toBe(2990);
+
+    const cotizacion = await request(app.getHttpServer())
+      .get('/v1/commercial-products/RECARGA/quote?pages=200')
+      .set('Cookie', cookie)
+      .expect(200);
+    expect(cotizacion.body).toMatchObject({
+      pages: 200,
+      priceCents: 3000,
+      suggestion: { productCode: 'PROFESIONAL_500', savingsCents: 10 },
+    });
+    await request(app.getHttpServer())
+      .get('/v1/commercial-products/RECARGA/quote?pages=veinte')
+      .set('Cookie', cookie)
+      .expect(400);
+
+    // El administrador de esta prueba gestiona cuentas, no el catálogo.
+    await request(app.getHttpServer())
+      .get('/v1/commercial-products/admin')
+      .set('Cookie', cookie)
+      .expect(403);
+    await request(app.getHttpServer())
+      .patch('/v1/commercial-products/RECARGA')
+      .set('Cookie', cookie)
+      .send({ priceCents: 1 })
       .expect(403);
   });
 

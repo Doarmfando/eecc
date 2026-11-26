@@ -44,3 +44,4 @@ Los Architecture Decision Records (ADR) explican decisiones duraderas y sus cons
 - [`ADR-0016-roles-y-membresias-como-catalogo.md`](ADR-0016-roles-y-membresias-como-catalogo.md)
 - [`ADR-0017-vigencia-de-la-membresia-y-borrado-del-historial.md`](ADR-0017-vigencia-de-la-membresia-y-borrado-del-historial.md)
 - [`ADR-0018-cobro-por-paginas-acumuladas-y-tope-tecnico.md`](ADR-0018-cobro-por-paginas-acumuladas-y-tope-tecnico.md)
+- [`ADR-0019-modelo-comercial-de-cuatro-productos.md`](ADR-0019-modelo-comercial-de-cuatro-productos.md)

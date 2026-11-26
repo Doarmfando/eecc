@@ -1,4 +1,5 @@
 import type { ConfigService } from '@nestjs/config';
+import { Prisma } from '@prisma/client';
 
 import type { PrismaService } from '../../common/prisma/prisma.service';
 import type { AppConfig } from '../../config/app-config';
@@ -11,6 +12,8 @@ const BASICA = {
   description: 'Solo conversión',
   maxPagesPerDocument: 15,
   isDefault: true,
+  priceAmount: null,
+  currency: 'PEN',
   features: [],
 };
 const ATLAS = {
@@ -19,6 +22,8 @@ const ATLAS = {
   description: 'Todo',
   maxPagesPerDocument: null,
   isDefault: false,
+  priceAmount: new Prisma.Decimal('19.90'),
+  currency: 'PEN',
   features: [{ featureCode: 'HISTORY' }],
 };
 
@@ -73,8 +78,18 @@ describe('AccessService', () => {
       description: 'Todo',
       maxPagesPerDocument: null,
       isDefault: false,
+      priceCents: 1990,
+      currency: 'PEN',
       features: ['HISTORY'],
     });
+  });
+
+  it('un plan sin precio publicado sale con precio nulo, no con cero', async () => {
+    const { service } = servicio();
+
+    const [basica] = await service.listPlans();
+
+    expect(basica).toMatchObject({ code: 'BASICA', priceCents: null, currency: 'PEN' });
   });
 
   it('solo ofrece los roles de rango igual o inferior al de quien pregunta', async () => {
@@ -182,6 +197,8 @@ describe('AccessService: administrar el catálogo de planes (ADR-0018)', () => {
       isDefault: false,
       isActive: true,
       sortOrder: 15,
+      priceAmount: new Prisma.Decimal('29.90'),
+      currency: 'PEN',
       features: [{ featureCode: 'HISTORY' }],
     };
 
@@ -284,5 +301,38 @@ describe('AccessService: administrar el catálogo de planes (ADR-0018)', () => {
     const planes = await service.listPlansForAdmin();
 
     expect(planes[0]).toMatchObject({ code: 'PRO', isActive: true, sortOrder: 15 });
+    expect(planes[0]?.priceCents).toBe(2990);
+  });
+
+  it('guarda el precio en soles exactos a partir de céntimos, y sin precio lo deja nulo', async () => {
+    const { service, planCreado } = servicioAdmin();
+
+    await service.createPlan({ code: 'PRO', name: 'Pro', description: 'd', priceCents: 1990 });
+    await service.createPlan({ code: 'OTRO', name: 'Otro', description: 'd' });
+
+    const conPrecio = planCreado.mock.calls[0]?.[0] as { data: { priceAmount: Prisma.Decimal } };
+    expect(conPrecio.data.priceAmount.toFixed(2)).toBe('19.90');
+    expect(planCreado.mock.calls[1]?.[0]).toMatchObject({ data: { priceAmount: null } });
+  });
+
+  it('cambia el precio o lo quita con nulo, sin tocar el resto', async () => {
+    const { service, planActualizado } = servicioAdmin({ code: 'PRO' });
+
+    await service.updatePlan('PRO', { priceCents: 2490 });
+    await service.updatePlan('PRO', { priceCents: null });
+    await service.updatePlan('PRO', { name: 'Pro 2' });
+
+    const conPrecio = planActualizado.mock.calls[0]?.[0] as {
+      data: { priceAmount: Prisma.Decimal };
+    };
+    expect(conPrecio.data.priceAmount.toFixed(2)).toBe('24.90');
+    expect(planActualizado.mock.calls[1]?.[0]).toEqual({
+      where: { code: 'PRO' },
+      data: { priceAmount: null },
+    });
+    expect(planActualizado.mock.calls[2]?.[0]).toEqual({
+      where: { code: 'PRO' },
+      data: { name: 'Pro 2' },
+    });
   });
 });

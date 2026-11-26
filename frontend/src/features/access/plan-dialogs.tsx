@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { mensajeDeError } from '@/features/users/error-messages';
 import { FieldError } from '@/features/users/form-fields';
+import { centsToPriceInput, parsePriceInput } from '@/lib/money';
 import type { CreatePlanInput, PlanAdminOption, UpdatePlanInput } from '@/lib/session-client';
 
 import { FEATURE, NOMBRE_FUNCION, type FeatureCode } from './access';
@@ -28,6 +29,8 @@ interface FormularioDePlan {
   isDefault: boolean;
   isActive: boolean;
   sortOrder: string;
+  /** En soles, como se escribe («19.90»); vacío es sin precio publicado. */
+  price: string;
   features: FeatureCode[];
 }
 
@@ -42,6 +45,7 @@ function formularioVacio(): FormularioDePlan {
     isDefault: false,
     isActive: true,
     sortOrder: '0',
+    price: '',
     features: [],
   };
 }
@@ -57,6 +61,7 @@ function formularioDe(plan: PlanAdminOption): FormularioDePlan {
     isDefault: plan.isDefault,
     isActive: plan.isActive,
     sortOrder: plan.sortOrder.toString(),
+    price: plan.priceCents === null ? '' : centsToPriceInput(plan.priceCents),
     features: plan.features.filter((codigo): codigo is FeatureCode =>
       TODAS_LAS_FUNCIONES.includes(codigo as FeatureCode),
     ),
@@ -72,6 +77,11 @@ function numeroOpcional(valor: string, vacioEsNulo: boolean): number | null | un
   return Number.isFinite(numero) ? numero : undefined;
 }
 
+/** Un precio escrito que no se puede leer: se avisa en el campo y no se envía. */
+function precioIlegible(form: FormularioDePlan): boolean {
+  return form.price.trim() !== '' && parsePriceInput(form.price) === null;
+}
+
 function datosComunes(form: FormularioDePlan): Omit<CreatePlanInput, 'code'> {
   return {
     name: form.name.trim(),
@@ -82,6 +92,7 @@ function datosComunes(form: FormularioDePlan): Omit<CreatePlanInput, 'code'> {
     isDefault: form.isDefault,
     isActive: form.isActive,
     sortOrder: Number(form.sortOrder),
+    priceCents: form.price.trim() === '' ? null : parsePriceInput(form.price),
     features: form.features,
   };
 }
@@ -143,6 +154,7 @@ function CamposDePlan({
   const topeTecnicoId = useId();
   const paginasId = useId();
   const ordenId = useId();
+  const precioId = useId();
 
   return (
     <div className="space-y-4">
@@ -228,6 +240,27 @@ function CamposDePlan({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
+          <Label htmlFor={precioId}>Precio publicado (S/)</Label>
+          <Input
+            id={precioId}
+            inputMode="decimal"
+            autoComplete="off"
+            placeholder="Sin precio"
+            aria-invalid={precioIlegible(form) ? true : undefined}
+            value={form.price}
+            onChange={(event) => {
+              onChange({ price: event.target.value });
+            }}
+          />
+          {precioIlegible(form) ? (
+            <FieldError message="Escribe un precio como 19.90, sin signo ni más de dos decimales." />
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Vacío: no se vende por catálogo. El cobro sigue siendo por Yape.
+            </p>
+          )}
+        </div>
+        <div className="space-y-2">
           <Label htmlFor={ordenId}>Orden al ofrecerlo</Label>
           <Input
             id={ordenId}
@@ -238,41 +271,42 @@ function CamposDePlan({
             }}
           />
         </div>
-        <div className="flex flex-col justify-end gap-2 pb-1">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              className="size-4 rounded border-border"
-              checked={form.trialOneTime}
-              onChange={(event) => {
-                onChange({ trialOneTime: event.target.checked });
-              }}
-            />
-            Prueba única, no se renueva
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              className="size-4 rounded border-border"
-              checked={form.isDefault}
-              onChange={(event) => {
-                onChange({ isDefault: event.target.checked });
-              }}
-            />
-            Plan predeterminado en el alta
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              className="size-4 rounded border-border"
-              checked={form.isActive}
-              onChange={(event) => {
-                onChange({ isActive: event.target.checked });
-              }}
-            />
-            Activo (se ofrece en altas y cambios)
-          </label>
-        </div>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="size-4 rounded border-border"
+            checked={form.trialOneTime}
+            onChange={(event) => {
+              onChange({ trialOneTime: event.target.checked });
+            }}
+          />
+          Prueba única, no se renueva
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="size-4 rounded border-border"
+            checked={form.isDefault}
+            onChange={(event) => {
+              onChange({ isDefault: event.target.checked });
+            }}
+          />
+          Plan predeterminado en el alta
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="size-4 rounded border-border"
+            checked={form.isActive}
+            onChange={(event) => {
+              onChange({ isActive: event.target.checked });
+            }}
+          />
+          Activo (se ofrece en altas y cambios)
+        </label>
       </div>
 
       <fieldset>
@@ -327,7 +361,7 @@ export function CrearPlanDialog({
           noValidate
           onSubmit={(event) => {
             event.preventDefault();
-            if (form.code.trim() === '' || form.name.trim() === '') {
+            if (form.code.trim() === '' || form.name.trim() === '' || precioIlegible(form)) {
               setIntento(true);
               return;
             }
@@ -404,6 +438,9 @@ export function EditarPlanDialog({
             noValidate
             onSubmit={(event) => {
               event.preventDefault();
+              if (precioIlegible(actual)) {
+                return;
+              }
               const cambios: UpdatePlanInput = datosComunes(actual);
               actualizar.mutate({ code: plan.code, cambios }, { onSuccess: cerrarYLimpiar });
             }}
