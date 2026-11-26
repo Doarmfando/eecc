@@ -35,7 +35,12 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
   técnico de 2); el resto, `UPLOAD_IN_PROGRESS`. Antes, la prueba aislada de que Prisma y el lock
   de aviso serializan dos transacciones. API `npm run check` (313 pruebas, cobertura sobre el
   umbral); frontend typecheck, ESLint, Prettier y 399 pruebas.
-- Pendiente: autorización para desplegar (rama `feature/reserva-de-paginas`); sin datos que migrar.
+- Despliegue (Railway/Fortex), con autorización explícita: migración aplicada al arrancar; en la
+  base de producción, `CHECK (pages > 0)`, organización `CASCADE` y persona `SET NULL`. Prueba
+  dentro del contenedor con el código compilado, sobre Postgres 18 (el local es 17): cuatro
+  reservas simultáneas de una cuenta sin consumo con 3 páginas libres apartaron 1 y 2 (total 3) y
+  rechazaron dos con `UPLOAD_IN_PROGRESS`; liberar dejó la reserva en `RELEASED`; las reservas de
+  prueba se borraron. No hubo datos que migrar.
 
 ## 2026-11-26 — El consumo de páginas se registra aparte del historial (corrección de cobro)
 

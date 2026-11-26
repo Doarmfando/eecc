@@ -463,8 +463,8 @@ calendario en diciembre de 2026)
     antes para cada persona.
   - [x] **2. Concurrencia.** `page_reservations` con `pg_advisory_xact_lock` por persona
     (reservar → worker → confirmar o liberar en la transacción del consumo); `UPLOAD_IN_PROGRESS`
-    en la interfaz. Verificado contra Postgres real con reservas simultáneas. Rama
-    `feature/reserva-de-paginas`, pendiente de autorización para desplegar. **Se separó de los
+    en la interfaz. Verificado contra Postgres real con reservas simultáneas, en local y dentro
+    del contenedor de producción. Desplegado con autorización explícita. **Se separó de los
     lotes**: el lote del periodo de Personal exige definir qué es un periodo, y eso cambia el
     cobro de los clientes actuales; pasa a la etapa 2b.
   - [ ] **2b. Primer lote real.** `page_lots` con el periodo de Personal como primer lote; las
