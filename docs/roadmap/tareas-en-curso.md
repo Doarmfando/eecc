@@ -458,8 +458,9 @@ calendario en diciembre de 2026)
 - Plan por etapas (ninguna antes de la 6 toca producción):
   - [x] **1. Registro de consumo inmutable.** `page_consumption_entries` (append-only, sin cascada
     hacia documento/intento/usuario), escrito en la transacción del intento; el acumulado se lee de
-    ahí; `backfill:page-consumption` para lo existente. Rama `feature/ledger-consumo-paginas`,
-    sin desplegar.
+    ahí; `backfill:page-consumption` para lo existente. Desplegado con autorización explícita;
+    backfill corrido en producción (7 registros) y acumulados verificados idénticos a los de
+    antes para cada persona.
   - [ ] **2. Concurrencia + primer lote real.** `page_lots` y reservas de saldo con
     `pg_advisory_xact_lock` por persona (reservar → worker → confirmar o liberar); el periodo de
     Personal como primer lote; `toMembershipAccess` consulta el saldo real.

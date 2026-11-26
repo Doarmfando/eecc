@@ -35,10 +35,16 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
   segunda. API `npm run check` (302 pruebas, cobertura sobre el umbral); pruebas nuevas de que la
   consulta ya no lee `job_attempts`, de que el consumo se registra en la transacción, y de que no
   se registra para un intento fallido ni para una credencial de servicio.
-- Decisión: trabajo en la rama `feature/ledger-consumo-paginas`, sin pasar a `main` ni desplegar
-  —el responsable del producto pidió explícitamente no desplegar a producción sin autorización—.
-- Pendiente: autorización para desplegar (incluye correr el backfill en producción después de la
-  migración); la carrera entre subidas concurrentes sigue abierta y se resuelve en la etapa 2 del
+- Decisión: trabajo en la rama `feature/ledger-consumo-paginas`; pasó a `main` y a producción solo
+  tras la autorización explícita del responsable del producto, que había pedido no desplegar sin
+  ella.
+- Despliegue (Railway/Fortex): migración aplicada al arrancar; backfill corrido dentro del
+  contenedor (`railway ssh`): 7 registros. Comparado persona por persona, el acumulado nuevo es
+  idéntico al calculado a la antigua (p. ej. 479, 1044, 68, 9 páginas): nadie ganó ni perdió
+  páginas con el cambio. En la base de producción, las tres llaves de `page_consumption_entries`
+  hacia intento, documento y usuario quedaron `SET NULL`; solo la de organización es `CASCADE`.
+  Para el SSH hubo que registrar en la cuenta Fortex la llave pública que ya existía localmente.
+- Pendiente: la carrera entre subidas concurrentes sigue abierta y se resuelve en la etapa 2 del
   plan, junto con los lotes de páginas.
 
 ## 2026-11-26 — El detalle de usuario pasa a ser una página propia, y la tabla se aligera
