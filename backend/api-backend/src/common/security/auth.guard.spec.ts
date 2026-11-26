@@ -19,7 +19,6 @@ const USUARIO: AuthenticatedUser = {
   plan: {
     code: 'ATLAS',
     name: 'Atlas',
-    maxRetainedStatements: 20,
     maxPagesPerDocument: 1000,
     monthlyPageQuota: null,
     trialOneTime: false,

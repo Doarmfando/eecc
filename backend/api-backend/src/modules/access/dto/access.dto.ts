@@ -9,7 +9,6 @@ import {
   IsOptional,
   IsString,
   Matches,
-  Max,
   MaxLength,
   Min,
   ValidateIf,
@@ -28,9 +27,6 @@ export class PlanDto {
   @ApiProperty({ example: 'ATLAS' }) code!: string;
   @ApiProperty({ example: 'Atlas' }) name!: string;
   @ApiProperty() description!: string;
-
-  @ApiProperty({ description: 'Documentos que conserva cada persona antes de reemplazar uno' })
-  maxRetainedStatements!: number;
 
   @ApiProperty({
     nullable: true,
@@ -99,12 +95,6 @@ export class CreatePlanDto {
   @IsString()
   @MaxLength(255)
   description!: string;
-
-  @ApiProperty({ description: 'Documentos que conserva cada persona antes de reemplazar uno' })
-  @IsInt()
-  @Min(1)
-  @Max(1000)
-  maxRetainedStatements!: number;
 
   @ApiPropertyOptional({
     nullable: true,
@@ -176,13 +166,6 @@ export class UpdatePlanDto {
   @IsString()
   @MaxLength(255)
   description?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  @Max(1000)
-  maxRetainedStatements?: number;
 
   @ApiPropertyOptional({ nullable: true, type: Number })
   @IsOptional()

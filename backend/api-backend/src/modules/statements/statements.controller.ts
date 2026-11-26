@@ -107,12 +107,11 @@ export class StatementsController {
       ...(body.replaceStatementId !== undefined
         ? { replaceStatementId: body.replaceStatementId }
         : {}),
-      // La membresía fija el cupo y las páginas. Una credencial de servicio no
-      // tiene: conserva el cupo de `RETAINED_STATEMENTS_PER_USER` y no tiene límite
-      // de páginas.
+      // El cupo de documentos es el mismo para cualquiera (`RETAINED_STATEMENTS_PER_USER`);
+      // la membresía solo fija las páginas. Una credencial de servicio no tiene
+      // plan y no tiene límite de páginas.
       ...(organization.plan
         ? {
-            retainedStatements: organization.plan.maxRetainedStatements,
             maxPagesPerDocument: organization.plan.maxPagesPerDocument,
             monthlyPageQuota: organization.plan.monthlyPageQuota,
             trialOneTime: organization.plan.trialOneTime,

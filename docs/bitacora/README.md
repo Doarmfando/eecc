@@ -13,6 +13,36 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-11-26 — El cupo de documentos vuelve a ser global, y detalle de consumo por usuario
+
+- Contexto: revisando la tabla de precios definitiva, el responsable del producto pidió quitar
+  "Documentos guardados" del formulario de planes y volver a un solo tope para cualquiera —el
+  modelo de negocio es solo por páginas (ADR-0018), y esa tabla ni siquiera trae ya una columna
+  de documentos— y, por separado, un endpoint y una vista de detalle por usuario para ver
+  cuánto ha consumido de páginas.
+- Decisión: se revierte la parte de [`ADR-0016`](../decisiones/ADR-0016-roles-y-membresias-como-catalogo.md)
+  que había vuelto `max_retained_statements` una columna por plan; vuelve a ser
+  `RETAINED_STATEMENTS_PER_USER` (variable de entorno, 3 por defecto), el mismo para cualquier
+  persona y para las credenciales de servicio, como en el diseño original de
+  [`ADR-0007`](../decisiones/ADR-0007-cupo-de-documentos-por-persona.md). Anexo agregado a
+  ADR-0016 con el detalle.
+- Hecho (back): migración `cupo_de_documentos_vuelve_a_ser_global` —columna y su `CHECK`
+  retirados de `membership_plans`—; limpiado de `PlanSummary`, `MemberSummary`, los DTO de
+  planes y usuarios, y de lo que arma la sesión (`toSessionUser`). El worker y el cobro por
+  páginas no cambian: siempre fue un concepto aparte.
+- Hecho (back): `GET /v1/users/:userId` — detalle de una cuenta con lo que ya traía el listado
+  más `pagesUsed` (acumulado de 30 días), reutilizando `StatementUsageService`.
+- Hecho (front): el formulario de Planes y la tabla de administrarlos ya no mencionan
+  documentos; el aviso de "esta membresía guarda menos documentos" se quitó del cambio de plan
+  de un usuario porque ya no puede pasar —el cupo no depende del plan—. Botón "Ver el detalle"
+  por fila en *Usuarios* abre un diálogo con rol, membresía, vigencia, documentos guardados,
+  último acceso y una barra con las páginas acumuladas del mes.
+- Verificación automática: API `npm run check` (299 pruebas, con cobertura); frontend
+  `npm run check` salvo el umbral de cobertura (bug previo, no de esta entrada, ver entrada de
+  ayer) — typecheck, ESLint y Prettier limpios, 395 pruebas.
+- Pendiente: nada abierto de este pedido; sigue pendiente lo de siempre (precio en soles,
+  backups de Postgres).
+
 ## 2026-11-25 — Interfaz para la recarga y para administrar el catálogo de planes
 
 - Contexto: cerraba la `Pendiente` de la entrada anterior — la API ya aceptaba la recarga y el

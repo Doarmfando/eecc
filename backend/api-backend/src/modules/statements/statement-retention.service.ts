@@ -13,10 +13,7 @@ export interface RemovedStatement {
 }
 
 export interface EnforceOptions {
-  /**
-   * Documentos que conserva quien sube: el cupo de su membresía. Sin valor, el de
-   * las credenciales de servicio (`RETAINED_STATEMENTS_PER_USER`).
-   */
+  /** Override puntual del cupo (pruebas). Sin valor, usa `RETAINED_STATEMENTS_PER_USER`. */
   limit?: number;
   keepStatementId?: string;
   preferredStatementId?: string;
@@ -50,11 +47,12 @@ export class StatementRetentionService {
   ) {}
 
   /**
-   * Deja como mucho `limit` documentos de esa persona: el cupo de su membresía.
+   * Deja como mucho `RETAINED_STATEMENTS_PER_USER` documentos de esa persona: el
+   * mismo cupo para cualquiera, sin importar su membresía (ADR-0007).
    *
    * El cupo es por persona y no por organización para que la actividad de alguien
    * no borre el trabajo reciente de otro. `uploadedById` nulo —una credencial de
-   * servicio— forma su propio grupo, con `RETAINED_STATEMENTS_PER_USER`.
+   * servicio— forma su propio grupo, con el mismo cupo global.
    *
    * Tras bajar de membresía puede sobrar más de uno: se retiran todos los que
    * excedan el cupo nuevo, empezando por el elegido.

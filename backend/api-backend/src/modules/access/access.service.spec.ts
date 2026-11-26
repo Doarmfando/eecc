@@ -9,7 +9,6 @@ const BASICA = {
   code: 'BASICA',
   name: 'Básica',
   description: 'Solo conversión',
-  maxRetainedStatements: 3,
   maxPagesPerDocument: 15,
   isDefault: true,
   features: [],
@@ -18,7 +17,6 @@ const ATLAS = {
   code: 'ATLAS',
   name: 'Atlas',
   description: 'Todo',
-  maxRetainedStatements: 20,
   maxPagesPerDocument: null,
   isDefault: false,
   features: [{ featureCode: 'HISTORY' }],
@@ -73,7 +71,6 @@ describe('AccessService', () => {
       code: 'ATLAS',
       name: 'Atlas',
       description: 'Todo',
-      maxRetainedStatements: 20,
       maxPagesPerDocument: null,
       isDefault: false,
       features: ['HISTORY'],
@@ -179,7 +176,6 @@ describe('AccessService: administrar el catálogo de planes (ADR-0018)', () => {
       code: 'PRO',
       name: 'Pro',
       description: 'd',
-      maxRetainedStatements: 10,
       maxPagesPerDocument: 1000,
       monthlyPageQuota: 100,
       trialOneTime: false,
@@ -221,7 +217,6 @@ describe('AccessService: administrar el catálogo de planes (ADR-0018)', () => {
       code: 'PRO',
       name: 'Pro',
       description: 'Conversión e historial, 10 documentos y hasta 100 páginas por PDF.',
-      maxRetainedStatements: 10,
       monthlyPageQuota: 100,
       features: ['HISTORY'],
     });
@@ -253,7 +248,6 @@ describe('AccessService: administrar el catálogo de planes (ADR-0018)', () => {
         code: 'PRO',
         name: 'Pro',
         description: 'd',
-        maxRetainedStatements: 10,
       }),
     ).rejects.toMatchObject({ response: { code: 'PLAN_ALREADY_EXISTS' } });
     expect(planCreado).not.toHaveBeenCalled();

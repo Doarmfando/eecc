@@ -105,28 +105,6 @@ function EstadoDelCatalogo({ cargando, error }: { cargando: boolean; error: unkn
   ) : null;
 }
 
-/**
- * Si la membresía nueva guarda menos documentos de los que ya tiene, lo dice: el
- * exceso no se borra al cambiarla, sino al subir el siguiente documento.
- */
-function AvisoDeCupo({
-  plan,
-  documentos,
-}: {
-  plan: PlanOption | undefined;
-  documentos: number;
-}): ReactNode {
-  if (!plan || documentos <= plan.maxRetainedStatements) {
-    return null;
-  }
-  return (
-    <p className="mt-2 text-xs text-warning-foreground">
-      Tiene {documentos} documentos y {plan.name} guarda {plan.maxRetainedStatements}: al subir el
-      próximo se borrarán los más antiguos que sobren.
-    </p>
-  );
-}
-
 function Acciones({ children }: { children: ReactNode }): ReactNode {
   return (
     <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">{children}</div>
@@ -647,10 +625,6 @@ function EditarCuentaContenido({
             )}
           />
           <FieldError message={errores.planCode?.message} />
-          <AvisoDeCupo
-            plan={planes.data?.find((plan) => plan.code === planElegido)}
-            documentos={miembro.documentCount}
-          />
         </fieldset>
 
         <fieldset>

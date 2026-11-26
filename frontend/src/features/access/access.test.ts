@@ -48,10 +48,8 @@ describe('acceso según rol y membresía', () => {
     expect(paginasAlMes(SESION_ANTIGUA)).toBeNull();
   });
 
-  it('lee los límites del plan', () => {
-    expect(cupoDe({ ...TEST_USER, plan: { ...BASIC_USER.plan!, maxRetainedStatements: 20 } })).toBe(
-      20,
-    );
+  it('lee el cupo de documentos de la sesión, el mismo para cualquier plan (ADR-0007)', () => {
+    expect(cupoDe({ ...TEST_USER, retainedStatementsPerUser: 20 })).toBe(20);
     expect(paginasAlMes(BASIC_USER)).toBe(10);
     expect(cupoDe(null)).toBe(0);
   });

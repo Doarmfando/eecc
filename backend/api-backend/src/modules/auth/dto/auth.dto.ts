@@ -34,7 +34,6 @@ export class ChangePasswordDto {
 export class SessionPlanDto {
   @ApiProperty({ example: 'BASICA' }) code!: string;
   @ApiProperty({ example: 'Básica' }) name!: string;
-  @ApiProperty() maxRetainedStatements!: number;
   @ApiProperty({
     nullable: true,
     type: Number,
@@ -85,14 +84,12 @@ export class SessionUserDto {
   plan!: SessionPlanDto;
 
   /**
-   * Documentos que conserva esta persona: el cupo de su membresía. Va aquí, y no
-   * en una ruta aparte, para que la interfaz pueda advertirlo sin una petición más:
-   * si no lo supiera, alguien perdería un documento sin haber sido avisado.
+   * Documentos que conserva esta persona: el mismo cupo para cualquiera, sin
+   * importar su membresía (ADR-0007). Va aquí, y no en una ruta aparte, para que
+   * la interfaz pueda advertirlo sin una petición más: si no lo supiera, alguien
+   * perdería un documento sin haber sido avisado.
    */
-  @ApiProperty({
-    description:
-      'Documentos que conserva antes de reemplazar uno (igual a plan.maxRetainedStatements)',
-  })
+  @ApiProperty({ description: 'Documentos que conserva antes de reemplazar uno' })
   retainedStatementsPerUser!: number;
 
   /**

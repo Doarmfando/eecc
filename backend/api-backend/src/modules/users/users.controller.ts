@@ -23,6 +23,7 @@ import type { MemberActor } from './users.service';
 import {
   CreateMemberDto,
   CreatedMemberDto,
+  MemberDetailDto,
   MemberDto,
   SetPasswordDto,
   TemporaryPasswordDto,
@@ -49,6 +50,16 @@ export class UsersController {
   @ApiResponse({ status: 200, type: [MemberDto] })
   async list(@CurrentUser() actor: AuthenticatedUser): Promise<MemberDto[]> {
     return this.users.list(actor.organizationId, quienGestiona(actor));
+  }
+
+  @Get(':userId')
+  @ApiOperation({ summary: 'Detalle de una cuenta: su membresía y cuánto ha consumido' })
+  @ApiResponse({ status: 200, type: MemberDetailDto })
+  async detail(
+    @CurrentUser() actor: AuthenticatedUser,
+    @Param('userId', new ParseUUIDPipe({ version: '4' })) userId: string,
+  ): Promise<MemberDetailDto> {
+    return this.users.detail(actor.organizationId, quienGestiona(actor), userId);
   }
 
   @Post()

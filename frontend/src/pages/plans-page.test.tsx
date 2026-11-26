@@ -27,7 +27,6 @@ const BASICA = {
   code: 'BASICA',
   name: 'Básica',
   description: 'Solo conversión',
-  maxRetainedStatements: 3,
   maxPagesPerDocument: 1000,
   monthlyPageQuota: 15,
   trialOneTime: false,
@@ -41,7 +40,6 @@ const ATLAS = {
   code: 'ATLAS',
   name: 'Atlas',
   description: 'Se cotiza por fuera',
-  maxRetainedStatements: 20,
   maxPagesPerDocument: 1000,
   monthlyPageQuota: null,
   trialOneTime: false,
@@ -133,9 +131,6 @@ describe('PlansPage: nuevo plan', () => {
     await user.type(within(dialogo).getByLabelText('Código'), 'especial');
     await user.type(within(dialogo).getByLabelText('Nombre'), 'Especial');
     await user.type(within(dialogo).getByLabelText('Descripción'), 'Historial y calendario');
-    const documentos = within(dialogo).getByLabelText('Documentos guardados');
-    await user.clear(documentos);
-    await user.type(documentos, '5');
     await user.type(within(dialogo).getByLabelText('Páginas acumuladas al mes'), '15');
     await user.click(within(dialogo).getByLabelText('Historial'));
     await user.click(within(dialogo).getByLabelText('Calendario'));
@@ -147,7 +142,6 @@ describe('PlansPage: nuevo plan', () => {
         code: 'ESPECIAL',
         name: 'Especial',
         description: 'Historial y calendario',
-        maxRetainedStatements: 5,
         maxPagesPerDocument: undefined,
         monthlyPageQuota: 15,
         trialOneTime: false,

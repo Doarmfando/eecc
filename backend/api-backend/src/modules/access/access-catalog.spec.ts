@@ -9,7 +9,6 @@ function membresia(overrides: Partial<MembershipWithAccess> = {}): MembershipWit
     plan: {
       code: 'BASICA',
       name: 'Básica',
-      maxRetainedStatements: 3,
       maxPagesPerDocument: 1000,
       monthlyPageQuota: 15,
       trialOneTime: false,

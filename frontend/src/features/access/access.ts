@@ -61,9 +61,9 @@ export function tieneFuncion(usuario: SessionUser | null, funcion: FeatureCode):
   return usuario.plan ? usuario.plan.features.includes(funcion) : true;
 }
 
-/** Documentos que conserva antes de reemplazar uno. */
+/** Documentos que conserva antes de reemplazar uno: el mismo cupo para cualquiera (ADR-0007). */
 export function cupoDe(usuario: SessionUser | null): number {
-  return usuario?.plan?.maxRetainedStatements ?? usuario?.retainedStatementsPerUser ?? 0;
+  return usuario?.retainedStatementsPerUser ?? 0;
 }
 
 /**

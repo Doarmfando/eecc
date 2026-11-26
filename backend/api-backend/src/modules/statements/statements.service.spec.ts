@@ -496,7 +496,7 @@ describe('StatementsService', () => {
     expect(artifacts).toHaveLength(1);
   });
 
-  it('aplica la membresía: cupo a la retención y páginas al worker', async () => {
+  it('aplica el tope técnico de la membresía al pedido que le hace al worker', async () => {
     const recorder: TransactionRecorder = { created: [] };
     const { prisma } = buildPrisma(null, recorder);
     const processStatement = jest.fn().mockResolvedValue(workerPayload({ page_count: 12 }));
@@ -509,15 +509,16 @@ describe('StatementsService', () => {
       content: pdfBuffer(),
       fileName: 'estado.pdf',
       mimeType: 'application/pdf',
-      retainedStatements: 3,
       maxPagesPerDocument: 15,
     });
 
     expect(processStatement).toHaveBeenCalledWith(expect.objectContaining({ maxPages: 15 }));
+    // El cupo de documentos ya no viene de la membresía (ADR-0007): se aplica
+    // sin pedirle un `limit`, y usa el suyo propio (`RETAINED_STATEMENTS_PER_USER`).
     expect(enforceForUploader).toHaveBeenCalledWith(
       ORGANIZATION_ID,
       USER_ID,
-      expect.objectContaining({ limit: 3 }),
+      expect.not.objectContaining({ limit: expect.anything() }),
     );
   });
 
@@ -533,7 +534,6 @@ describe('StatementsService', () => {
       content: pdfBuffer(),
       fileName: 'estado.pdf',
       mimeType: 'application/pdf',
-      retainedStatements: 20,
       maxPagesPerDocument: null,
     });
 

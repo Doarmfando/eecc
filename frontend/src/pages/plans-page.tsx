@@ -50,7 +50,6 @@ function FilaDePlan({
         </p>
         <p className="mt-1 max-w-sm text-xs text-muted-foreground">{plan.description}</p>
       </td>
-      <td className="px-4 py-3 align-top text-sm text-foreground">{plan.maxRetainedStatements}</td>
       <td className="px-4 py-3 align-top text-sm text-foreground">
         {plan.trialOneTime
           ? `${String(plan.monthlyPageQuota)} (una vez)`
@@ -116,7 +115,6 @@ export function PlansPage(): ReactNode {
             <thead>
               <tr className="border-b border-border/70 text-xs text-muted-foreground uppercase">
                 <th className="px-4 py-3 font-medium">Plan</th>
-                <th className="px-4 py-3 font-medium">Documentos</th>
                 <th className="px-4 py-3 font-medium">Páginas/mes</th>
                 <th className="px-4 py-3 font-medium">Vistas</th>
                 <th className="px-4 py-3 font-medium">

@@ -22,6 +22,7 @@ import { isEmailDomainAllowed, parseEmailDomains, type AppConfig } from '../../c
 import { AccessService } from '../access/access.service';
 import { hashPassword, normalizeEmail } from '../auth/password-hash';
 import { StatementRetentionService } from '../statements/statement-retention.service';
+import { StatementUsageService } from '../statements/statement-usage.service';
 import {
   allowedMemberActions,
   canAssignRole,
@@ -44,7 +45,6 @@ export interface MemberSummary {
   /** Membresía: qué vistas usa y con qué límites (ADR-0016). */
   planCode: string;
   planName: string;
-  maxRetainedStatements: number;
   maxPagesPerDocument: number | null;
   /** Páginas acumuladas al mes que de verdad admite: la recarga, si tiene, si no la del plan. */
   monthlyPageQuota: number | null;
@@ -109,6 +109,7 @@ export class UsersService {
     private readonly prisma: PrismaService,
     private readonly retention: StatementRetentionService,
     private readonly access: AccessService,
+    private readonly statementUsage: StatementUsageService,
     config: ConfigService<AppConfig, true>,
   ) {
     this.dominiosPermitidos = parseEmailDomains(
@@ -151,6 +152,22 @@ export class UsersService {
     });
     const hoy = this.hoy();
     return memberships.map((membership) => toMemberSummary(membership, actor, hoy));
+  }
+
+  /**
+   * El detalle de una cuenta: lo mismo que el listado, más cuánto lleva
+   * consumido del acumulado de 30 días (ADR-0018) — la lista no lo trae para
+   * no sumar una consulta por fila; aquí sí, porque es una sola.
+   */
+  async detail(
+    organizationId: string,
+    actor: MemberActor,
+    userId: string,
+  ): Promise<MemberSummary & { pagesUsed: number }> {
+    const membership = await this.buscarMiembro(organizationId, userId);
+    const hoy = this.hoy();
+    const pagesUsed = await this.statementUsage.pagesUsedInCurrentPeriod(organizationId, userId);
+    return { ...toMemberSummary(membership, actor, hoy), pagesUsed };
   }
 
   /**
@@ -615,7 +632,6 @@ const ROL_Y_PLAN = {
     select: {
       code: true,
       name: true,
-      maxRetainedStatements: true,
       maxPagesPerDocument: true,
       monthlyPageQuota: true,
     },
@@ -663,7 +679,6 @@ interface MembershipConUsuario {
   plan: {
     code: string;
     name: string;
-    maxRetainedStatements: number;
     maxPagesPerDocument: number | null;
     monthlyPageQuota: number | null;
   };
@@ -692,7 +707,6 @@ function toMemberSummary(
     roleRank: membership.role.rank,
     planCode: membership.plan.code,
     planName: membership.plan.name,
-    maxRetainedStatements: membership.plan.maxRetainedStatements,
     maxPagesPerDocument: membership.plan.maxPagesPerDocument,
     monthlyPageQuota: membership.monthlyPageQuotaOverride ?? membership.plan.monthlyPageQuota,
     monthlyPageQuotaOverride: membership.monthlyPageQuotaOverride,

@@ -8,6 +8,7 @@ import type { AppConfig } from '../../config/app-config';
 import type { AccessService } from '../access/access.service';
 import { verifyPassword } from '../auth/password-hash';
 import type { StatementRetentionService } from '../statements/statement-retention.service';
+import type { StatementUsageService } from '../statements/statement-usage.service';
 import { UsersService } from './users.service';
 
 const ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
@@ -20,6 +21,7 @@ const ACTOR = { userId: ACTOR_ID, rank: 50 };
 
 interface Dobles {
   service: UsersService;
+  pagesUsedInCurrentPeriod: jest.Mock;
   usuarioBuscado: jest.Mock;
   usuarioCreado: jest.Mock;
   usuarioActualizado: jest.Mock;
@@ -43,10 +45,10 @@ const ROLES: Record<string, { name: string; rank: number }> = {
 };
 const PLANES: Record<
   string,
-  { name: string; docs: number; pages: number | null; monthlyPageQuota: number | null }
+  { name: string; pages: number | null; monthlyPageQuota: number | null }
 > = {
-  BASICA: { name: 'Básica', docs: 3, pages: 1000, monthlyPageQuota: 15 },
-  ATLAS: { name: 'Atlas', docs: 20, pages: 1000, monthlyPageQuota: null },
+  BASICA: { name: 'Básica', pages: 1000, monthlyPageQuota: 15 },
+  ATLAS: { name: 'Atlas', pages: 1000, monthlyPageQuota: null },
 };
 const DESDE = new Date('2026-01-01T00:00:00Z');
 /** Una vigencia futura para las altas de usuarios normales, que la exigen. */
@@ -81,7 +83,7 @@ function membresiaFila(overrides: Record<string, unknown> = {}): Record<string, 
   };
   const roleCode = String(fila.roleCode);
   const planCode = String(fila.planCode);
-  const plan = PLANES[planCode] ?? { name: planCode, docs: 3, pages: null, monthlyPageQuota: null };
+  const plan = PLANES[planCode] ?? { name: planCode, pages: null, monthlyPageQuota: null };
   return {
     ...fila,
     role: {
@@ -92,7 +94,6 @@ function membresiaFila(overrides: Record<string, unknown> = {}): Record<string, 
     plan: {
       code: planCode,
       name: plan.name,
-      maxRetainedStatements: plan.docs,
       maxPagesPerDocument: plan.pages,
       monthlyPageQuota: plan.monthlyPageQuota,
     },
@@ -112,6 +113,8 @@ function construir(
     dominios?: string;
     /** Fallo del catálogo al validar el rol o el plan. */
     falloDeCatalogo?: Error;
+    /** Páginas que `detail()` dice que ya lleva consumidas del acumulado. */
+    pagesUsed?: number;
   } = {},
 ): Dobles {
   const usuarioBuscado = jest.fn().mockResolvedValue(opciones.usuarioExistente ?? null);
@@ -207,8 +210,14 @@ function construir(
     resolvePlanCode: planResuelto,
   } as unknown as AccessService;
 
+  const pagesUsedInCurrentPeriod = jest.fn().mockResolvedValue(opciones.pagesUsed ?? 0);
+  const statementUsage = {
+    pagesUsedInCurrentPeriod,
+  } as unknown as StatementUsageService;
+
   return {
-    service: new UsersService(prisma, retention, access, config),
+    service: new UsersService(prisma, retention, access, statementUsage, config),
+    pagesUsedInCurrentPeriod,
     usuarioBuscado,
     usuarioCreado,
     usuarioActualizado,
@@ -242,7 +251,6 @@ describe('UsersService.list', () => {
         roleRank: 10,
         planCode: 'BASICA',
         planName: 'Básica',
-        maxRetainedStatements: 3,
         maxPagesPerDocument: 1000,
         monthlyPageQuota: 15,
         monthlyPageQuotaOverride: null,
@@ -281,6 +289,30 @@ describe('UsersService.list', () => {
     expect(consulta.include.user.include._count.select.statements.where).toEqual(
       expect.objectContaining({ organizationId: ORGANIZATION_ID }),
     );
+  });
+});
+
+describe('UsersService.detail', () => {
+  it('trae lo mismo que el listado, más cuánto lleva consumido', async () => {
+    const { service, pagesUsedInCurrentPeriod } = construir({ pagesUsed: 7 });
+
+    const detalle = await service.detail(ORGANIZATION_ID, ACTOR, MIEMBRO_ID);
+
+    expect(detalle).toMatchObject({
+      userId: MIEMBRO_ID,
+      planCode: 'BASICA',
+      monthlyPageQuota: 15,
+      pagesUsed: 7,
+    });
+    expect(pagesUsedInCurrentPeriod).toHaveBeenCalledWith(ORGANIZATION_ID, MIEMBRO_ID);
+  });
+
+  it('rechaza una cuenta que no existe en la organización', async () => {
+    const { service } = construir({ membresiaExistente: null });
+
+    await expect(service.detail(ORGANIZATION_ID, ACTOR, MIEMBRO_ID)).rejects.toMatchObject({
+      response: { code: 'MEMBER_NOT_FOUND' },
+    });
   });
 });
 
@@ -627,7 +659,7 @@ describe('UsersService y la membresía', () => {
     expect(membresiaCreada).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ planCode: 'BASICA' }) }),
     );
-    expect(resultado.member).toMatchObject({ planCode: 'BASICA', maxRetainedStatements: 3 });
+    expect(resultado.member).toMatchObject({ planCode: 'BASICA', monthlyPageQuota: 15 });
   });
 
   it('da de alta con la membresía elegida y la audita', async () => {
@@ -643,7 +675,6 @@ describe('UsersService y la membresía', () => {
     );
     expect(resultado.member).toMatchObject({
       planCode: 'ATLAS',
-      maxRetainedStatements: 20,
       maxPagesPerDocument: 1000,
       monthlyPageQuota: null,
     });

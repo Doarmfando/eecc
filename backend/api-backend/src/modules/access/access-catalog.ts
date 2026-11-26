@@ -49,8 +49,6 @@ export const PLAN_CODE_PATTERN = /^[A-Z][A-Z0-9_]{1,31}$/;
 export interface PlanSummary {
   code: string;
   name: string;
-  /** Documentos que conserva; al superarlo se reemplaza uno. */
-  maxRetainedStatements: number;
   /** Tope técnico de seguridad por PDF, igual para todos los planes. Nulo: sin tope. */
   maxPagesPerDocument: number | null;
   /** Páginas acumuladas al mes que decide el cobro. Nulo: sin tope fijo, se cotiza. */
@@ -96,7 +94,6 @@ export const MEMBERSHIP_ACCESS_INCLUDE = {
     select: {
       code: true,
       name: true,
-      maxRetainedStatements: true,
       maxPagesPerDocument: true,
       monthlyPageQuota: true,
       trialOneTime: true,
@@ -114,7 +111,6 @@ export interface MembershipWithAccess {
   plan: {
     code: string;
     name: string;
-    maxRetainedStatements: number;
     maxPagesPerDocument: number | null;
     monthlyPageQuota: number | null;
     trialOneTime: boolean;
@@ -150,7 +146,6 @@ export function toPlanSummary(plan: MembershipWithAccess['plan']): PlanSummary {
   return {
     code: plan.code,
     name: plan.name,
-    maxRetainedStatements: plan.maxRetainedStatements,
     maxPagesPerDocument: plan.maxPagesPerDocument,
     monthlyPageQuota: plan.monthlyPageQuota,
     trialOneTime: plan.trialOneTime,

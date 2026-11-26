@@ -22,7 +22,6 @@ interface FormularioDePlan {
   code: string;
   name: string;
   description: string;
-  maxRetainedStatements: string;
   maxPagesPerDocument: string;
   monthlyPageQuota: string;
   trialOneTime: boolean;
@@ -37,7 +36,6 @@ function formularioVacio(): FormularioDePlan {
     code: '',
     name: '',
     description: '',
-    maxRetainedStatements: '3',
     maxPagesPerDocument: '',
     monthlyPageQuota: '',
     trialOneTime: false,
@@ -53,7 +51,6 @@ function formularioDe(plan: PlanAdminOption): FormularioDePlan {
     code: plan.code,
     name: plan.name,
     description: plan.description,
-    maxRetainedStatements: plan.maxRetainedStatements.toString(),
     maxPagesPerDocument: plan.maxPagesPerDocument?.toString() ?? '',
     monthlyPageQuota: plan.monthlyPageQuota?.toString() ?? '',
     trialOneTime: plan.trialOneTime,
@@ -79,7 +76,6 @@ function datosComunes(form: FormularioDePlan): Omit<CreatePlanInput, 'code'> {
   return {
     name: form.name.trim(),
     description: form.description.trim(),
-    maxRetainedStatements: Number(form.maxRetainedStatements),
     maxPagesPerDocument: numeroOpcional(form.maxPagesPerDocument, false),
     monthlyPageQuota: numeroOpcional(form.monthlyPageQuota, true),
     trialOneTime: form.trialOneTime,
@@ -144,7 +140,6 @@ function CamposDePlan({
   const codigoId = useId();
   const nombreId = useId();
   const descripcionId = useId();
-  const documentosId = useId();
   const topeTecnicoId = useId();
   const paginasId = useId();
   const ordenId = useId();
@@ -200,20 +195,7 @@ function CamposDePlan({
         />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <div className="space-y-2">
-          <Label htmlFor={documentosId}>Documentos guardados</Label>
-          <Input
-            id={documentosId}
-            type="number"
-            min={1}
-            max={1000}
-            value={form.maxRetainedStatements}
-            onChange={(event) => {
-              onChange({ maxRetainedStatements: event.target.value });
-            }}
-          />
-        </div>
+      <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor={paginasId}>Páginas acumuladas al mes</Label>
           <Input

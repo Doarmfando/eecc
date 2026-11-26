@@ -90,3 +90,20 @@ describe('UsersController.update: todos los campos del DTO llegan al servicio', 
     expect(cambios).toEqual({});
   });
 });
+
+describe('UsersController.detail', () => {
+  it('pide el detalle de esa cuenta en la organización de quien consulta', async () => {
+    const detalle = jest.fn().mockResolvedValue({ userId: USUARIO_ID, pagesUsed: 7 });
+    const service = { detail: detalle } as unknown as UsersService;
+    const controller = new UsersController(service);
+
+    const resultado = await controller.detail(ACTOR, USUARIO_ID);
+
+    expect(detalle).toHaveBeenCalledWith(
+      ACTOR.organizationId,
+      expect.objectContaining({ userId: ACTOR.userId }),
+      USUARIO_ID,
+    );
+    expect(resultado).toEqual({ userId: USUARIO_ID, pagesUsed: 7 });
+  });
+});

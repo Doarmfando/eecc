@@ -102,13 +102,10 @@ export class AppConfig {
   ALLOWED_EMAIL_DOMAINS = 'hotmail.com,empresa.pe,eecc.local';
 
   /**
-   * Documentos que conservan las **credenciales de servicio**. Al superarlo, los
-   * más antiguos se borran enteros: fila y archivos.
-   *
-   * Las personas ya no usan este valor: su cupo es el de su membresía
-   * (`membership_plans.max_retained_statements`, ADR-0016). Una credencial de
-   * servicio no tiene membresía, y sin tope cada documento suyo dejaría para
-   * siempre su PDF de origen y sus XLSX/CSV en disco.
+   * Documentos que conserva cada persona (y cada credencial de servicio, como su
+   * propio grupo). Al superarlo, los más antiguos se borran enteros: fila y
+   * archivos. El mismo cupo para cualquiera, sin importar su membresía
+   * (ADR-0007; ADR-0016 lo había vuelto por-plan y se revirtió).
    */
   @IsInt()
   @Min(1)

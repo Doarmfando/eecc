@@ -242,9 +242,6 @@ model MembershipPlan {
   code                  String   @id @db.VarChar(32)
   name                  String   @db.VarChar(80)
   description           String   @db.VarChar(255)
-  /// Documentos que conserva cada persona; al superarlo elige cuál reemplazar
-  /// (ADR-0007, ADR-0014).
-  maxRetainedStatements Int      @map("max_retained_statements")
   /// Tope técnico por PDF: protege al worker de un archivo absurdo. Nulo: sin
   /// tope (no usarlo en catálogos nuevos; se prefiere un número alto, p. ej.
   /// 1000). No es el límite de cobro — ver `monthlyPageQuota` (ADR-0018).

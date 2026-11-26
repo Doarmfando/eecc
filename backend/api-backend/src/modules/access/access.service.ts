@@ -43,7 +43,6 @@ const PLAN_SELECT = {
   code: true,
   name: true,
   description: true,
-  maxRetainedStatements: true,
   maxPagesPerDocument: true,
   monthlyPageQuota: true,
   trialOneTime: true,
@@ -112,7 +111,6 @@ export class AccessService {
           code: datos.code,
           name: datos.name,
           description: datos.description,
-          maxRetainedStatements: datos.maxRetainedStatements,
           maxPagesPerDocument: datos.maxPagesPerDocument ?? 1000,
           monthlyPageQuota: datos.monthlyPageQuota ?? null,
           trialOneTime: datos.trialOneTime ?? false,
@@ -143,9 +141,6 @@ export class AccessService {
     const datos: Prisma.MembershipPlanUpdateInput = {};
     if (cambios.name !== undefined) datos.name = cambios.name;
     if (cambios.description !== undefined) datos.description = cambios.description;
-    if (cambios.maxRetainedStatements !== undefined) {
-      datos.maxRetainedStatements = cambios.maxRetainedStatements;
-    }
     if (cambios.maxPagesPerDocument !== undefined) {
       datos.maxPagesPerDocument = cambios.maxPagesPerDocument;
     }

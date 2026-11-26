@@ -29,7 +29,6 @@ export const TEST_USER: SessionUser = {
   plan: {
     code: 'ATLAS',
     name: 'Atlas',
-    maxRetainedStatements: 3,
     maxPagesPerDocument: 1000,
     monthlyPageQuota: null,
     trialOneTime: false,
@@ -51,7 +50,6 @@ export const BASIC_USER: SessionUser = {
   plan: {
     code: 'BASICA',
     name: 'Básica',
-    maxRetainedStatements: 3,
     maxPagesPerDocument: 1000,
     monthlyPageQuota: 10,
     trialOneTime: false,

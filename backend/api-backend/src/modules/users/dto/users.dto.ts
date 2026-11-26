@@ -175,8 +175,6 @@ export class MemberDto {
   @ApiProperty({ description: 'Rango del rol en la jerarquía' }) roleRank!: number;
   @ApiProperty({ example: PLAN.BASICA }) planCode!: string;
   @ApiProperty({ example: 'Básica' }) planName!: string;
-  @ApiProperty({ description: 'Documentos que conserva según su membresía' })
-  maxRetainedStatements!: number;
   @ApiProperty({
     nullable: true,
     type: Number,
@@ -219,6 +217,11 @@ export class MemberDto {
     description: 'Lo que quien consulta puede hacer con esta cuenta según los rangos',
   })
   actions!: MemberAction[];
+}
+
+export class MemberDetailDto extends MemberDto {
+  @ApiProperty({ description: 'Páginas que ya lleva consumidas en los últimos 30 días' })
+  pagesUsed!: number;
 }
 
 export class CreatedMemberDto {

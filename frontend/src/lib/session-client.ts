@@ -10,7 +10,6 @@ export type Role = string;
 export interface SessionPlan {
   code: string;
   name: string;
-  maxRetainedStatements: number;
   /** Tope técnico de seguridad por PDF. Nulo: sin tope. */
   maxPagesPerDocument: number | null;
   /** Páginas acumuladas al mes que decide el cobro. Nulo: sin tope fijo, se cotiza. */
@@ -63,7 +62,6 @@ export interface Member {
   roleRank?: number;
   planCode?: string;
   planName?: string;
-  maxRetainedStatements?: number;
   maxPagesPerDocument?: number | null;
   monthlyPageQuota?: number | null;
   /** Recarga puesta a mano por un administrador; nulo usa la del plan. */
@@ -84,6 +82,11 @@ export interface Member {
   actions?: MemberAction[];
 }
 
+/** Igual que `Member`, más cuánto lleva consumido del acumulado de 30 días (ADR-0018). */
+export interface MemberDetail extends Member {
+  pagesUsed: number;
+}
+
 export interface MemberChanges {
   displayName?: string;
   email?: string;
@@ -101,7 +104,6 @@ export interface PlanOption {
   code: string;
   name: string;
   description: string;
-  maxRetainedStatements: number;
   maxPagesPerDocument: number | null;
   monthlyPageQuota: number | null;
   trialOneTime: boolean;
@@ -120,7 +122,6 @@ export interface CreatePlanInput {
   code: string;
   name: string;
   description: string;
-  maxRetainedStatements: number;
   maxPagesPerDocument?: number | null;
   monthlyPageQuota?: number | null;
   trialOneTime?: boolean;
@@ -236,6 +237,17 @@ export async function fetchMembers(baseUrl: string, signal?: AbortSignal): Promi
     method: 'GET',
     ...(signal ? { signal } : {}),
   })) as Member[];
+}
+
+export async function fetchMemberDetail(
+  baseUrl: string,
+  userId: string,
+  signal?: AbortSignal,
+): Promise<MemberDetail> {
+  return (await pedir(baseUrl, `v1/users/${encodeURIComponent(userId)}`, {
+    method: 'GET',
+    ...(signal ? { signal } : {}),
+  })) as MemberDetail;
 }
 
 export async function fetchPlans(baseUrl: string, signal?: AbortSignal): Promise<PlanOption[]> {

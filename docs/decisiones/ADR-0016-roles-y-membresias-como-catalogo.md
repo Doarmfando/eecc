@@ -178,6 +178,18 @@ una regla nuevas; se añaden a la vez el código (`FEATURE`, `PERMISSION`) y su 
   `ADMIN_CANNOT_BE_DELETED`).
 - `RETAINED_STATEMENTS_PER_USER` pasa a ser solo el cupo de las credenciales de servicio.
 
+## Anexo — 2026-11-26: el cupo de documentos vuelve a ser global
+
+El modelo de negocio terminó siendo solo por páginas (ADR-0018): el catálogo de
+planes ya no debía configurar también cuántos documentos guarda cada uno —era un
+segundo dial que nadie usaba y que la tabla de precios real ni siquiera incluye.
+Se revierte justo esa parte de esta decisión: `membership_plans.max_retained_statements`
+se elimina (migración `cupo_de_documentos_vuelve_a_ser_global`) y
+`RETAINED_STATEMENTS_PER_USER` vuelve a ser el cupo de cualquiera, persona o
+credencial de servicio, como en el diseño original de ADR-0007. El resto de esta
+decisión (roles y planes como catálogo, páginas por membresía, vistas por función)
+sigue en pie.
+
 ## Criterio de revisión
 
 Revisar cuando un plan tenga precio o **vigencia** (fecha de vencimiento y vuelta al plan

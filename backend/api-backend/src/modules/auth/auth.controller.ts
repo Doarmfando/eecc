@@ -101,7 +101,8 @@ export class AuthController {
       roleRank: user.roleRank,
       permissions: user.permissions,
       plan: user.plan,
-      retainedStatementsPerUser: user.plan.maxRetainedStatements,
+      // El mismo cupo para cualquiera, sin importar su membresía (ADR-0007).
+      retainedStatementsPerUser: this.config.get('RETAINED_STATEMENTS_PER_USER', { infer: true }),
       supportPhone: this.config.get('SUPPORT_PHONE', { infer: true }).trim() || null,
       allowedEmailDomains: parseEmailDomains(
         this.config.get('ALLOWED_EMAIL_DOMAINS', { infer: true }),

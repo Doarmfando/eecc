@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  Eye,
   FileText,
   Gem,
   KeyRound,
@@ -31,6 +32,7 @@ import {
   EliminarDialog,
   type Credencial,
 } from '@/features/users/member-dialogs';
+import { MemberDetailDialog } from '@/features/users/member-detail-dialog';
 import { accionesSobre, nombreDeRol } from '@/features/users/roles';
 import { fetchMembers, updateMember, type Member } from '@/lib/session-client';
 import { describirVigencia, estadoDeVigencia, hoyLocal } from '@/lib/plan-dates';
@@ -229,6 +231,7 @@ function BotonAccion({
 
 type Dialogo =
   | { tipo: 'crear' }
+  | { tipo: 'detalle'; miembro: Member }
   | { tipo: 'editar'; miembro: Member }
   | { tipo: 'clave'; miembro: Member }
   | { tipo: 'eliminar'; miembro: Member };
@@ -248,7 +251,8 @@ export function MembersPage(): ReactNode {
   const [credencial, setCredencial] = useState<Credencial | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
 
-  const limite = usuario?.plan?.maxRetainedStatements ?? usuario?.retainedStatementsPerUser ?? 3;
+  // El mismo cupo para cualquiera, sin importar su membresía (ADR-0007).
+  const limite = usuario?.retainedStatementsPerUser ?? 3;
 
   const miembros = useQuery({
     queryKey: CLAVE_MIEMBROS,
@@ -519,10 +523,7 @@ export function MembersPage(): ReactNode {
                           <InsigniaEstado activa={activa} />
                         </td>
                         <td className="px-3 py-3">
-                          <Documentos
-                            cantidad={miembro.documentCount}
-                            limite={miembro.maxRetainedStatements ?? limite}
-                          />
+                          <Documentos cantidad={miembro.documentCount} limite={limite} />
                         </td>
                         <td className="px-3 py-3 whitespace-nowrap text-muted-foreground">
                           {formatearFecha(miembro.lastLoginAt)}
@@ -531,6 +532,13 @@ export function MembersPage(): ReactNode {
                           <div className="flex justify-end gap-0.5">
                             {/* Cada botón según lo que la API dice que se puede hacer con esta
                                 cuenta (rangos); el servidor lo vuelve a comprobar igualmente. */}
+                            <BotonAccion
+                              etiqueta={`Ver el detalle de ${nombre}`}
+                              Icono={Eye}
+                              onClick={() => {
+                                abrir({ tipo: 'detalle', miembro });
+                              }}
+                            />
                             <BotonAccion
                               etiqueta={
                                 editable
@@ -607,6 +615,10 @@ export function MembersPage(): ReactNode {
             setAviso(`Cuenta creada para ${miembro.email}.`);
           }
         }}
+      />
+      <MemberDetailDialog
+        miembro={dialogo?.tipo === 'detalle' ? dialogo.miembro : null}
+        onClose={cerrarDialogo}
       />
       <EditarCuentaDialog
         miembro={dialogo?.tipo === 'editar' ? dialogo.miembro : null}

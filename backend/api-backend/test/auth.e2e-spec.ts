@@ -48,7 +48,6 @@ function accesoDe(role: string): Record<string, unknown> {
       ? {
           code: 'ATLAS',
           name: 'Atlas',
-          maxRetainedStatements: 20,
           maxPagesPerDocument: null,
           features: ['FINANCIAL_CALENDAR', 'FINANCIAL_CENTER', 'HISTORY'].map((featureCode) => ({
             featureCode,
@@ -57,7 +56,6 @@ function accesoDe(role: string): Record<string, unknown> {
       : {
           code: 'BASICA',
           name: 'Básica',
-          maxRetainedStatements: 3,
           maxPagesPerDocument: 15,
           features: [],
         },
@@ -266,12 +264,13 @@ describe('Sesión de usuario (e2e)', () => {
       permissions: ['STATEMENTS_CONVERT', 'USERS_MANAGE'],
       plan: {
         code: 'ATLAS',
-        maxRetainedStatements: 20,
         maxPagesPerDocument: null,
         expiresOn: null,
         expired: false,
       },
-      retainedStatementsPerUser: 20,
+      // El mismo cupo para cualquiera (ADR-0007): el de `RETAINED_STATEMENTS_PER_USER`,
+      // no el de la membresía.
+      retainedStatementsPerUser: 3,
       supportPhone: null,
     });
 

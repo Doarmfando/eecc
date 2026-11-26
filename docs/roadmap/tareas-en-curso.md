@@ -400,6 +400,25 @@ calendario en diciembre de 2026)
   global de cobertura (80%) sigue sin cumplirse por un problema previo, no de esta
   tarea, del proveedor `v8` de Vitest en este entorno Windows (duplica cada archivo en
   el reporte); reproducido también en `main` sin estos cambios.
-- [ ] Pendiente: commit y push (fetch y rebase antes), verificar en producción
-  (Railway/Fortex) que `/planes` carga para un SUPER_ADMIN y que crear/editar un plan y
-  poner una recarga funcionan de punta a punta.
+- [x] Commit y push, verificado en producción (Railway/Fortex): `/planes` carga para un
+  SUPER_ADMIN, `GET /v1/plans/admin` devuelve el catálogo completo y la recarga puesta a
+  Ronald sigue persistida. De paso se corrigió que Atlas se seguía pudiendo elegir a mano
+  para un usuario normal (ya no aparece para un rol que vence) y que "Crear plan" no avisaba
+  si faltaba código o nombre.
+
+## 19. El cupo de documentos vuelve a ser global, y detalle de consumo por usuario (2026-11-26)
+
+- Pedido, resumido: quitar "Documentos guardados" del formulario de planes y trabajar con un
+  solo cupo global para cualquiera (la tabla de precios final ya no trae esa columna); además,
+  un endpoint y una vista de detalle por usuario para ver cuánto ha consumido de páginas.
+- [x] Back: migración `cupo_de_documentos_vuelve_a_ser_global` (revierte la parte de
+  ADR-0016 que había hecho `max_retained_statements` una columna por plan);
+  `RETAINED_STATEMENTS_PER_USER` vuelve a ser el único cupo, como en ADR-0007. Nuevo
+  `GET /v1/users/:userId` con el detalle de una cuenta más `pagesUsed`.
+- [x] Front: campo y columna de documentos quitados del formulario y la tabla de *Planes*;
+  botón "Ver el detalle" por fila en *Usuarios* con rol, membresía, vigencia, documentos,
+  último acceso y una barra de páginas acumuladas del mes.
+- [x] Pruebas y verificación: API `npm run check` (299, con cobertura); frontend típecheck,
+  ESLint, Prettier y 395 pruebas (el umbral de cobertura sigue con el problema ya conocido
+  del proveedor `v8` en este entorno).
+- [ ] Pendiente: commit, push y verificar en producción.
