@@ -467,9 +467,9 @@ calendario en diciembre de 2026)
     del contenedor de producción. Desplegado con autorización explícita. **Se separó de los
     lotes**: el lote del periodo de Personal exige definir qué es un periodo, y eso cambia el
     cobro de los clientes actuales; pasa a la etapa 2b.
-  - [ ] **2b. Primer lote real.** `page_lots` con el periodo de Personal como primer lote; las
-    reservas reparten su techo entre lotes (FEFO); `toMembershipAccess` consulta el saldo real.
-    Periodo ya definido (decisión 1 abajo): desde la activación o renovación de cada persona.
+  - [x] **2b. Primer lote real.** `page_lots` con periodos desde la activación o renovación.
+    Las reservas reparten su techo entre lotes por vencimiento (FEFO). Implementado y probado
+    localmente en `feature/lotes-de-paginas` (`269163e`).
   - [x] **3. Catálogo de productos y precios.** Tabla `commercial_products` (Recargas/Profesional,
     aparte de `membership_plans` porque son compras apilables, no la identidad de la cuenta);
     precio en `membership_plans`; administración bajo `PLANS_MANAGE` (`/v1/commercial-products`,
@@ -477,12 +477,14 @@ calendario en diciembre de 2026)
     cada plan en la pantalla *Planes y membresías*. `PERSONAL` sembrado pero retirado hasta la
     migración. [ADR-0019](../decisiones/ADR-0019-modelo-comercial-de-cuatro-productos.md).
     En la rama `feature/catalogo-comercial`; **sin desplegar** hasta autorización.
-  - [ ] **4. Lotes comprables y otorgamiento por un administrador.** Reemplaza
-    `monthlyPageQuotaOverride` (la "recarga Atlas" manual) por lotes reales.
-  - [ ] **5. UI de usuario.** Saldo agregado y por lote, compra, historial comercial.
+  - [x] **4. Lotes comprables y otorgamiento por un administrador.** Las nuevas compras se
+    registran como lotes. Los ajustes antiguos quedan pendientes de la etapa 6.
+  - [x] **5. UI de usuario.** Saldo agregado y por lote, cotización e historiales de compras y
+    consumo. Implementada y verificada localmente en `feature/lotes-de-paginas`.
   - [ ] **6. Migración de datos existentes — requiere autorización aparte.** Básica/Especial →
-    Personal; cada override existente → lote de transición con consumo 0 (lo único reconstruible).
-    Script idempotente probado primero contra una copia de los datos reales.
+    Personal y paso a lotes de los ajustes antiguos. El [informe de impacto](migracion-a-personal.md)
+    identifica los casos que requieren una regla de transición antes de implementar y ensayar el
+    script de escritura con datos sintéticos.
   - [ ] **7. Panel comercial con métricas.**
   - [ ] **8. ADR nuevo del modelo de cuatro productos** (reemplaza la mayor parte de ADR-0018).
     Ya existe ADR-0019 con el modelo y las decisiones; se completa con lotes y migración.

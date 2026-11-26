@@ -13,6 +13,19 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-11-26 — Historial comercial de compras y consumo
+
+- *Mi saldo* muestra las compras vigentes y vencidas, y el consumo registrado. Cada lista carga
+  hasta 20 entradas por página. La consulta usa la sesión de la persona dentro de su organización.
+  El registro de consumo conserva las entradas de documentos borrados.
+- Las compras muestran las páginas, el precio pagado y el último día de vigencia en la zona
+  comercial. Las notas internas y las referencias de pago quedan en la vista administrativa.
+- Las pruebas verifican acceso con un plan sin historial documental, paginación, aislamiento y
+  conservación de consumos sin documento. La prueba de integración de lotes corrió con datos
+  sintéticos en un esquema de PostgreSQL local.
+- Se preparó el [informe de impacto de la migración](../roadmap/migracion-a-personal.md) con
+  conteos de Railway obtenidos en modo de solo lectura.
+
 ## 2026-11-26 — Punto de corte de la rama de saldo por lotes
 
 - `feature/lotes-de-paginas` contiene el catálogo (`5defbeb`) y la API de lotes (`269163e`).

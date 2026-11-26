@@ -113,8 +113,11 @@ Profesional). Su comportamiento no cambia.
 - `PERSONAL` existe desde la migración del catálogo, pero **retirado**: se ofrece recién cuando el
   saldo pase a lotes y Básica y Especial migren a él, para que nadie quede con un modelo de cobro
   a medias.
-- El tope de páginas que se aplica al subir sigue siendo el de ADR-0018 hasta la etapa de lotes:
-  esta decisión agrega catálogo y precios, no cambia todavía qué se cobra a nadie.
+- La rama comercial calcula el saldo y reserva páginas por lotes. El cambio de membresías de las
+  cuentas existentes requiere la etapa 6.
+- *Mi saldo* muestra compras y consumo en historiales paginados. El consumo se lee de
+  `page_consumption_entries`, por lo que conserva las conversiones registradas aunque se borre
+  el documento. La API limita las consultas al usuario y a la organización de la sesión.
 - Los códigos de error nuevos (`PRODUCT_NOT_FOUND`, `PRODUCT_ALREADY_EXISTS`,
   `PRODUCT_PRICING_SHAPE_INVALID`, `QUANTITY_BELOW_MINIMUM`) solo exponen el código, como el resto
   de la API.
@@ -128,8 +131,8 @@ Plan completo en [`tareas-en-curso.md`](../roadmap/tareas-en-curso.md) §21.
 | 1     | Registro de consumo independiente del historial                  | Hecha (anexo ADR-0018)             |
 | 2     | Reserva de páginas contra subidas simultáneas                    | Hecha (anexo ADR-0018)             |
 | 3     | Catálogo de productos de saldo y precios (este ADR)              | Hecha                              |
-| 2b, 4 | Lotes de páginas, FEFO, compras registradas por un administrador | Pendiente                          |
-| 5     | Saldo y compra en la interfaz de cada persona                    | Pendiente                          |
+| 2b, 4 | Lotes de páginas, FEFO, compras registradas por un administrador | Implementada en la rama           |
+| 5     | Saldo, cotización e historiales comerciales                      | Implementada en la rama           |
 | 6     | Migración de clientes: Básica/Especial → Personal, renombre      | Pendiente, con autorización aparte |
 | 7     | Panel comercial con métricas                                     | Pendiente                          |
 

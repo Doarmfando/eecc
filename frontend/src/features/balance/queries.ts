@@ -1,12 +1,16 @@
 import {
+  useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
+  type InfiniteData,
+  type UseInfiniteQueryResult,
   type UseMutationResult,
   type UseQueryResult,
 } from '@tanstack/react-query';
 
 import { useSession } from '@/app/use-session';
+import { fetchPageHistory, type PageHistory, type PageHistoryKind } from '@/lib/api-client';
 import type { ApiError } from '@/lib/api-error';
 import type { PageLot } from '@/lib/page-balance';
 import {
@@ -22,6 +26,24 @@ import {
 
 function saldoDeMiembroQueryKey(userId: string): readonly unknown[] {
   return ['miembro-saldo', userId];
+}
+
+export function pageHistoryQueryKey(kind: PageHistoryKind): readonly unknown[] {
+  return ['page-usage-history', kind];
+}
+
+export function usePageHistory(
+  kind: PageHistoryKind,
+): UseInfiniteQueryResult<InfiniteData<PageHistory>, ApiError> {
+  const { baseUrl, estado } = useSession();
+  return useInfiniteQuery({
+    queryKey: pageHistoryQueryKey(kind),
+    enabled: estado === 'autenticado',
+    initialPageParam: null as string | null,
+    queryFn: ({ signal, pageParam }) => fetchPageHistory({ baseUrl }, kind, pageParam, signal),
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
+    retry: false,
+  });
 }
 
 /** Saldo e historial de lotes de una cuenta, para quien la administra (ADR-0019). */

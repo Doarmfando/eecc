@@ -36,6 +36,8 @@ Existente hoy en `frontend`:
 - descarga de los archivos publicados, acotada a los documentos de quien ha entrado;
 - inicio de sesión con correo y contraseña, menú de cuenta con cambio de la propia contraseña, y gestión de usuarios para el administrador ([`ADR-0008`](../decisiones/ADR-0008-administrador-y-usuario.md));
 - aviso del cupo de documentos antes de subir y en el historial, para que el borrado no sorprenda.
+- *Mi saldo* muestra páginas disponibles, lotes vigentes, cotizaciones y los historiales paginados
+  de compras y consumo. Está disponible para cualquier sesión con permiso de conversión.
 
 ## Estado implementado de la API pública
 
@@ -47,6 +49,10 @@ Existente hoy en `backend/api-backend`:
 - `GET /v1/jobs/{jobId}/artifacts/{artifactId}/content` entrega el archivo con la misma regla de dueño: el PDF de origen desde el almacenamiento propio y los resultados desde el worker, que solo sirve lo declarado en su manifiesto.
 - La idempotencia usa `Idempotency-Key` o, en su ausencia, una huella HMAC del contenido con alcance por organización más la versión del perfil; en ambos casos repartida por dueño, para no reutilizar el trabajo de otra persona.
 - Los errores públicos son códigos estables y llevan `x-request-id`; nunca trazas ni contenido del documento.
+- `GET /v1/statements/usage/history/{purchases|consumption}` lista compras o consumos propios,
+  con 20 entradas por página y cursor. Filtra por usuario y organización de la sesión. El consumo
+  se lee del registro comercial y cada entrada devuelve fecha y cantidad de páginas. Las compras
+  incluyen producto, precio y vencimiento comercial, sin notas internas ni referencias de pago.
 
 La carga, el detalle y el historial incluyen `sourceFileName` cuando se conoce el
 nombre del PDF. Es una etiqueta privada para su dueño, independiente de las

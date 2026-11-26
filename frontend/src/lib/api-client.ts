@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 import { apiErrorSchema, jobListSchema, jobSchema, type Job, type JobList } from '@/types/job';
 
 import { ApiError } from './api-error';
@@ -182,6 +184,51 @@ export async function fetchMonthlyUsage(
   return parseMonthlyUsage(
     await request(options, 'v1/statements/usage', { method: 'GET', ...(signal ? { signal } : {}) }),
   );
+}
+
+const pageHistoryItem = z.object({
+  id: z.string().uuid(),
+  pages: z.number().int().positive(),
+  occurredAt: z.string().datetime(),
+});
+
+const pageHistorySchema = z.object({
+  items: z.array(
+    z.discriminatedUnion('kind', [
+      pageHistoryItem.extend({
+        kind: z.literal('purchase'),
+        productName: z.string(),
+        priceCents: z.number().int().nonnegative().nullable(),
+        currency: z.string().nullable(),
+        expiresOn: z.string().date().nullable(),
+      }),
+      pageHistoryItem.extend({ kind: z.literal('consumption') }),
+    ]),
+  ),
+  nextCursor: z.string().uuid().nullable(),
+});
+
+export type PageHistory = z.infer<typeof pageHistorySchema>;
+export type PageHistoryKind = 'purchases' | 'consumption';
+
+export async function fetchPageHistory(
+  options: ApiClientOptions,
+  kind: PageHistoryKind,
+  cursor: string | null,
+  signal: AbortSignal,
+): Promise<PageHistory> {
+  const query = cursor ? `?${new URLSearchParams({ cursor }).toString()}` : '';
+  const parsed = pageHistorySchema.safeParse(
+    await request(options, `v1/statements/usage/history/${kind}${query}`, {
+      method: 'GET',
+      signal,
+    }),
+  );
+  const itemKind = kind === 'purchases' ? 'purchase' : 'consumption';
+  if (!parsed.success || parsed.data.items.some((item) => item.kind !== itemKind)) {
+    throw new ApiError('RESPONSE_CONTRACT_MISMATCH', 200);
+  }
+  return parsed.data;
 }
 
 export async function fetchJobHistory(

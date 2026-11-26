@@ -24,6 +24,7 @@ import {
 } from '../../common/time/business-date';
 import type { AppConfig } from '../../config/app-config';
 import { CommercialService } from '../commercial/commercial.service';
+import type { PageHistoryDto } from './dto/page-history.dto';
 import {
   CLAVE_DE_PRUEBA,
   claveDePeriodo,
@@ -42,6 +43,7 @@ import {
  * proceso se caiga a media subida.
  */
 const MARGEN_DE_RESERVA_MS = 5 * 60 * 1000;
+const TAMANO_HISTORIAL = 20;
 
 /**
  * Intentos que entregaron un resultado usable: cuentan contra el saldo.
@@ -255,6 +257,88 @@ export class StatementUsageService {
       take: limite,
     });
     return lotes.map((lote) => aLoteVisible(lote, this.conSaldo(lote, ahora)));
+  }
+
+  async purchaseHistory(
+    organizationId: string,
+    userId: string,
+    cursor?: string,
+  ): Promise<PageHistoryDto> {
+    const where = { organizationId, userId, source: PageLotSource.PURCHASE };
+    if (
+      cursor &&
+      !(await this.prisma.pageLot.findFirst({
+        where: { ...where, id: cursor },
+        select: { id: true },
+      }))
+    ) {
+      return { items: [], nextCursor: null };
+    }
+    const filas = await this.prisma.pageLot.findMany({
+      where,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: TAMANO_HISTORIAL + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      select: {
+        id: true,
+        quantity: true,
+        createdAt: true,
+        expiresAt: true,
+        pricePaid: true,
+        currency: true,
+        product: { select: { name: true } },
+      },
+    });
+    const items = filas.slice(0, TAMANO_HISTORIAL).map((lote) => ({
+      kind: 'purchase' as const,
+      id: lote.id,
+      pages: lote.quantity,
+      occurredAt: lote.createdAt.toISOString(),
+      productName: lote.product?.name ?? 'Compra de páginas',
+      priceCents: lote.pricePaid === null ? null : decimalToCents(lote.pricePaid),
+      currency: lote.currency,
+      expiresOn: lote.expiresAt
+        ? businessToday(this.zonaHoraria, new Date(lote.expiresAt.getTime() - 1))
+        : null,
+    }));
+    return {
+      items,
+      nextCursor: filas.length > TAMANO_HISTORIAL ? (items.at(-1)?.id ?? null) : null,
+    };
+  }
+
+  async consumptionHistory(
+    organizationId: string,
+    userId: string,
+    cursor?: string,
+  ): Promise<PageHistoryDto> {
+    const where = { organizationId, userId };
+    if (
+      cursor &&
+      !(await this.prisma.pageConsumptionEntry.findFirst({
+        where: { ...where, id: cursor },
+        select: { id: true },
+      }))
+    ) {
+      return { items: [], nextCursor: null };
+    }
+    const filas = await this.prisma.pageConsumptionEntry.findMany({
+      where,
+      orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
+      take: TAMANO_HISTORIAL + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      select: { id: true, pageCount: true, occurredAt: true },
+    });
+    const items = filas.slice(0, TAMANO_HISTORIAL).map((consumo) => ({
+      kind: 'consumption' as const,
+      id: consumo.id,
+      pages: consumo.pageCount,
+      occurredAt: consumo.occurredAt.toISOString(),
+    }));
+    return {
+      items,
+      nextCursor: filas.length > TAMANO_HISTORIAL ? (items.at(-1)?.id ?? null) : null,
+    };
   }
 
   /**

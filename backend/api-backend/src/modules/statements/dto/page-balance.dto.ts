@@ -79,7 +79,10 @@ export function toPageBalanceLotDto(lote: PageBalanceLot): PageBalanceLotDto {
   };
 }
 
-export function toPageBalanceDto(saldo: PageBalance): PageBalanceDto {
+export function toPageBalanceDto(
+  saldo: PageBalance,
+  includeInternalDetails = false,
+): PageBalanceDto {
   return {
     pagesUsed: saldo.periodUsed,
     monthlyPageQuota: saldo.unlimited ? null : saldo.periodQuota,
@@ -89,6 +92,17 @@ export function toPageBalanceDto(saldo: PageBalance): PageBalanceDto {
     period: saldo.period
       ? { startsAt: saldo.period.startsAt.toISOString(), endsAt: saldo.period.endsAt.toISOString() }
       : null,
-    lots: saldo.lots.map(toPageBalanceLotDto),
+    lots: saldo.lots.map((lote) =>
+      toPageBalanceLotDto(
+        includeInternalDetails
+          ? lote
+          : {
+              ...lote,
+              paymentReference: null,
+              note: null,
+              registeredByName: null,
+            },
+      ),
+    ),
   };
 }

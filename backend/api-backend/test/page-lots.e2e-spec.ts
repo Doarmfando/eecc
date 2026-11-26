@@ -198,6 +198,77 @@ describeDatabase('Lotes de páginas (base real)', () => {
     ).rejects.toThrow(/page_lot_allocations_consumed_range/);
   });
 
+  it('pagina el historial comercial propio y conserva los consumos sin documento', async () => {
+    const userId = await persona('GRATUITO');
+    const otraPersona = await persona('GRATUITO');
+    const fecha = new Date('2026-01-05T12:00:00Z');
+    await prisma.pageConsumptionEntry.createMany({
+      data: [
+        ...Array.from({ length: 21 }, () => ({
+          organizationId,
+          userId,
+          pageCount: 1,
+          occurredAt: fecha,
+          countedStatus: 'SUCCEEDED' as const,
+        })),
+        {
+          organizationId,
+          userId: otraPersona,
+          pageCount: 12,
+          occurredAt: fecha,
+          countedStatus: 'NEEDS_REVIEW',
+        },
+      ],
+    });
+    const primera = await usage.consumptionHistory(organizationId, userId);
+    expect(primera.items).toHaveLength(20);
+    expect(primera.nextCursor).toBeTruthy();
+    const segunda = await usage.consumptionHistory(
+      organizationId,
+      userId,
+      primera.nextCursor ?? undefined,
+    );
+    expect(segunda.items).toHaveLength(1);
+    expect(segunda.nextCursor).toBeNull();
+    const total = [...primera.items, ...segunda.items];
+    expect(new Set(total.map((item) => item.id)).size).toBe(21);
+    expect(total.every((item) => item.kind === 'consumption' && item.pages === 1)).toBe(true);
+    await expect(
+      usage.consumptionHistory(organizationId, otraPersona, primera.nextCursor ?? undefined),
+    ).resolves.toEqual({ items: [], nextCursor: null });
+
+    const compra = await usage.registerPurchase({
+      organizationId,
+      userId,
+      actorUserId: adminId,
+      productCode: 'RECARGA',
+      pages: 23,
+      paymentReference: 'YAPE-HISTORIA',
+      note: 'Nota interna de prueba',
+    });
+    await prisma.pageLot.update({
+      where: { id: compra.id ?? '' },
+      data: { startsAt: fecha, expiresAt: new Date('2026-02-01T05:00:00Z') },
+    });
+    const compras = await usage.purchaseHistory(organizationId, userId);
+    expect(compras.items).toEqual([
+      {
+        kind: 'purchase',
+        id: compra.id,
+        pages: 23,
+        productName: 'ATLAS Recargas',
+        priceCents: 345,
+        currency: 'PEN',
+        occurredAt: compra.createdAt?.toISOString(),
+        expiresOn: '2026-01-31',
+      },
+    ]);
+    await expect(usage.purchaseHistory(organizationId, otraPersona)).resolves.toEqual({
+      items: [],
+      nextCursor: null,
+    });
+  });
+
   it('borrar a la persona conserva sus lotes, sin dueño', async () => {
     const userId = await persona('GRATUITO');
     await usage.reserveMonthlyQuota(organizationId, userId, 1000);

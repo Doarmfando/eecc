@@ -78,7 +78,7 @@ export class UsersController {
     @Param('userId', new ParseUUIDPipe({ version: '4' })) userId: string,
   ): Promise<MemberPageBalanceDto> {
     const { balance, history } = await this.users.pageBalance(actor.organizationId, userId);
-    return { balance: toPageBalanceDto(balance), history: history.map(toPageBalanceLotDto) };
+    return { balance: toPageBalanceDto(balance, true), history: history.map(toPageBalanceLotDto) };
   }
 
   /**

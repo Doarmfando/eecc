@@ -178,6 +178,7 @@ function buildPrismaDouble(passwordHash: string): {
       count: jest.fn().mockResolvedValue(0),
     },
     auditEvent: { create: jest.fn().mockResolvedValue({}) },
+    pageConsumptionEntry: { findMany: jest.fn().mockResolvedValue([]) },
     apiKey: { findUnique: jest.fn().mockResolvedValue(null) },
     commercialProduct: {
       findMany: jest.fn().mockResolvedValue([
@@ -263,6 +264,48 @@ describe('Sesión de usuario (e2e)', () => {
     const cookies = respuesta.headers['set-cookie'] as unknown as string[];
     return cookies.find((cookie) => cookie.startsWith(SESSION_COOKIE)) ?? '';
   }
+
+  it('permite ver el consumo propio sin acceso al historial documental', async () => {
+    const ruta = '/v1/statements/usage/history/consumption';
+    await request(app.getHttpServer()).get(ruta).expect(401);
+    usuario.role = 'MEMBER';
+    const cookie = await entrar();
+    const ocurrido = new Date('2026-11-20T15:00:00.000Z');
+    jest.mocked(prismaDoble.pageConsumptionEntry.findMany).mockResolvedValueOnce([
+      {
+        id: OTRO_USER_ID,
+        organizationId: ORGANIZATION_ID,
+        userId: USER_ID,
+        occurredAt: ocurrido,
+        createdAt: ocurrido,
+        countedStatus: 'SUCCEEDED',
+        pageCount: 3,
+        reservationId: null,
+        jobAttemptId: '44444444-4444-4444-8444-444444444444',
+        statementId: '55555555-5555-4555-8555-555555555555',
+      },
+    ]);
+
+    await request(app.getHttpServer())
+      .get(ruta)
+      .set('Cookie', cookie)
+      .expect(200, {
+        items: [
+          { id: OTRO_USER_ID, kind: 'consumption', pages: 3, occurredAt: ocurrido.toISOString() },
+        ],
+        nextCursor: null,
+      });
+    expect(prismaDoble.pageConsumptionEntry.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: { organizationId: ORGANIZATION_ID, userId: USER_ID },
+        select: { id: true, occurredAt: true, pageCount: true },
+      }),
+    );
+    await request(app.getHttpServer())
+      .get(`${ruta}?cursor=incorrecto`)
+      .set('Cookie', cookie)
+      .expect(400);
+  });
 
   it('entrega una cookie httpOnly, no accesible desde la página', async () => {
     const cookie = await entrar();

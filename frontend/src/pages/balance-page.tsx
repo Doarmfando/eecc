@@ -7,6 +7,7 @@ import { Card, CardDescription, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useSupportPhone } from '@/features/access/queries';
+import { PageHistory } from '@/features/balance/page-history';
 import { PageLotsList } from '@/features/balance/page-lots-list';
 import { describirProducto } from '@/features/balance/products';
 import { useCommercialProducts, useQuote } from '@/features/balance/queries';
@@ -175,6 +176,8 @@ export function BalancePage(): ReactNode {
           . Las páginas se activan apenas se confirma el pago.
         </p>
       </Card>
+      <PageHistory kind="purchases" />
+      <PageHistory kind="consumption" />
     </div>
   );
 }

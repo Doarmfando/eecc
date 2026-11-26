@@ -7,6 +7,7 @@ import {
 } from '@tanstack/react-query';
 
 import { useSession } from '@/app/use-session';
+import { pageHistoryQueryKey } from '@/features/balance/queries';
 import {
   findSheetCsv,
   readSummary,
@@ -74,6 +75,7 @@ export function useUploadStatement(): UseMutationResult<Job, ApiError, UploadSta
       void queryClient.invalidateQueries({ queryKey: jobHistoryQueryKey() });
       // Y el acumulado del mes, para que el aviso de la próxima subida no quede viejo.
       void queryClient.invalidateQueries({ queryKey: monthlyUsageQueryKey() });
+      void queryClient.invalidateQueries({ queryKey: pageHistoryQueryKey('consumption') });
     },
   });
 }

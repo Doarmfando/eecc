@@ -3,19 +3,30 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Headers,
   HttpCode,
   HttpStatus,
   Param,
+  ParseEnumPipe,
   ParseUUIDPipe,
   Post,
+  Query,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiConsumes, ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiConsumes,
+  ApiHeader,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 
 import { API_KEY_HEADER } from '../../common/security/api-key.guard';
 import { AuthGuard } from '../../common/security/auth.guard';
@@ -28,6 +39,7 @@ import {
   JobResponseDto,
 } from './dto/create-statement.dto';
 import { PageBalanceDto, toPageBalanceDto } from './dto/page-balance.dto';
+import { PageHistoryDto, PageHistoryKind } from './dto/page-history.dto';
 import { StatementUsageService } from './statement-usage.service';
 import { StatementsService } from './statements.service';
 
@@ -78,6 +90,25 @@ export class StatementsController {
     return toPageBalanceDto(
       await this.usage.balance(organization.organizationId, organization.userId),
     );
+  }
+
+  @Get('usage/history/:kind')
+  @RequirePermissions(PERMISSION.STATEMENTS_CONVERT)
+  @ApiOperation({ summary: 'Historial comercial propio de compras o consumo de páginas' })
+  @ApiParam({ name: 'kind', enum: PageHistoryKind })
+  @ApiQuery({ name: 'cursor', required: false, type: String })
+  @ApiResponse({ status: HttpStatus.OK, type: PageHistoryDto })
+  async pageHistory(
+    @CurrentOrganization() { organizationId, userId }: OrganizationContext,
+    @Param('kind', new ParseEnumPipe(PageHistoryKind)) kind: PageHistoryKind,
+    @Query('cursor', new ParseUUIDPipe({ version: '4', optional: true })) cursor?: string,
+  ): Promise<PageHistoryDto> {
+    if (!userId) {
+      throw new ForbiddenException({ code: 'SESSION_REQUIRED' });
+    }
+    return kind === PageHistoryKind.PURCHASES
+      ? this.usage.purchaseHistory(organizationId, userId, cursor)
+      : this.usage.consumptionHistory(organizationId, userId, cursor);
   }
 
   @Post()
