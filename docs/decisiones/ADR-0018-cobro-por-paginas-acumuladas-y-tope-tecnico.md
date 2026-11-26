@@ -188,6 +188,49 @@ Seguir pudiendo crear un plan con una migración (la guía de ADR-0016) no se pi
 escriben las mismas tablas. La API es para cuando no hace falta —ni conviene— desplegar código
 solo para subir un precio o una vigencia de página.
 
+## Anexo — 2026-11-26: el consumo de páginas se registra aparte del historial documental
+
+**Problema encontrado.** El acumulado de 30 días se calculaba sumando `job_attempts.page_count`
+en vivo. Pero `jobs` y `job_attempts` se borran en cascada con su `statement` (`ON DELETE
+CASCADE` en el esquema y en el DDL real), y hay tres caminos legítimos que borran un documento:
+el borrado explícito de su dueño (ADR-0017), la limpieza automática del cupo de documentos
+(ADR-0007/ADR-0014) y el borrado de una cuenta. Los tres pasan por el mismo
+`StatementRetentionService.deleteStatement`. Resultado: borrar un documento bajaba el acumulado,
+y como el borrado también se llevaba la clave de idempotencia (`jobs.idempotency_key`), hasta el
+mismo PDF se podía volver a subir. Repetible sin límite dentro de la ventana: el tope mensual no
+servía de nada frente a alguien que lo supiera. Verificado contra Postgres real, no solo leyendo
+el código.
+
+**Decisión.** El cobro tiene su propia fuente de verdad, separada de lo que el historial documental
+puede borrar:
+
+- Tabla nueva `page_consumption_entries`, append-only: la aplicación solo inserta. Guarda una copia
+  de `page_count` y de `finished_at` (como `occurred_at`) en el momento de registrar, y nunca vuelve
+  a leerlas del intento.
+- `job_attempt_id`, `statement_id` y `user_id` son `ON DELETE SET NULL`, nunca cascada: borrar el
+  documento (o la cuenta) deja la fila del consumo intacta, solo sin la referencia. Es el mismo
+  criterio que ya usaba `statements.uploaded_by`.
+- Se escribe dentro del mismo `$transaction` que crea el `job_attempt`, solo si hay una persona
+  detrás (no una credencial de servicio, que nunca tuvo tope de páginas) y si el intento entra en
+  los estados que cuentan (`SUCCEEDED`, `NEEDS_REVIEW`). Nunca hay un momento en que el intento
+  existe y el consumo no.
+- Índice único `(organization_id, job_attempt_id)`: un mismo intento no se puede contar dos veces.
+- `StatementUsageService.pagesUsedInCurrentPeriod` deja de consultar `job_attempts` y suma
+  `page_consumption_entries` por organización, persona y `occurred_at`.
+
+**Datos anteriores al cambio.** `npm run backfill:page-consumption` (o
+`node dist/cli/backfill-page-consumption.js` en producción) rellena el registro con los intentos
+que todavía existen; se corre una vez por entorno tras la migración y repetirlo no duplica nada.
+Lo que ya se había borrado antes de este cambio no deja rastro —su `job_attempt` desapareció con
+el documento— así que no se reconstruye ni se estima: ese consumo ya estaba fuera del acumulado y
+sigue fuera.
+
+**Lo que esto no resuelve todavía.** Dos subidas concurrentes del mismo usuario pueden pasar ambas
+el chequeo del acumulado antes de que ninguna haya registrado su consumo (la lectura del acumulado
+no tiene lock y ocurre antes de la llamada al worker). Es un problema distinto, también
+confirmado, que se resuelve con reserva atómica de saldo en la etapa siguiente del rediseño
+comercial (lotes de páginas con vencimiento propio y consumo FEFO), no con un parche aquí.
+
 ## Criterio de revisión
 
 Revisar cuando el cobro se automatice (ahí sí conviene un periodo guardado y cobro por

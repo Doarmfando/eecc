@@ -436,4 +436,54 @@ calendario en diciembre de 2026)
   Usuarios". Columnas Documentos y Último acceso quitadas de la tabla.
 - [x] Pruebas y verificación: frontend typecheck, ESLint, Prettier; 397 pruebas (4 nuevas en
   `member-detail-page.test.tsx`).
-- [ ] Pendiente: commit, push y verificar en producción.
+- [x] Commit, push y verificado en producción. De paso se quitó también el indicador
+  "Documentos cargados" del encabezado de *Usuarios*.
+
+## 21. Reestructuración comercial ATLAS: Gratuito, Personal, Recargas, Profesional (2026-11-26)
+
+- Pedido, resumido (documento completo del responsable del producto): cuatro productos sin
+  restricción por profesión — Gratuito (3 páginas, una vez), Personal (S/19.90/mes, 50 páginas,
+  todas las vistas; fusiona Básica y Especial), Recargas (S/0.15/página, mínimo 20, vence a los 90
+  días) y Profesional (500/2000/6000 páginas a S/29.90/59.90/89.90, vence a los 90 días, no
+  desbloquea vistas). Saldo en lotes independientes, consumo FEFO, precios administrables, panel
+  comercial, migración de usuarios existentes, ADRs. Pidió explícitamente: diagnóstico y plan por
+  etapas antes de implementar; priorizar que borrar documentos no devuelva páginas; **no
+  desplegar a producción ni correr migraciones destructivas allí sin autorización**.
+- Diagnóstico (verificado en código y contra Postgres real):
+  - Borrar o reemplazar un documento devolvía páginas: el acumulado contaba `job_attempts`, que se
+    borran en cascada con el documento. Ver anexo del 2026-11-26 en ADR-0018.
+  - Carrera entre subidas concurrentes: el chequeo del acumulado es una lectura sin lock, antes de
+    llamar al worker y antes de la transacción que registra el consumo.
+  - No existe ningún campo de precio en el sistema; el cobro sigue siendo manual (Yape).
+- Plan por etapas (ninguna antes de la 6 toca producción):
+  - [x] **1. Registro de consumo inmutable.** `page_consumption_entries` (append-only, sin cascada
+    hacia documento/intento/usuario), escrito en la transacción del intento; el acumulado se lee de
+    ahí; `backfill:page-consumption` para lo existente. Rama `feature/ledger-consumo-paginas`,
+    sin desplegar.
+  - [ ] **2. Concurrencia + primer lote real.** `page_lots` y reservas de saldo con
+    `pg_advisory_xact_lock` por persona (reservar → worker → confirmar o liberar); el periodo de
+    Personal como primer lote; `toMembershipAccess` consulta el saldo real.
+  - [ ] **3. Catálogo de productos y precios.** Tabla `commercial_products` (Recargas/Profesional,
+    aparte de `membership_plans` porque son compras apilables, no la identidad de la cuenta);
+    precio en `membership_plans`; administración bajo `PLANS_MANAGE`.
+  - [ ] **4. Lotes comprables y otorgamiento por un administrador.** Reemplaza
+    `monthlyPageQuotaOverride` (la "recarga Atlas" manual) por lotes reales.
+  - [ ] **5. UI de usuario.** Saldo agregado y por lote, compra, historial comercial.
+  - [ ] **6. Migración de datos existentes — requiere autorización aparte.** Básica/Especial →
+    Personal; cada override existente → lote de transición con consumo 0 (lo único reconstruible).
+    Script idempotente probado primero contra una copia de los datos reales.
+  - [ ] **7. Panel comercial con métricas.**
+  - [ ] **8. ADR nuevo del modelo de cuatro productos** (reemplaza la mayor parte de ADR-0018).
+- [?] Preguntas abiertas antes de la etapa 3 (para el responsable del producto):
+  1. "Atlas" ya es el código interno del plan sin tope de los administradores: ¿se renombra antes
+     de vender "Atlas Profesional"?
+  2. ¿Qué pasa con las páginas del periodo si alguien cancela Personal o baja a Gratuito?
+  3. ¿El usuario ve el saldo de cada compra por separado o solo el total?
+  4. Reembolsos: ¿revocan el lote o crean un movimiento compensatorio aparte?
+  5. Pago manual (Yape): ¿el lote se activa al declarar el pago o cuando un administrador lo
+     confirma?
+  6. Una recarga de, p. ej., 23 páginas: ¿se cobra exacto o se redondea?
+  7. ¿El saldo es siempre por organización (como el resto del sistema)?
+  8. Migración de overrides existentes: ¿se acepta tratar como 0 lo ya consumido del periodo?
+  9. Al borrar una cuenta, ¿el registro de consumo se conserva sin el usuario (como hoy los
+     documentos) o se purga por privacidad?

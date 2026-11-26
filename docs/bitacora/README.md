@@ -13,6 +13,34 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-11-26 — El consumo de páginas se registra aparte del historial (corrección de cobro)
+
+- Contexto: el responsable del producto pidió reestructurar el modelo comercial (Gratuito,
+  Personal, Recargas, Profesional, con lotes de páginas y consumo FEFO) y priorizar, antes que
+  nada, que borrar o reemplazar documentos no devuelva páginas consumidas. Antes de diseñar se
+  hizo un diagnóstico del repositorio; el plan por etapas completo quedó en
+  [`docs/roadmap/tareas-en-curso.md`](../roadmap/tareas-en-curso.md) §21.
+- Hallazgo confirmado: el acumulado de 30 días se calculaba contando `job_attempts`, que se borran
+  en cascada con su documento por cualquiera de los tres caminos de borrado (dueño, cupo de
+  documentos, borrado de cuenta). Borrar y resubir —incluso el mismo PDF, porque la clave de
+  idempotencia también se borraba— recuperaba cupo sin límite. Verificado contra Postgres real.
+- Hecho: tabla `page_consumption_entries` (migración `consumo_de_paginas_independiente`),
+  append-only, con `job_attempt_id`/`statement_id`/`user_id` en `ON DELETE SET NULL`; se escribe en
+  la misma transacción que crea el intento; `pagesUsedInCurrentPeriod` la lee a ella. Script
+  `backfill:page-consumption` para los intentos que todavía existen, idempotente. Anexo en
+  [`ADR-0018`](../decisiones/ADR-0018-cobro-por-paginas-acumuladas-y-tope-tecnico.md).
+- Verificación: en Postgres local se creó un documento con su intento y su consumo (7 páginas), se
+  borró el documento, y el acumulado siguió en 7 —el intento desapareció, la fila de consumo
+  quedó con las referencias en nulo—. Backfill corrido dos veces: 5 registros la primera, 0 la
+  segunda. API `npm run check` (302 pruebas, cobertura sobre el umbral); pruebas nuevas de que la
+  consulta ya no lee `job_attempts`, de que el consumo se registra en la transacción, y de que no
+  se registra para un intento fallido ni para una credencial de servicio.
+- Decisión: trabajo en la rama `feature/ledger-consumo-paginas`, sin pasar a `main` ni desplegar
+  —el responsable del producto pidió explícitamente no desplegar a producción sin autorización—.
+- Pendiente: autorización para desplegar (incluye correr el backfill en producción después de la
+  migración); la carrera entre subidas concurrentes sigue abierta y se resuelve en la etapa 2 del
+  plan, junto con los lotes de páginas.
+
 ## 2026-11-26 — El detalle de usuario pasa a ser una página propia, y la tabla se aligera
 
 - Contexto: tras ver el detalle como ventana emergente, el responsable del producto pidió

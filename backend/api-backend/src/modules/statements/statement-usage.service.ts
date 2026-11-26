@@ -5,8 +5,12 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 
 const TREINTA_DIAS_MS = 30 * 24 * 60 * 60 * 1000;
 
-/** Intentos que entregaron un resultado usable: cuentan contra el acumulado. */
-const ESTADOS_QUE_CONSUMEN: JobAttemptStatus[] = [
+/**
+ * Intentos que entregaron un resultado usable: cuentan contra el acumulado.
+ * Pública porque `StatementsService` la usa para decidir si registra el
+ * consumo del intento que acaba de crear (mismo criterio, una sola fuente).
+ */
+export const ESTADOS_QUE_CONSUMEN: JobAttemptStatus[] = [
   JobAttemptStatus.SUCCEEDED,
   JobAttemptStatus.NEEDS_REVIEW,
 ];
@@ -22,10 +26,16 @@ export interface MonthlyQuotaPlan {
  * Cobro por páginas acumuladas en una ventana móvil de 30 días (ADR-0018).
  *
  * No hay tarea programada ni columna de periodo: el acumulado se calcula al
- * subir, sumando `job_attempts.page_count` de los últimos 30 días, igual que el
- * cupo de documentos de ADR-0007 se aplica dentro de la misma petición. Repetir
- * un PDF ya subido reutiliza el trabajo sin crear un intento nuevo (ver
- * `StatementsService`), así que no vuelve a sumar ni a gastar la prueba.
+ * subir, sumando `page_consumption_entries.page_count` de los últimos 30 días.
+ *
+ * Ese registro es aparte de `job_attempts` a propósito (ADR-0018, anexo de
+ * integridad del cobro): un documento se puede borrar —por su dueño, por el
+ * cupo de documentos, o al borrar la cuenta— y eso borra en cascada su
+ * `job_attempt`, pero nunca debe borrar lo que ya se cobró por él. Contar
+ * `job_attempts` directamente permitía recuperar cupo borrando y resubiendo.
+ *
+ * Repetir un PDF ya subido reutiliza el trabajo sin crear un intento nuevo
+ * (ver `StatementsService`), así que no vuelve a sumar ni a gastar la prueba.
  */
 @Injectable()
 export class StatementUsageService {
@@ -34,13 +44,12 @@ export class StatementUsageService {
   /** Páginas que esa persona ya proceso en los últimos 30 días. */
   async pagesUsedInCurrentPeriod(organizationId: string, uploadedById: string): Promise<number> {
     const desde = new Date(Date.now() - TREINTA_DIAS_MS);
-    const resultado = await this.prisma.jobAttempt.aggregate({
+    const resultado = await this.prisma.pageConsumptionEntry.aggregate({
       _sum: { pageCount: true },
       where: {
         organizationId,
-        status: { in: ESTADOS_QUE_CONSUMEN },
-        startedAt: { gte: desde },
-        job: { statement: { uploadedById } },
+        userId: uploadedById,
+        occurredAt: { gte: desde },
       },
     });
     return resultado._sum.pageCount ?? 0;

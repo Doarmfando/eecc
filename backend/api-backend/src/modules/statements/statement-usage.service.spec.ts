@@ -14,7 +14,7 @@ function construir(sumaDePaginas: number | null): {
   const aggregate = jest.fn().mockResolvedValue({ _sum: { pageCount: sumaDePaginas } });
   const updateMany = jest.fn().mockResolvedValue({ count: 1 });
   const prisma = {
-    jobAttempt: { aggregate },
+    pageConsumptionEntry: { aggregate },
     organizationMembership: { updateMany },
   } as unknown as PrismaService;
   return { service: new StatementUsageService(prisma), aggregate, updateMany };
@@ -27,8 +27,14 @@ describe('StatementUsageService', () => {
 
     const [{ where }] = aggregate.mock.calls[0] as [{ where: Record<string, unknown> }];
     expect(where.organizationId).toBe(ORGANIZATION_ID);
-    expect(where.job).toEqual({ statement: { uploadedById: USUARIO_ID } });
-    expect(where.status).toEqual({ in: ['SUCCEEDED', 'NEEDS_REVIEW'] });
+    expect(where.userId).toBe(USUARIO_ID);
+    expect(where.occurredAt).toEqual(
+      expect.objectContaining({ gte: expect.any(Date) as unknown as Date }),
+    );
+    // No se vuelve a contar `job_attempts`: el acumulado sale del registro de
+    // consumo aparte, que no se borra con el documento (ADR-0018, anexo).
+    expect(where).not.toHaveProperty('job');
+    expect(where).not.toHaveProperty('status');
   });
 
   it('sin intentos previos, cuenta cero en vez de fallar con null', async () => {

@@ -61,9 +61,13 @@ function buildPrisma(
   const findUnique = jest.fn().mockResolvedValue(existingJob);
   const track =
     (model: string) =>
-    (args: { data: unknown }): Promise<{ id: string }> => {
+    (args: { data: unknown }): Promise<Record<string, unknown>> => {
       recorder.created.push({ model, data: args.data });
-      return Promise.resolve({ id: `${model}-id`, createdAt: CREATED_AT });
+      // Se devuelve lo mismo que se guardó (status, finishedAt, pageCount...), no
+      // solo el id: el servicio lee `attempt.status`/`attempt.finishedAt` del
+      // intento recién creado para decidir si registra su consumo.
+      const datos = typeof args.data === 'object' && args.data !== null ? args.data : {};
+      return Promise.resolve({ ...datos, id: `${model}-id`, createdAt: CREATED_AT });
     };
 
   const tx = {
@@ -94,6 +98,7 @@ function buildPrisma(
     artifact: { createMany: jest.fn(track('artifact')) },
     auditEvent: { create: jest.fn(track('auditEvent')) },
     outboxEvent: { create: jest.fn(track('outboxEvent')) },
+    pageConsumptionEntry: { create: jest.fn(track('pageConsumptionEntry')) },
   };
 
   const prisma = {
@@ -564,6 +569,68 @@ describe('StatementsService', () => {
       monthlyPageQuota: 10,
     });
     expect(processStatement).toHaveBeenCalledWith(expect.objectContaining({ maxPages: 3 }));
+  });
+
+  it('registra el consumo aparte del intento, dentro de la misma transacción (ADR-0018, anexo)', async () => {
+    const recorder: TransactionRecorder = { created: [] };
+    const { prisma } = buildPrisma(null, recorder);
+    const processStatement = jest.fn().mockResolvedValue(workerPayload({ page_count: 6 }));
+    const service = buildService(prisma, { processStatement });
+
+    await service.process({
+      organizationId: ORGANIZATION_ID,
+      userId: USER_ID,
+      content: pdfBuffer(),
+      fileName: 'estado.pdf',
+      mimeType: 'application/pdf',
+    });
+
+    const entrada = recorder.created.find((entry) => entry.model === 'pageConsumptionEntry')
+      ?.data as Record<string, unknown>;
+    expect(entrada).toMatchObject({
+      organizationId: ORGANIZATION_ID,
+      userId: USER_ID,
+      pageCount: 6,
+      countedStatus: 'SUCCEEDED',
+    });
+    // Referencia al intento recién creado, no un número inventado aparte.
+    expect(entrada.jobAttemptId).toBe('jobAttempt-id');
+    expect(entrada.statementId).toBe('statement-id');
+  });
+
+  it('no registra consumo de un intento fallido', async () => {
+    const recorder: TransactionRecorder = { created: [] };
+    const { prisma } = buildPrisma(null, recorder);
+    const processStatement = jest
+      .fn()
+      .mockResolvedValue(workerPayload({ status: 'FAILED', page_count: 9 }));
+    const service = buildService(prisma, { processStatement });
+
+    await service.process({
+      organizationId: ORGANIZATION_ID,
+      userId: USER_ID,
+      content: pdfBuffer(),
+      fileName: 'estado.pdf',
+      mimeType: 'application/pdf',
+    });
+
+    expect(recorder.created.some((entry) => entry.model === 'pageConsumptionEntry')).toBe(false);
+  });
+
+  it('una credencial de servicio (sin usuario) no registra consumo', async () => {
+    const recorder: TransactionRecorder = { created: [] };
+    const { prisma } = buildPrisma(null, recorder);
+    const processStatement = jest.fn().mockResolvedValue(workerPayload({ page_count: 4 }));
+    const service = buildService(prisma, { processStatement });
+
+    await service.process({
+      organizationId: ORGANIZATION_ID,
+      content: pdfBuffer(),
+      fileName: 'estado.pdf',
+      mimeType: 'application/pdf',
+    });
+
+    expect(recorder.created.some((entry) => entry.model === 'pageConsumptionEntry')).toBe(false);
   });
 
   it('agotado el acumulado del mes, rechaza sin llegar a llamar al worker (ADR-0018)', async () => {
