@@ -53,6 +53,8 @@ const MESSAGES: Record<string, string> = {
     'Ya usaste todas las páginas de tu membresía este mes. Espera a que se renueve tu cupo o pide a un administrador otra membresía.',
   TRIAL_ALREADY_USED:
     'Ya usaste tu prueba gratuita; no se renueva. Pide a un administrador una membresía de pago para seguir convirtiendo.',
+  UPLOAD_IN_PROGRESS:
+    'Tienes otra subida en curso que ya tiene apartadas las páginas que te quedan. Espera a que termine y vuelve a intentarlo.',
   ROLE_ABOVE_YOURS: 'Esa cuenta o ese rol están por encima del tuyo.',
   ROLE_NOT_FOUND: 'Ese rol ya no existe. Recarga la página.',
   PLAN_NOT_FOUND: 'Esa membresía ya no está disponible. Recarga la página y elige otra.',
@@ -123,6 +125,7 @@ const KIND_BY_CODE: Record<string, ErrorKind> = {
   PDF_PAGE_LIMIT_EXCEEDED: 'Límite de la membresía',
   MONTHLY_PAGE_QUOTA_EXCEEDED: 'Límite de la membresía',
   TRIAL_ALREADY_USED: 'Límite de la membresía',
+  UPLOAD_IN_PROGRESS: 'Límite de la membresía',
   MEMBERSHIP_EXPIRED: 'Límite de la membresía',
   INSUFFICIENT_ROLE: 'Permisos',
   ROLE_ABOVE_YOURS: 'Permisos',

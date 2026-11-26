@@ -65,6 +65,15 @@ enum JobAttemptStatus {
   FAILED
 }
 
+/// `PENDING`: páginas apartadas para una subida en curso. `COMMITTED`: la subida
+/// terminó y su consumo real ya está en `page_consumption_entries`. `RELEASED`: la
+/// subida falló o no consumió, y las páginas vuelven a estar libres.
+enum PageReservationStatus {
+  PENDING
+  COMMITTED
+  RELEASED
+}
+
 enum WarningSeverity {
   INFO
   WARNING
@@ -96,6 +105,7 @@ model Organization {
   artifacts              Artifact[]
   auditEvents            AuditEvent[]
   pageConsumptionEntries PageConsumptionEntry[]
+  pageReservations       PageReservation[]
 
   @@map("organizations")
 }
@@ -123,6 +133,7 @@ model User {
   statements             Statement[]
   sessions               Session[]
   pageConsumptionEntries PageConsumptionEntry[]
+  pageReservations       PageReservation[]
 
   @@map("users")
 }
@@ -425,6 +436,33 @@ model PageConsumptionEntry {
   @@unique([organizationId, jobAttemptId])
   @@index([organizationId, userId, occurredAt])
   @@map("page_consumption_entries")
+}
+
+/// Páginas apartadas para una subida en curso, antes de llamar al worker (ADR-0018,
+/// anexo de concurrencia). Sin esto, dos subidas simultáneas de la misma persona
+/// leían el mismo acumulado y ambas pasaban aunque juntas excedieran el tope.
+///
+/// Se crea bajo un lock de aviso por persona, en una transacción corta; mientras
+/// está `PENDING` cuenta como usada. Al terminar la subida pasa a `COMMITTED` (su
+/// consumo real queda en `page_consumption_entries`) o a `RELEASED`. Una reserva
+/// que quedó `PENDING` porque el proceso murió deja de contar pasado un margen
+/// mayor que el timeout del worker, así nadie queda bloqueado para siempre.
+model PageReservation {
+  id             String                @id @default(uuid()) @db.Uuid
+  organizationId String                @map("organization_id") @db.Uuid
+  userId         String?               @map("user_id") @db.Uuid
+  /// Techo apartado: lo que se le envía al worker como `max_pages`, no el
+  /// número real de páginas, que se conoce al volver del worker.
+  pages          Int
+  status         PageReservationStatus @default(PENDING)
+  createdAt      DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  settledAt      DateTime?             @map("settled_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, userId, status, createdAt])
+  @@map("page_reservations")
 }
 
 model JobWarning {

@@ -13,6 +13,30 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-11-26 — Reserva de páginas: dos subidas simultáneas ya no pueden pasarse del tope
+
+- Contexto: segunda falla confirmada en el diagnóstico de la reestructuración comercial. El chequeo
+  del acumulado era una lectura sin lock, antes de llamar al worker y antes de registrar el
+  consumo: dos subidas simultáneas de la misma persona podían pasar ambas aunque juntas excedieran
+  el tope.
+- Hecho: tabla `page_reservations` (migración `reserva_de_paginas`). Antes de llamar al worker,
+  `reserveMonthlyQuota` toma un lock de aviso por persona y aparta el techo de páginas que se le
+  envía al worker como `max_pages`; la reserva se confirma o se libera en la misma transacción que
+  registra el consumo real, y se libera si la subida falla antes. Código nuevo `UPLOAD_IN_PROGRESS`
+  (409) cuando queda margen pero otra subida lo tiene apartado, con su mensaje en la interfaz.
+  Anexo en [`ADR-0018`](../decisiones/ADR-0018-cobro-por-paginas-acumuladas-y-tope-tecnico.md).
+- Decisión: la etapa 2 del plan juntaba esto con los lotes de páginas del periodo de Personal; se
+  separó. Crear esos lotes obliga a definir qué es un periodo (mes calendario o desde la
+  suscripción de cada persona), y eso cambia cómo se cobra a los clientes actuales y depende de
+  respuestas de negocio pendientes. Esta etapa cierra la carrera sin cambiar el cobro (sigue la
+  ventana de 30 días); la tabla de reservas queda lista para repartir entre lotes después.
+- Verificación: contra Postgres real, con el servicio verdadero, ocho reservas simultáneas de la
+  misma persona con 5 páginas libres apartaron en total exactamente 5 (una de 5, o 2+2+1 con tope
+  técnico de 2); el resto, `UPLOAD_IN_PROGRESS`. Antes, la prueba aislada de que Prisma y el lock
+  de aviso serializan dos transacciones. API `npm run check` (313 pruebas, cobertura sobre el
+  umbral); frontend typecheck, ESLint, Prettier y 399 pruebas.
+- Pendiente: autorización para desplegar (rama `feature/reserva-de-paginas`); sin datos que migrar.
+
 ## 2026-11-26 — El consumo de páginas se registra aparte del historial (corrección de cobro)
 
 - Contexto: el responsable del producto pidió reestructurar el modelo comercial (Gratuito,

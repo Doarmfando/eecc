@@ -228,8 +228,54 @@ sigue fuera.
 **Lo que esto no resuelve todavía.** Dos subidas concurrentes del mismo usuario pueden pasar ambas
 el chequeo del acumulado antes de que ninguna haya registrado su consumo (la lectura del acumulado
 no tiene lock y ocurre antes de la llamada al worker). Es un problema distinto, también
-confirmado, que se resuelve con reserva atómica de saldo en la etapa siguiente del rediseño
-comercial (lotes de páginas con vencimiento propio y consumo FEFO), no con un parche aquí.
+confirmado; lo resuelve el anexo siguiente.
+
+## Anexo — 2026-11-26: reserva de páginas antes de llamar al worker (concurrencia)
+
+**Problema.** El chequeo del acumulado era una lectura sin lock, hecha antes de la llamada al worker
+—que tarda: extrae el PDF— y antes de la única transacción que registra el consumo. Dos subidas
+simultáneas de la misma persona leían el mismo acumulado; si cada una cabía por separado, ambas
+pasaban aunque juntas excedieran el tope. La clave de idempotencia no protege: solo evita
+reprocesar el mismo contenido, no dos documentos distintos a la vez.
+
+**Decisión.** Cada subida aparta su techo de páginas antes de llamar al worker, en tres pasos, porque
+no se puede mantener una transacción abierta durante toda la extracción:
+
+1. **Reservar** (`StatementUsageService.reserveMonthlyQuota`, transacción corta): lock de aviso
+   por persona (`pg_advisory_xact_lock(hashtextextended('<organización>:<persona>', 0))`), luego
+   suma lo consumido (`page_consumption_entries`) y lo apartado por otras subidas en curso
+   (`page_reservations` en `PENDING`), y aparta lo que queda como techo. Se usa un lock de aviso y
+   no `SELECT ... FOR UPDATE` porque una persona sin filas todavía no tendría nada que bloquear.
+2. **Llamar al worker** fuera de cualquier transacción, con ese techo como `max_pages`: el
+   documento nunca puede pasar de lo apartado (el respaldo de la API ya rechazaba un PDF por encima
+   de `max_pages`).
+3. **Resolver** dentro de la misma transacción que registra el consumo real: la reserva pasa a
+   `COMMITTED` si el intento consume, o a `RELEASED` si no (intento fallido). Lo apartado y lo
+   consumido nunca cuentan a la vez, ni hay un momento en que no cuente ninguno. Si la subida falla
+   antes de registrarse (worker caído, PDF por encima de lo apartado, fallo al guardar), la reserva
+   se libera; liberar solo toca una reserva aún `PENDING` y nunca lanza, para no tapar el error real.
+
+Una reserva que quedó `PENDING` porque el proceso murió a media subida deja de contar pasado
+`WORKER_TIMEOUT_MS` más cinco minutos, así nadie queda bloqueado. No hay tarea programada: el filtro
+está en la consulta.
+
+Dos rechazos distintos, para no confundir a la persona: `MONTHLY_PAGE_QUOTA_EXCEEDED` (422) si el
+mes está agotado de verdad, y `UPLOAD_IN_PROGRESS` (409) si queda margen pero otra subida en curso
+lo tiene apartado — basta con esperar. La interfaz no reintenta sola este segundo caso.
+
+**Consecuencia aceptada.** Se aparta el techo, no las páginas reales (que solo se conocen al volver
+del worker): mientras una subida está en curso, aparta todo lo que le queda a la persona (o el tope
+técnico, si es menor), y una segunda subida simultánea suya recibe `UPLOAD_IN_PROGRESS` aunque
+habría cabido. Es conservador a propósito: la interfaz ya sube un documento a la vez, y la
+alternativa —confiar en el número de páginas que declare el cliente— abriría otro agujero.
+
+**Lo que no cambia.** Cómo se cobra: sigue siendo la ventana móvil de 30 días de este ADR. La tabla
+de reservas está pensada para que, cuando existan lotes de páginas con vencimiento propio, una
+reserva reparta su techo entre lotes; hoy reserva contra el tope del plan.
+
+Verificado contra Postgres real con el servicio verdadero: ocho reservas simultáneas de la misma
+persona con 5 páginas libres apartaron en total exactamente 5 (una de 5; o 2+2+1 con un tope técnico
+de 2), y el resto recibió `UPLOAD_IN_PROGRESS`.
 
 ## Criterio de revisión
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ApiError, describeError, isRetriable } from './api-error';
+import { ApiError, describeError, describeErrorKind, isRetriable } from './api-error';
 
 describe('describeError', () => {
   it('traduce los códigos conocidos del contrato', () => {
@@ -29,5 +29,18 @@ describe('isRetriable', () => {
     expect(isRetriable(new ApiError('UNSUPPORTED_DOCUMENT', 422))).toBe(false);
     expect(isRetriable(new ApiError('RESPONSE_CONTRACT_MISMATCH', 200))).toBe(false);
     expect(isRetriable(new Error('boom'))).toBe(false);
+  });
+});
+
+describe('otra subida en curso (ADR-0018, anexo de concurrencia)', () => {
+  it('pide esperar, no dice que se acabó el mes', () => {
+    const error = new ApiError('UPLOAD_IN_PROGRESS', 409);
+    expect(describeError(error)).toContain('otra subida en curso');
+    expect(describeError(error)).not.toContain('todas las páginas');
+    expect(describeErrorKind(error)).toBe('Límite de la membresía');
+  });
+
+  it('no se reintenta sola: la persona decide cuándo volver a subir', () => {
+    expect(isRetriable(new ApiError('UPLOAD_IN_PROGRESS', 409))).toBe(false);
   });
 });

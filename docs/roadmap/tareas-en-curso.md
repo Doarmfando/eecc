@@ -461,9 +461,15 @@ calendario en diciembre de 2026)
     ahí; `backfill:page-consumption` para lo existente. Desplegado con autorización explícita;
     backfill corrido en producción (7 registros) y acumulados verificados idénticos a los de
     antes para cada persona.
-  - [ ] **2. Concurrencia + primer lote real.** `page_lots` y reservas de saldo con
-    `pg_advisory_xact_lock` por persona (reservar → worker → confirmar o liberar); el periodo de
-    Personal como primer lote; `toMembershipAccess` consulta el saldo real.
+  - [x] **2. Concurrencia.** `page_reservations` con `pg_advisory_xact_lock` por persona
+    (reservar → worker → confirmar o liberar en la transacción del consumo); `UPLOAD_IN_PROGRESS`
+    en la interfaz. Verificado contra Postgres real con reservas simultáneas. Rama
+    `feature/reserva-de-paginas`, pendiente de autorización para desplegar. **Se separó de los
+    lotes**: el lote del periodo de Personal exige definir qué es un periodo, y eso cambia el
+    cobro de los clientes actuales; pasa a la etapa 2b.
+  - [ ] **2b. Primer lote real.** `page_lots` con el periodo de Personal como primer lote; las
+    reservas reparten su techo entre lotes (FEFO); `toMembershipAccess` consulta el saldo real.
+    Necesita antes: definir el periodo (mes calendario en `America/Lima`, o desde la suscripción).
   - [ ] **3. Catálogo de productos y precios.** Tabla `commercial_products` (Recargas/Profesional,
     aparte de `membership_plans` porque son compras apilables, no la identidad de la cuenta);
     precio en `membership_plans`; administración bajo `PLANS_MANAGE`.

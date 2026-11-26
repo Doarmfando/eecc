@@ -1,9 +1,24 @@
-import { ForbiddenException, Injectable, UnprocessableEntityException } from '@nestjs/common';
-import { JobAttemptStatus } from '@prisma/client';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  UnprocessableEntityException,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { JobAttemptStatus, PageReservationStatus, type Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
+import type { AppConfig } from '../../config/app-config';
 
 const TREINTA_DIAS_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * Margen sobre el timeout del worker antes de dar por muerta una reserva que
+ * quedó `PENDING`: el camino normal siempre la resuelve, esto solo cubre que el
+ * proceso se caiga a media subida.
+ */
+const MARGEN_DE_RESERVA_MS = 5 * 60 * 1000;
 
 /**
  * Intentos que entregaron un resultado usable: cuentan contra el acumulado.
@@ -20,6 +35,13 @@ export interface MonthlyQuotaPlan {
   maxPagesPerDocument: number | null;
   /** Páginas acumuladas que decide el cobro. Nulo: sin tope fijo, se cotiza. */
   monthlyPageQuota: number | null;
+}
+
+export interface MonthlyQuotaReservation {
+  /** Lo que se envía al worker como `max_pages`. Sin valor: sin tope. */
+  maxPages: number | undefined;
+  /** Reserva a resolver al terminar la subida. Nula si el plan no tiene tope de cobro. */
+  reservationId: string | null;
 }
 
 /**
@@ -39,51 +61,90 @@ export interface MonthlyQuotaPlan {
  */
 @Injectable()
 export class StatementUsageService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(StatementUsageService.name);
+  private readonly vidaDeReservaMs: number;
 
-  /** Páginas que esa persona ya proceso en los últimos 30 días. */
+  constructor(
+    private readonly prisma: PrismaService,
+    config: ConfigService<AppConfig, true>,
+  ) {
+    this.vidaDeReservaMs = config.get('WORKER_TIMEOUT_MS', { infer: true }) + MARGEN_DE_RESERVA_MS;
+  }
+
+  /** Páginas que esa persona ya procesó en los últimos 30 días. */
   async pagesUsedInCurrentPeriod(organizationId: string, uploadedById: string): Promise<number> {
-    const desde = new Date(Date.now() - TREINTA_DIAS_MS);
-    const resultado = await this.prisma.pageConsumptionEntry.aggregate({
-      _sum: { pageCount: true },
-      where: {
-        organizationId,
-        userId: uploadedById,
-        occurredAt: { gte: desde },
-      },
-    });
-    return resultado._sum.pageCount ?? 0;
+    return this.consumidas(this.prisma, organizationId, uploadedById);
   }
 
   /**
-   * Cuántas páginas puede traer el PDF que se está subiendo ahora.
+   * Aparta las páginas que puede traer el PDF que se está subiendo ahora, antes
+   * de llamar al worker (ADR-0018, anexo de concurrencia).
    *
-   * Si el plan no tiene `monthlyPageQuota` (se cotiza, hoy solo Atlas), el único
-   * tope es el técnico. Si lo tiene y ya se agotó, rechaza antes de llamar al
-   * worker — no hace falta gastar cómputo en un documento que no se va a
-   * aceptar. Si queda margen, el número que vuelve es el que se envía al worker
-   * como `max_pages`: reutiliza el mismo mecanismo que ya rechazaba por PDF
-   * (`PDF_PAGE_LIMIT_EXCEEDED`), solo que ahora el tope es lo que queda del mes.
+   * Sin tope de cobro (se cotiza, hoy solo Atlas) no hay nada que apartar: el
+   * único tope es el técnico. Con tope, bajo un lock de aviso por persona —que
+   * serializa sus subidas simultáneas sin depender de que ya existan filas que
+   * bloquear—, suma lo ya consumido y lo apartado por otras subidas en curso, y
+   * aparta lo que queda como techo para este PDF. Ese techo es el `max_pages` que
+   * recibe el worker, así que el documento nunca puede pasar de lo apartado.
+   *
+   * Agotado el mes: `MONTHLY_PAGE_QUOTA_EXCEEDED`, igual que antes. Queda margen
+   * en el mes pero otra subida en curso lo tiene apartado: `UPLOAD_IN_PROGRESS`,
+   * para no decir "se acabó el mes" cuando basta con esperar.
    */
-  async assertWithinMonthlyQuota(
+  async reserveMonthlyQuota(
     organizationId: string,
     uploadedById: string,
     plan: MonthlyQuotaPlan,
-  ): Promise<number | undefined> {
-    if (plan.monthlyPageQuota === null) {
-      return plan.maxPagesPerDocument ?? undefined;
+  ): Promise<MonthlyQuotaReservation> {
+    const cuota = plan.monthlyPageQuota;
+    if (cuota === null) {
+      return { maxPages: plan.maxPagesPerDocument ?? undefined, reservationId: null };
     }
-    const usado = await this.pagesUsedInCurrentPeriod(organizationId, uploadedById);
-    const restante = plan.monthlyPageQuota - usado;
-    if (restante <= 0) {
-      throw new UnprocessableEntityException({
-        code: 'MONTHLY_PAGE_QUOTA_EXCEEDED',
-        meta: { used: usado, quota: plan.monthlyPageQuota },
+    return this.prisma.$transaction(async (tx) => {
+      const clave = `${organizationId}:${uploadedById}`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${clave}, 0))`;
+
+      const usado = await this.consumidas(tx, organizationId, uploadedById);
+      const restante = cuota - usado;
+      if (restante <= 0) {
+        throw new UnprocessableEntityException({
+          code: 'MONTHLY_PAGE_QUOTA_EXCEEDED',
+          meta: { used: usado, quota: cuota },
+        });
+      }
+      const apartado = await this.apartadas(tx, organizationId, uploadedById);
+      const libre = restante - apartado;
+      if (libre <= 0) {
+        throw new ConflictException({ code: 'UPLOAD_IN_PROGRESS' });
+      }
+
+      const maxPages =
+        plan.maxPagesPerDocument === null ? libre : Math.min(plan.maxPagesPerDocument, libre);
+      const reserva = await tx.pageReservation.create({
+        data: { organizationId, userId: uploadedById, pages: maxPages },
+        select: { id: true },
       });
+      return { maxPages, reservationId: reserva.id };
+    });
+  }
+
+  /**
+   * Devuelve a libres las páginas de una subida que no llegó a registrarse.
+   * Solo toca una reserva aún `PENDING`: si ya se resolvió dentro de la
+   * transacción de la subida, no hace nada. Nunca lanza: se llama desde el
+   * manejo de un error, y no debe tapar la causa real.
+   */
+  async releaseReservation(reservationId: string): Promise<void> {
+    try {
+      await this.prisma.pageReservation.updateMany({
+        where: { id: reservationId, status: PageReservationStatus.PENDING },
+        data: { status: PageReservationStatus.RELEASED, settledAt: new Date() },
+      });
+    } catch (error) {
+      this.logger.warn(
+        `No se pudo liberar una reserva de páginas: ${error instanceof Error ? error.name : 'error desconocido'}`,
+      );
     }
-    return plan.maxPagesPerDocument === null
-      ? restante
-      : Math.min(plan.maxPagesPerDocument, restante);
   }
 
   /**
@@ -106,5 +167,39 @@ export class StatementUsageService {
       where: { organizationId, userId, trialUsedAt: null },
       data: { trialUsedAt: new Date() },
     });
+  }
+
+  private async consumidas(
+    cliente: Prisma.TransactionClient,
+    organizationId: string,
+    uploadedById: string,
+  ): Promise<number> {
+    const resultado = await cliente.pageConsumptionEntry.aggregate({
+      _sum: { pageCount: true },
+      where: {
+        organizationId,
+        userId: uploadedById,
+        occurredAt: { gte: new Date(Date.now() - TREINTA_DIAS_MS) },
+      },
+    });
+    return resultado._sum.pageCount ?? 0;
+  }
+
+  /** Apartadas por subidas en curso; una reserva olvidada deja de contar con el tiempo. */
+  private async apartadas(
+    cliente: Prisma.TransactionClient,
+    organizationId: string,
+    uploadedById: string,
+  ): Promise<number> {
+    const resultado = await cliente.pageReservation.aggregate({
+      _sum: { pages: true },
+      where: {
+        organizationId,
+        userId: uploadedById,
+        status: PageReservationStatus.PENDING,
+        createdAt: { gte: new Date(Date.now() - this.vidaDeReservaMs) },
+      },
+    });
+    return resultado._sum.pages ?? 0;
   }
 }
