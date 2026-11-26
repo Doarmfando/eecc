@@ -7,7 +7,7 @@ import { useSession } from '@/app/use-session';
 import { SupportDetails } from '@/components/shared/support-details';
 import { Alert } from '@/components/ui/alert';
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
+import { MemberBalanceCard } from '@/features/balance/member-balance-card';
 import { mensajeDeError } from '@/features/users/error-messages';
 import { nombreDeRol } from '@/features/users/roles';
 import { describirVigencia, hoyLocal } from '@/lib/plan-dates';
@@ -41,33 +41,11 @@ function Dato({ etiqueta, children }: { etiqueta: string; children: ReactNode })
   );
 }
 
-/** Páginas acumuladas este mes, con una barra: lo que más se pregunta de una cuenta. */
-function Paginas({ usadas, tope }: { usadas: number; tope: number | null }): ReactNode {
-  if (tope === null) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        Lleva <strong className="text-foreground">{usadas}</strong> páginas este mes; su membresía
-        no tiene tope fijo, se cotiza.
-      </p>
-    );
-  }
-  const proporcion = tope > 0 ? Math.min((usadas / tope) * 100, 100) : 100;
-  return (
-    <div className="space-y-2">
-      <p className="text-sm text-muted-foreground">
-        <strong className="text-foreground">{usadas}</strong> de{' '}
-        <strong className="text-foreground">{tope}</strong> páginas acumuladas este mes
-      </p>
-      <Progress value={proporcion} aria-label="Páginas acumuladas este mes" />
-    </div>
-  );
-}
-
 /**
  * Página propia de una cuenta, con su propia URL: rol, membresía, vigencia,
- * documentos guardados, último acceso y cuánto lleva consumido del acumulado de
- * páginas del mes. Separada del listado de *Usuarios* porque es más de lo que
- * vale la pena pedir para cada fila de una tabla (ADR-0018).
+ * documentos guardados, último acceso y su saldo de páginas por lote, con el
+ * registro de compras (ADR-0019). Separada del listado de *Usuarios* porque es
+ * más de lo que vale la pena pedir para cada fila de una tabla.
  */
 export function MemberDetailPage(): ReactNode {
   const { baseUrl } = useSession();
@@ -121,9 +99,11 @@ export function MemberDetailPage(): ReactNode {
             </div>
           </Card>
 
-          <Card>
-            <Paginas usadas={detalle.data.pagesUsed} tope={detalle.data.monthlyPageQuota ?? null} />
-          </Card>
+          <MemberBalanceCard
+            userId={detalle.data.userId}
+            nombre={detalle.data.displayName}
+            puedeRegistrar={detalle.data.actions?.includes('CHANGE_PLAN') ?? false}
+          />
 
           <Card>
             <dl className="divide-y divide-border/70">

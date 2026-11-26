@@ -1,4 +1,11 @@
 import { ApiError } from './api-error';
+import {
+  parsePageBalance,
+  parsePageLot,
+  parsePageLots,
+  type PageBalance,
+  type PageLot,
+} from './page-balance';
 
 /**
  * Código de rol del catálogo de la API (`SUPER_ADMIN`, `ADMIN`, `MEMBER` y los que
@@ -177,6 +184,36 @@ export interface CreateCommercialProductInput {
   sortOrder?: number;
 }
 
+/** Cuánto cuesta una compra y, si conviene, un paquete que dé más por no más dinero. */
+export interface Quote {
+  productCode: string;
+  pages: number;
+  priceCents: number;
+  currency: string;
+  validityDays: number;
+  suggestion: {
+    productCode: string;
+    name: string;
+    pages: number;
+    priceCents: number;
+    savingsCents: number;
+  } | null;
+}
+
+/** Saldo de una cuenta y el historial de sus lotes, para quien la administra. */
+export interface MemberPageBalance {
+  balance: PageBalance;
+  history: PageLot[];
+}
+
+export interface RegisterPurchaseInput {
+  productCode: string;
+  /** Páginas de una recarga; en un paquete no aplica. */
+  pages?: number;
+  paymentReference?: string;
+  note?: string;
+}
+
 /** El código y la forma de precio no se cambian: un paquete por página es otro producto. */
 export type UpdateCommercialProductInput = Partial<
   Omit<CreateCommercialProductInput, 'code' | 'pricing' | 'pageQuantity' | 'minimumPages'>
@@ -332,6 +369,68 @@ export async function updatePlan(
     method: 'PATCH',
     body: cambios,
   })) as PlanAdminOption;
+}
+
+/** Productos de saldo que se ofrecen hoy; cualquier persona con sesión. */
+export async function fetchCommercialProducts(
+  baseUrl: string,
+  signal?: AbortSignal,
+): Promise<CommercialProduct[]> {
+  return (await pedir(baseUrl, 'v1/commercial-products', {
+    method: 'GET',
+    ...(signal ? { signal } : {}),
+  })) as CommercialProduct[];
+}
+
+/** Sin `pages`, la API cotiza el mínimo de una recarga; en un paquete no aplica. */
+export async function fetchQuote(
+  baseUrl: string,
+  code: string,
+  pages?: number,
+  signal?: AbortSignal,
+): Promise<Quote> {
+  const consulta = pages === undefined ? '' : `?pages=${String(pages)}`;
+  return (await pedir(
+    baseUrl,
+    `v1/commercial-products/${encodeURIComponent(code)}/quote${consulta}`,
+    { method: 'GET', ...(signal ? { signal } : {}) },
+  )) as Quote;
+}
+
+/** Saldo e historial de lotes de una cuenta (ADR-0019). */
+export async function fetchMemberPageBalance(
+  baseUrl: string,
+  userId: string,
+  signal?: AbortSignal,
+): Promise<MemberPageBalance> {
+  const respuesta = await pedir(baseUrl, `v1/users/${encodeURIComponent(userId)}/page-balance`, {
+    method: 'GET',
+    ...(signal ? { signal } : {}),
+  });
+  const cuerpo = (respuesta ?? {}) as { balance?: unknown; history?: unknown };
+  const balance = parsePageBalance(cuerpo.balance);
+  if (!balance) {
+    throw new ApiError('RESPONSE_CONTRACT_MISMATCH', 200);
+  }
+  return { balance, history: parsePageLots(cuerpo.history) };
+}
+
+/** Registra una compra ya cobrada por Yape: el saldo se activa en el acto. */
+export async function registerPurchase(
+  baseUrl: string,
+  userId: string,
+  datos: RegisterPurchaseInput,
+): Promise<PageLot> {
+  const lote = parsePageLot(
+    await pedir(baseUrl, `v1/users/${encodeURIComponent(userId)}/page-lots`, {
+      method: 'POST',
+      body: datos,
+    }),
+  );
+  if (!lote) {
+    throw new ApiError('RESPONSE_CONTRACT_MISMATCH', 201);
+  }
+  return lote;
 }
 
 /** Todo el catálogo de saldo, activo o retirado; solo con el permiso `PLANS_MANAGE`. */

@@ -1,6 +1,7 @@
 import { apiErrorSchema, jobListSchema, jobSchema, type Job, type JobList } from '@/types/job';
 
 import { ApiError } from './api-error';
+import { parsePageBalance, type PageBalance } from './page-balance';
 
 export interface ApiClientOptions {
   baseUrl: string;
@@ -162,27 +163,18 @@ export async function deleteStatements(
   return parseDeleted(await request(options, path, { method: 'DELETE' }));
 }
 
-export interface MonthlyUsage {
-  pagesUsed: number;
-  /** Nulo: sin tope fijo, se cotiza (Atlas). */
-  monthlyPageQuota: number | null;
-}
+/** Saldo de páginas de quien sube, en lotes (ADR-0019). */
+export type MonthlyUsage = PageBalance;
 
 function parseMonthlyUsage(payload: unknown): MonthlyUsage {
-  if (
-    typeof payload === 'object' &&
-    payload !== null &&
-    'pagesUsed' in payload &&
-    typeof payload.pagesUsed === 'number' &&
-    'monthlyPageQuota' in payload &&
-    (typeof payload.monthlyPageQuota === 'number' || payload.monthlyPageQuota === null)
-  ) {
-    return { pagesUsed: payload.pagesUsed, monthlyPageQuota: payload.monthlyPageQuota };
+  const saldo = parsePageBalance(payload);
+  if (!saldo) {
+    throw new ApiError('RESPONSE_CONTRACT_MISMATCH', 200);
   }
-  throw new ApiError('RESPONSE_CONTRACT_MISMATCH', 200);
+  return saldo;
 }
 
-/** Páginas acumuladas en los últimos 30 días, para avisar antes de subir (ADR-0018). */
+/** Saldo de páginas, para avisar antes de subir si un PDF no alcanza (ADR-0019). */
 export async function fetchMonthlyUsage(
   options: ApiClientOptions,
   signal?: AbortSignal,

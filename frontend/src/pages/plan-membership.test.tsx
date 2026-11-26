@@ -124,6 +124,7 @@ function stub(
   sesion: unknown,
   historial: unknown,
   subida: () => Response = () => jsonResponse(201, JOB),
+  saldo: unknown = { pagesUsed: 0, monthlyPageQuota: 10 },
 ): ReturnType<typeof vi.fn> {
   const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
     if ((init?.method ?? 'GET') === 'POST') {
@@ -134,6 +135,9 @@ function stub(
     }
     if (url.includes('/v1/plans')) {
       return Promise.resolve(jsonResponse(200, PLANES));
+    }
+    if (url.includes('/v1/statements/usage')) {
+      return Promise.resolve(jsonResponse(200, saldo));
     }
     if (/\/v1\/jobs(\?|$)/.test(url)) {
       return Promise.resolve(jsonResponse(200, historial));
@@ -187,6 +191,7 @@ describe('Membresía Básica', () => {
 
     const menu = await screen.findByRole('navigation', { name: 'Navegación' });
     expect(within(menu).getByRole('link', { name: 'Nuevo documento' })).toBeInTheDocument();
+    expect(within(menu).getByRole('link', { name: 'Mi saldo' })).toHaveAttribute('href', '/saldo');
     expect(within(menu).queryByRole('link', { name: 'Historial' })).not.toBeInTheDocument();
     expect(within(menu).queryByRole('link', { name: 'Centro Financiero' })).not.toBeInTheDocument();
     expect(await screen.findByText(/10 páginas acumuladas al mes/)).toBeInTheDocument();
@@ -217,7 +222,7 @@ describe('Membresía Básica', () => {
     const aviso = await screen.findByRole('alert');
     expect(within(aviso).getByText('No se pudo procesar «Mayo BCP.pdf»')).toBeInTheDocument();
     expect(
-      within(aviso).getByText(/El PDF tiene 424 páginas y este mes te quedan 15/),
+      within(aviso).getByText(/El PDF tiene 424 páginas y ahora puedes convertir hasta 15/),
     ).toBeInTheDocument();
     expect(within(aviso).getByText('req-paginas')).toBeInTheDocument();
   });
@@ -285,5 +290,35 @@ describe('Vigencia de la membresía', () => {
 
     expect(await screen.findByText('Tu membresía Básica: vence en 3 días')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Procesar estado de cuenta/ })).toBeEnabled();
+  });
+
+  it('permite convertir con páginas compradas después de vencer la membresía', async () => {
+    stub(
+      { ...SESION_BASICA, plan: { ...SESION_BASICA.plan, expiresOn: '2026-01-31', expired: true } },
+      propios(0),
+      undefined,
+      {
+        pagesUsed: 0,
+        monthlyPageQuota: null,
+        unlimited: false,
+        membershipExpired: true,
+        pagesAvailable: 20,
+        lots: [
+          {
+            source: 'PURCHASE',
+            productName: 'ATLAS Recargas',
+            quantity: 20,
+            consumed: 0,
+            available: 20,
+            startsAt: '2026-01-01T05:00:00.000Z',
+            expiresAt: '2099-05-01T05:00:00.000Z',
+          },
+        ],
+      },
+    );
+    abrir();
+
+    expect(await screen.findByText(/Puedes seguir convirtiendo con las 20 páginas/)).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Procesar estado de cuenta' })).toBeEnabled();
   });
 });

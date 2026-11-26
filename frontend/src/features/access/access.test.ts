@@ -71,9 +71,9 @@ describe('errores explicados para soporte', () => {
       pageCount: 42,
       maxPages: 15,
     });
-    expect(describeError(conNumeros)).toMatch(/42 páginas.*te quedan 15/);
+    expect(describeError(conNumeros)).toMatch(/42 páginas.*puedes convertir hasta 15/);
     expect(describeError(new ApiError('PDF_PAGE_LIMIT_EXCEEDED', 422))).toMatch(
-      /más páginas de las que te quedan este mes/,
+      /más páginas de las que te quedan/,
     );
   });
 

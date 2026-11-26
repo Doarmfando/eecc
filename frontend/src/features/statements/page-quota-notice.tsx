@@ -1,20 +1,58 @@
 import { Loader2 } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 
+import { Link } from 'react-router-dom';
+
 import { useSession } from '@/app/use-session';
 import { Alert } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
+import type { MonthlyUsage } from '@/lib/api-client';
+import { formatCount } from '@/lib/format';
+import { describirFecha, paginasCompradas } from '@/lib/page-balance';
 import { countPdfPages } from '@/lib/pdf-pages';
 
 import { useMonthlyUsage } from './queries';
 
+/** Desglose corto: de dónde salen las páginas que le quedan. */
+function desglose(saldo: MonthlyUsage): string {
+  const compradas = paginasCompradas(saldo);
+  const propias = (saldo.pagesAvailable ?? 0) - compradas;
+  const partes: string[] = [];
+  if (propias > 0) {
+    const origen = saldo.lots.some((lote) => lote.source === 'TRIAL')
+      ? 'de tu prueba gratuita'
+      : saldo.period
+        ? 'de tu membresía este periodo'
+        : 'de tu membresía';
+    partes.push(`${formatCount(propias)} ${origen}`);
+  }
+  if (compradas > 0) {
+    partes.push(`${formatCount(compradas)} compradas`);
+  }
+  return partes.join(' y ');
+}
+
+/** Qué hacer cuando no alcanza: comprar o esperar el próximo periodo. */
+function SinSaldoSuficiente(): ReactNode {
+  return (
+    <>
+      Puedes{' '}
+      <Link to="/saldo" className="font-medium underline">
+        comprar más páginas
+      </Link>{' '}
+      o dividir el PDF en partes más cortas.
+    </>
+  );
+}
+
 /**
- * Cuántas páginas lleva usadas este mes la persona, y cuántas traería el PDF
- * que acaba de elegir, antes de enviarlo (ADR-0018).
+ * Cuántas páginas le quedan a la persona, sumando su membresía o su prueba y lo
+ * que compró aparte (ADR-0019), y cuántas traería el PDF que acaba de elegir,
+ * antes de enviarlo.
  *
- * El modelo de cobro es por páginas acumuladas al mes, no por documentos
- * guardados: por eso esto solo habla de páginas. El cupo de documentos sigue
- * existiendo por almacenamiento, pero ya no se anuncia aquí.
+ * El cobro es por páginas, no por documentos guardados: por eso esto solo habla
+ * de páginas. El cupo de documentos sigue existiendo por almacenamiento, pero ya
+ * no se anuncia aquí.
  */
 export function PageQuotaNotice({ selectedFile }: { selectedFile: File | null }): ReactNode {
   const { usuario } = useSession();
@@ -46,17 +84,12 @@ export function PageQuotaNotice({ selectedFile }: { selectedFile: File | null })
   if (!plan) {
     return null;
   }
-
-  if (plan.trialOneTime && plan.trialAvailable === false) {
-    return (
-      <Alert variant="destructive" title="Ya usaste tu prueba gratuita" className="mt-3">
-        No se renueva. Pide a un administrador una membresía de pago para seguir convirtiendo.
-      </Alert>
-    );
+  const saldo = usage.data;
+  if (!saldo) {
+    return null;
   }
 
-  const quota = usage.data?.monthlyPageQuota ?? plan.monthlyPageQuota;
-  if (quota === null || quota === undefined) {
+  if (saldo.unlimited) {
     return (
       <p className="mt-3 text-xs text-muted-foreground">
         Membresía <strong>{plan.name}</strong>: volumen de páginas a cotizar, sin tope fijo.
@@ -64,7 +97,28 @@ export function PageQuotaNotice({ selectedFile }: { selectedFile: File | null })
     );
   }
 
-  const usado = usage.data?.pagesUsed ?? 0;
+  const disponible = saldo.pagesAvailable ?? 0;
+  if (disponible <= 0) {
+    const pruebaUsada = plan.trialOneTime && paginasCompradas(saldo) === 0;
+    return (
+      <Alert
+        variant="destructive"
+        title={pruebaUsada ? 'Ya usaste tu prueba gratuita' : 'No te quedan páginas'}
+        className="mt-3"
+      >
+        {pruebaUsada
+          ? 'No se renueva. '
+          : saldo.period
+            ? `Tu membresía te da páginas nuevas el ${describirFecha(saldo.period.endsAt)}. `
+            : ''}
+        Para seguir convirtiendo,{' '}
+        <Link to="/saldo" className="font-medium underline">
+          compra más páginas
+        </Link>
+        .
+      </Alert>
+    );
+  }
 
   // Contando páginas de un PDF pesado puede tardar un momento: sin esto, la
   // pantalla se queda en silencio entre elegir el archivo y saber si entra.
@@ -86,30 +140,26 @@ export function PageQuotaNotice({ selectedFile }: { selectedFile: File | null })
   }
 
   if (filePages !== null) {
-    const total = usado + filePages;
-    const seExcede = total > quota;
+    const seExcede = filePages > disponible;
     return (
       <Alert
         variant={seExcede ? 'destructive' : 'default'}
         title={
           seExcede
-            ? `No te alcanza el cupo: ${String(filePages)} páginas`
-            : `Este archivo tiene ${String(filePages)} páginas`
+            ? `No te alcanzan las páginas: el archivo tiene ${formatCount(filePages)}`
+            : `Este archivo tiene ${formatCount(filePages)} páginas`
         }
         className="mt-3"
       >
-        Membresía <strong>{plan.name}</strong>: llevas <strong>{usado}</strong> de{' '}
-        <strong>{quota}</strong> páginas acumuladas este mes.{' '}
+        Te quedan <strong>{formatCount(disponible)}</strong> páginas ({desglose(saldo)}).{' '}
         {seExcede ? (
           <>
-            Este archivo tiene <strong>{filePages}</strong> páginas: te pasarías del cupo por{' '}
-            <strong>{total - quota}</strong>. Espera a que se renueve tu cupo o pide a un
-            administrador otra membresía.
+            Te faltan <strong>{formatCount(filePages - disponible)}</strong>. <SinSaldoSuficiente />
           </>
         ) : (
           <>
-            Este archivo tiene <strong>{filePages}</strong> páginas; te quedarían{' '}
-            <strong>{quota - total}</strong> este mes.
+            Después de convertirlo te quedarían{' '}
+            <strong>{formatCount(disponible - filePages)}</strong>.
           </>
         )}
       </Alert>
@@ -118,8 +168,10 @@ export function PageQuotaNotice({ selectedFile }: { selectedFile: File | null })
 
   return (
     <p className="mt-3 text-xs text-muted-foreground" aria-live="polite">
-      Membresía <strong>{plan.name}</strong>: llevas <strong>{usado}</strong> de{' '}
-      <strong>{quota}</strong> páginas acumuladas este mes.
+      Te quedan <strong>{formatCount(disponible)}</strong> páginas ({desglose(saldo)}).{' '}
+      <Link to="/saldo" className="underline">
+        Ver mi saldo
+      </Link>
     </p>
   );
 }

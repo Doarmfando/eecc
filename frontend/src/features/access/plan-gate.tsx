@@ -4,6 +4,8 @@ import { Link } from 'react-router-dom';
 
 import { useSession } from '@/app/use-session';
 import { Alert } from '@/components/ui/alert';
+import { useMonthlyUsage } from '@/features/statements/queries';
+import { paginasCompradas } from '@/lib/page-balance';
 
 import { describirVigencia, estadoDeVigencia, formatearDia, hoyLocal } from '@/lib/plan-dates';
 
@@ -85,6 +87,7 @@ export function PlanBadge(): ReactNode {
 export function AvisoDeVigencia(): ReactNode {
   const { usuario } = useSession();
   const telefono = useSupportPhone();
+  const saldo = useMonthlyUsage();
   const plan = usuario?.plan;
   if (!plan?.expiresOn) {
     return null;
@@ -108,13 +111,16 @@ export function AvisoDeVigencia(): ReactNode {
     </>
   ) : null;
   if (estado === 'vencida') {
+    const compradas = saldo.data ? paginasCompradas(saldo.data) : 0;
     return (
       <Alert
-        variant="destructive"
+        variant={compradas > 0 ? 'warning' : 'destructive'}
         title={`Tu membresía ${plan.name} venció el ${formatearDia(plan.expiresOn)}`}
       >
-        No puedes convertir documentos hasta que un administrador la renueve. Lo que ya tienes sigue
-        disponible para consultar y descargar.{contacto}
+        {compradas > 0
+          ? `Puedes seguir convirtiendo con las ${String(compradas)} páginas que compraste aparte, hasta que venzan. Pide a un administrador que la renueve para recuperar sus páginas y vistas.`
+          : 'No puedes convertir documentos hasta que un administrador la renueve. Lo que ya tienes sigue disponible para consultar y descargar.'}
+        {contacto}
       </Alert>
     );
   }

@@ -840,26 +840,17 @@ describe('MembersPage: vigencia de la membresía', () => {
   });
 });
 
-describe('MembersPage: recarga de páginas (Atlas)', () => {
-  it('agrega una recarga por encima del tope del plan', async () => {
-    const fetchMock = await montar();
+describe('MembersPage: recarga mensual antigua', () => {
+  it('no ofrece crear una recarga mensual antigua en una cuenta sin ella', async () => {
+    await montar();
     const user = userEvent.setup();
 
     await user.click(screen.getByRole('button', { name: 'Editar a Otra persona' }));
     const dialogo = await screen.findByRole('dialog');
-    const recarga = within(dialogo).getByLabelText('Recarga de páginas al mes');
-    expect(recarga).toHaveValue(null);
-    await user.type(recarga, '80');
-    await user.click(within(dialogo).getByRole('button', { name: 'Guardar cambios' }));
-
-    await waitFor(() => {
-      expect(cuerpo(peticiones(fetchMock, 'PATCH')[0]?.[1])).toEqual({
-        monthlyPageQuotaOverride: 80,
-      });
-    });
+    expect(within(dialogo).queryByText('Recarga mensual antigua')).not.toBeInTheDocument();
   });
 
-  it('quita una recarga existente al vaciar el campo', async () => {
+  it('quita una recarga existente al marcar la casilla', async () => {
     const fetchMock = await montar({
       lista: () => jsonResponse(200, [YO, { ...OTRA, monthlyPageQuotaOverride: 50 }]),
     });
@@ -867,9 +858,9 @@ describe('MembersPage: recarga de páginas (Atlas)', () => {
 
     await user.click(screen.getByRole('button', { name: 'Editar a Otra persona' }));
     const dialogo = await screen.findByRole('dialog');
-    const recarga = within(dialogo).getByLabelText('Recarga de páginas al mes');
-    expect(recarga).toHaveValue(50);
-    await user.clear(recarga);
+    const recarga = within(dialogo).getByRole('checkbox', { name: /Quitar la recarga antigua/ });
+    expect(recarga).not.toBeChecked();
+    await user.click(recarga);
     await user.click(within(dialogo).getByRole('button', { name: 'Guardar cambios' }));
 
     await waitFor(() => {
@@ -879,9 +870,10 @@ describe('MembersPage: recarga de páginas (Atlas)', () => {
     });
   });
 
-  it('no deja escribir una recarga a quien no puede cambiar el plan de esa cuenta', async () => {
+  it('no deja quitar una recarga a quien no puede cambiar el plan de esa cuenta', async () => {
     const sinCambioDePlan = {
       ...OTRA,
+      monthlyPageQuotaOverride: 50,
       actions: TODAS.filter((accion) => accion !== 'CHANGE_PLAN'),
     };
     await montar({ lista: () => jsonResponse(200, [YO, sinCambioDePlan]) });
@@ -890,23 +882,29 @@ describe('MembersPage: recarga de páginas (Atlas)', () => {
     await user.click(screen.getByRole('button', { name: 'Editar a Otra persona' }));
     const dialogo = await screen.findByRole('dialog');
 
-    expect(await within(dialogo).findByLabelText('Recarga de páginas al mes')).toBeDisabled();
+    expect(
+      within(dialogo).getByRole('checkbox', { name: /Quitar la recarga antigua/ }),
+    ).toBeDisabled();
   });
 
-  it('rechaza una recarga inválida sin llegar al servidor', async () => {
-    const fetchMock = await montar();
+  it('conserva la recarga antigua al guardar otros cambios', async () => {
+    const fetchMock = await montar({
+      lista: () => jsonResponse(200, [YO, { ...OTRA, monthlyPageQuotaOverride: 50 }]),
+    });
     const user = userEvent.setup();
 
     await user.click(screen.getByRole('button', { name: 'Editar a Otra persona' }));
     const dialogo = await screen.findByRole('dialog');
-    const recarga = within(dialogo).getByLabelText('Recarga de páginas al mes');
-    await user.type(recarga, '-5');
+    const nombre = within(dialogo).getByLabelText('Nombre');
+    await user.clear(nombre);
+    await user.type(nombre, 'Nuevo nombre');
     await user.click(within(dialogo).getByRole('button', { name: 'Guardar cambios' }));
 
-    expect(
-      await within(dialogo).findByText('Escribe un número entero mayor que cero'),
-    ).toBeInTheDocument();
-    expect(peticiones(fetchMock, 'PATCH')).toHaveLength(0);
+    await waitFor(() => {
+      expect(cuerpo(peticiones(fetchMock, 'PATCH')[0]?.[1])).toEqual({
+        displayName: 'Nuevo nombre',
+      });
+    });
   });
 });
 

@@ -25,6 +25,8 @@ const MENSAJES: Record<string, string> = {
   PRODUCT_ALREADY_EXISTS:
     'Ya existe un producto con ese código. Elige otro: no se puede reutilizar.',
   PRODUCT_NOT_FOUND: 'Ese producto ya no existe. Recarga la página.',
+  QUANTITY_BELOW_MINIMUM: 'Esa compra no llega al mínimo de páginas del producto.',
+  MEMBERSHIP_NOT_FOUND: 'Esa cuenta ya no tiene membresía en la organización. Recarga la página.',
   PRODUCT_PRICING_SHAPE_INVALID:
     'Un paquete necesita cuántas páginas trae, y una recarga su mínimo de páginas por compra.',
   MONTHLY_PAGE_QUOTA_OVERRIDE_INVALID: 'La recarga debe ser un número entero mayor que cero.',

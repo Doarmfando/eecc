@@ -190,6 +190,7 @@ El extractor se escribió **sin muestra**, adivinando la plantilla, y se corrigi
 
 ## Frontend
 
+- **La cotización pertenece al producto y a la cantidad elegidos.** Al cambiar cualquiera de los dos, muestra el estado de carga y habilita el registro cuando llegue la cotización de esa selección. Conservar el precio anterior como dato provisional permite que aparezca junto al producto equivocado.
 - **Un texto con prefijo para lectores de pantalla no empieza por lo que se ve.** Los avisos llevan `<span class="sr-only">Atención: </span>` antes del título: en Playwright, `getByText(/^Se reemplazó/)` no coincide; usar la expresión sin ancla o el rol.
 - **Al probar el reemplazo por cupo con documentos reales, repetir un PDF que sigue guardado lo reutiliza** y no reemplaza nada, que es lo correcto. Una prueba repetible prepara antes la cuenta en un estado conocido.
 - **`disabled:opacity-50` del `Input` base pisa el `opacity-0` del selector de archivo oculto**: al deshabilitar la carga aparecía el texto nativo «No file chosen». Añadir `disabled:opacity-0` al campo que debe seguir invisible.

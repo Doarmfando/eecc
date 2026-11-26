@@ -6,6 +6,7 @@ import {
   Gem,
   Home,
   Users,
+  Wallet,
   type LucideIcon,
 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
@@ -21,6 +22,7 @@ import { FEATURE, type FeatureCode } from '@/features/access/access';
 import { FuncionNoIncluida, PlanBadge } from '@/features/access/plan-gate';
 import { AccountMenu } from '@/features/auth/account-menu';
 import { cn } from '@/lib/utils';
+import { BalancePage } from '@/pages/balance-page';
 import { FinancialCalendarPage } from '@/pages/financial-calendar-page';
 import { FinancialCenterPage } from '@/pages/financial-center-page';
 import { HistoryPage } from '@/pages/history-page';
@@ -84,6 +86,8 @@ const ENLACES: Enlace[] = [
     Icono: CalendarDays,
     funcion: FEATURE.FINANCIAL_CALENDAR,
   },
+  // Para todas las membresías: el saldo y cómo comprar no dependen de las vistas (ADR-0019).
+  { to: '/saldo', etiqueta: 'Mi saldo', Icono: Wallet },
 ];
 
 /**
@@ -387,6 +391,14 @@ function Contenido(): ReactNode {
         element={
           <Protegida funcion={FEATURE.FINANCIAL_CALENDAR}>
             <FinancialCalendarPage />
+          </Protegida>
+        }
+      />
+      <Route
+        path="/saldo"
+        element={
+          <Protegida>
+            <BalancePage />
           </Protegida>
         }
       />

@@ -13,6 +13,21 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-11-26 — Punto de corte de la rama de saldo por lotes
+
+- `feature/lotes-de-paginas` contiene el catálogo (`5defbeb`) y la API de lotes (`269163e`).
+  La API reparte el consumo por vencimiento, conserva el saldo comprado al vencer la membresía y
+  permite registrar compras manuales desde el detalle de la cuenta.
+- El frontend incluye *Mi saldo*, el detalle de lotes por cuenta,
+  el registro administrativo de compras y el saldo disponible antes de subir un PDF. Al cambiar
+  la selección, la interfaz espera la cotización correspondiente antes de aceptar el registro.
+- Verificación local del frontend con datos sintéticos. Pasaron tipos, ESLint, Prettier, 420 pruebas
+  con cobertura y el build. Las pruebas incluyen una cotización pendiente, una compra registrada
+  y una carga con saldo comprado después de vencer la membresía.
+- Railway mostró el despliegue exitoso de `main` en `36291ad`, con `/health` en `ok`. La rama
+  comercial y la migración de clientes siguen pendientes de despliegue y autorización, según §21
+  del [plan de trabajo](../roadmap/tareas-en-curso.md#21-reestructuración-comercial-atlas-gratuito-personal-recargas-profesional-2026-11-26).
+
 ## 2026-11-26 — Catálogo comercial: precio en las membresías y productos de saldo
 
 - Contexto: etapa 3 de la reestructuración comercial ([`tareas-en-curso.md`](../roadmap/tareas-en-curso.md)

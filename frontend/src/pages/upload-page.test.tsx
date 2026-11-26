@@ -242,9 +242,7 @@ describe('UploadPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('avisa cuánto lleva del acumulado mensual antes de subir, que es cuando sirve de algo (ADR-0018)', async () => {
-    // El modelo de cobro es por páginas acumuladas, no por documentos: el aviso
-    // tiene que hablar de páginas, y leerse junto al formulario, antes de enviar.
+  it('muestra el saldo disponible y el acceso a Mi saldo antes de subir', async () => {
     const sesionConPlan = {
       ...SESION,
       plan: {
@@ -273,18 +271,9 @@ describe('UploadPage', () => {
     renderApp();
     await esperarSesion();
 
-    // El texto va partido entre varios nodos (`<strong>7</strong>`, etc.): se
-    // busca el nodo más específico cuyo texto completo coincide, para no
-    // encontrar también a sus contenedores.
-    const coincide = (nodo: Element | null): boolean =>
-      /llevas 7 de 10 páginas acumuladas este mes/.test(nodo?.textContent ?? '');
-    expect(
-      await screen.findByText(
-        (_, elemento) =>
-          coincide(elemento) &&
-          Array.from(elemento?.children ?? []).every((hijo) => !coincide(hijo)),
-      ),
-    ).toBeInTheDocument();
+    const enlace = await screen.findByRole('link', { name: 'Ver mi saldo' });
+    expect(enlace).toHaveAttribute('href', '/saldo');
+    expect(enlace.closest('p')).toHaveTextContent('Te quedan 3 páginas (3 de tu membresía)');
   });
 
   it('rechaza en el borde un archivo vacío, sin llamar al servidor', async () => {

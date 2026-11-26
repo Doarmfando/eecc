@@ -25,8 +25,9 @@ import {
   type PasswordProblem,
   type UploadFormValues,
 } from '@/features/statements/upload-form';
-import { useJobHistory, useUploadStatement } from '@/features/statements/queries';
+import { useJobHistory, useMonthlyUsage, useUploadStatement } from '@/features/statements/queries';
 import type { ApiError } from '@/lib/api-error';
+import { paginasCompradas } from '@/lib/page-balance';
 import { cn } from '@/lib/utils';
 import type { Job } from '@/types/job';
 
@@ -117,8 +118,11 @@ export function UploadPage(): ReactNode {
   const [awaitingChoice, setAwaitingChoice] = useState<UploadFormValues | null>(null);
 
   const cupo = cupoDe(usuario);
-  // Vencida, la API rechaza la carga: el formulario no se ofrece para algo que fallará.
-  const vencida = usuario?.plan?.expired === true;
+  // Vencida y sin páginas compradas, la API rechaza la carga: el formulario no se
+  // ofrece para algo que fallará. Lo comprado aparte sí se puede usar (ADR-0019).
+  const saldo = useMonthlyUsage();
+  const vencida =
+    usuario?.plan?.expired === true && (!saldo.data || paginasCompradas(saldo.data) === 0);
   const replaceable = replaceableStatements(history.data?.items ?? []);
 
   /** Lo que pasó, dicho en pantalla: convertido, reutilizado y qué se reemplazó. */

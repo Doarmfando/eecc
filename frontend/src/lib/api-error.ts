@@ -48,26 +48,26 @@ const MESSAGES: Record<string, string> = {
   RESPONSE_CONTRACT_MISMATCH: 'La respuesta del servidor no es compatible con esta versión.',
   NETWORK_ERROR: 'No se pudo contactar al servidor.',
   PDF_PAGE_LIMIT_EXCEEDED:
-    'El PDF tiene más páginas de las que te quedan este mes. Divídelo en partes más cortas, espera a que se renueve tu cupo o pide a un administrador otra membresía.',
+    'El PDF tiene más páginas de las que te quedan. Divídelo en partes más cortas o compra más páginas en «Mi saldo».',
   MONTHLY_PAGE_QUOTA_EXCEEDED:
-    'Ya usaste todas las páginas de tu membresía este mes. Espera a que se renueve tu cupo o pide a un administrador otra membresía.',
+    'Ya usaste todas las páginas de tu membresía de este periodo y no te quedan compradas. Compra más en «Mi saldo» o espera a que se renueve tu periodo.',
   TRIAL_ALREADY_USED:
-    'Ya usaste tu prueba gratuita; no se renueva. Pide a un administrador una membresía de pago para seguir convirtiendo.',
+    'Ya usaste las páginas de tu prueba gratuita; no se renueva. Compra páginas en «Mi saldo» o pide a un administrador una membresía.',
   UPLOAD_IN_PROGRESS:
     'Tienes otra subida en curso que ya tiene apartadas las páginas que te quedan. Espera a que termine y vuelve a intentarlo.',
   ROLE_ABOVE_YOURS: 'Esa cuenta o ese rol están por encima del tuyo.',
   ROLE_NOT_FOUND: 'Ese rol ya no existe. Recarga la página.',
   PLAN_NOT_FOUND: 'Esa membresía ya no está disponible. Recarga la página y elige otra.',
   MEMBERSHIP_EXPIRED:
-    'Tu membresía venció, así que no puedes convertir documentos. Pide a un administrador que la renueve; lo que ya tienes sigue disponible.',
+    'Tu membresía venció y no te quedan páginas compradas, así que no puedes convertir documentos. Pide a un administrador que la renueve; lo que ya tienes sigue disponible.',
   STATEMENT_DELETE_FAILED:
     'No se pudieron borrar todos los documentos. Vuelve a intentarlo: lo que ya se borró no se repite.',
 };
 
 /**
- * Con los números del rechazo, el mensaje dice exactamente qué sobra. Desde
- * ADR-0018, `maxPages` ya no es un tope fijo por documento: es lo que le queda
- * del mes a esa persona en el momento de subir.
+ * Con los números del rechazo, el mensaje dice exactamente qué sobra. `maxPages`
+ * es lo que se podía convertir en esa subida: su saldo en lotes (ADR-0019), o el
+ * tope técnico por PDF si es menor.
  */
 function describePageLimit(meta: Record<string, number> | undefined): string | null {
   const paginas = meta?.pageCount;
@@ -75,17 +75,17 @@ function describePageLimit(meta: Record<string, number> | undefined): string | n
   if (paginas === undefined || restante === undefined) {
     return null;
   }
-  return `El PDF tiene ${String(paginas)} páginas y este mes te quedan ${String(restante)}. Divídelo en partes de ${String(restante)} páginas o menos, espera a que se renueve tu cupo, o pide a un administrador otra membresía.`;
+  return `El PDF tiene ${String(paginas)} páginas y ahora puedes convertir hasta ${String(restante)}. Divídelo en partes de ${String(restante)} páginas o menos, o compra más páginas en «Mi saldo».`;
 }
 
-/** Cuánto llevas usado y cuánto admite tu plan, cuando el rechazo trae ambos números. */
+/** Cuánto da tu membresía por periodo, cuando el rechazo trae los números. */
 function describeMonthlyQuota(meta: Record<string, number> | undefined): string | null {
   const usado = meta?.used;
   const cupo = meta?.quota;
   if (usado === undefined || cupo === undefined) {
     return null;
   }
-  return `Ya usaste ${String(usado)} de las ${String(cupo)} páginas que admite tu membresía este mes. Espera a que se renueve tu cupo o pide a un administrador otra membresía.`;
+  return `Ya usaste ${String(usado)} de las ${String(cupo)} páginas de tu membresía en este periodo y no te quedan compradas. Compra más en «Mi saldo» o espera a que se renueve tu periodo.`;
 }
 
 export function describeError(error: unknown): string {

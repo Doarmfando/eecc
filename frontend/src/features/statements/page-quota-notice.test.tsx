@@ -1,6 +1,7 @@
 import { screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { SessionUser } from '@/lib/session-client';
 import { BASIC_USER, TEST_USER, renderWithProviders } from '@/test/render';
 
 // Contar páginas de verdad exige un PDF bien formado; aquí interesa la lógica
@@ -17,10 +18,47 @@ function jsonResponse(status: number, body: unknown): Response {
   });
 }
 
-function stubUsage(pagesUsed: number, monthlyPageQuota: number | null): void {
+function lote(
+  source: string,
+  quantity: number,
+  available: number,
+  extra: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    id: `${source}-1`,
+    source,
+    quantity,
+    consumed: quantity - available,
+    held: 0,
+    available,
+    startsAt: '2026-11-15T05:00:00.000Z',
+    expiresAt: '2026-12-15T05:00:00.000Z',
+    productName: source === 'PURCHASE' ? 'ATLAS Recargas' : null,
+    ...extra,
+  };
+}
+
+const PERIODO = { startsAt: '2026-11-15T05:00:00.000Z', endsAt: '2026-12-15T05:00:00.000Z' };
+
+/** Periodo de la membresía con `periodo` páginas libres, más `compradas` de una recarga. */
+function stubSaldo(periodo: number, compradas = 0): void {
+  const lotes = [lote('MEMBERSHIP_PERIOD', 50, periodo)];
+  if (compradas > 0) {
+    lotes.push(lote('PURCHASE', compradas, compradas, { expiresAt: '2027-02-25T05:00:00.000Z' }));
+  }
   vi.stubGlobal(
     'fetch',
-    vi.fn().mockResolvedValue(jsonResponse(200, { pagesUsed, monthlyPageQuota })),
+    vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        pagesUsed: 50 - periodo,
+        monthlyPageQuota: 50,
+        unlimited: false,
+        membershipExpired: false,
+        pagesAvailable: periodo + compradas,
+        period: PERIODO,
+        lots: lotes,
+      }),
+    ),
   );
 }
 
@@ -35,19 +73,22 @@ describe('PageQuotaNotice', () => {
     expect(screen.queryByText(/páginas/)).not.toBeInTheDocument();
   });
 
-  it('dice cuánto lleva del acumulado del mes', async () => {
-    stubUsage(7, 10);
+  it('dice cuántas páginas le quedan y de dónde salen', async () => {
+    stubSaldo(38, 40);
     const { container } = renderWithProviders(<PageQuotaNotice selectedFile={null} />, {
       usuario: BASIC_USER,
     });
 
     await waitFor(() => {
-      expect(container.textContent).toMatch(/llevas 7 de 10 páginas acumuladas este mes/);
+      expect(container.textContent).toMatch(
+        /Te quedan 78 páginas \(38 de tu membresía este periodo y 40 compradas\)/,
+      );
     });
+    expect(screen.getByRole('link', { name: 'Ver mi saldo' })).toHaveAttribute('href', '/saldo');
   });
 
   it('mientras cuenta las páginas de un archivo pesado, avisa que está analizando', async () => {
-    stubUsage(2, 10);
+    stubSaldo(10);
     let resolver: (paginas: number) => void = () => undefined;
     countPdfPages.mockReturnValue(
       new Promise<number>((resolve) => {
@@ -60,7 +101,6 @@ describe('PageQuotaNotice', () => {
     expect(
       await screen.findByText('Analizando tu archivo: contando sus páginas…'),
     ).toBeInTheDocument();
-    expect(screen.queryByText(/páginas acumuladas este mes/)).not.toBeInTheDocument();
 
     resolver(5);
     expect(await screen.findByText('Este archivo tiene 5 páginas')).toBeInTheDocument();
@@ -69,8 +109,8 @@ describe('PageQuotaNotice', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('con un archivo elegido que no se pasaría del cupo, dice cuánto quedaría', async () => {
-    stubUsage(2, 10);
+  it('con un archivo que alcanza, dice cuánto le quedaría', async () => {
+    stubSaldo(8);
     countPdfPages.mockResolvedValue(5);
     const archivo = new File(['contenido'], 'estado.pdf', { type: 'application/pdf' });
     const { container } = renderWithProviders(<PageQuotaNotice selectedFile={archivo} />, {
@@ -78,13 +118,13 @@ describe('PageQuotaNotice', () => {
     });
 
     await waitFor(() => {
-      expect(container.textContent).toMatch(/te quedarían 3 este mes/);
+      expect(container.textContent).toMatch(/Después de convertirlo te quedarían 3/);
     });
     expect(container.querySelector('.text-destructive')).not.toBeInTheDocument();
   });
 
-  it('con un archivo que se pasaría del cupo, avisa en rojo por cuánto', async () => {
-    stubUsage(8, 10);
+  it('con un archivo que no alcanza, avisa en rojo cuánto falta y cómo comprar', async () => {
+    stubSaldo(2);
     countPdfPages.mockResolvedValue(5);
     const archivo = new File(['contenido'], 'estado.pdf', { type: 'application/pdf' });
     const { container } = renderWithProviders(<PageQuotaNotice selectedFile={archivo} />, {
@@ -92,13 +132,37 @@ describe('PageQuotaNotice', () => {
     });
 
     await waitFor(() => {
-      expect(container.textContent).toMatch(/te pasarías del cupo por 3/);
+      expect(container.textContent).toMatch(/Te faltan 3/);
     });
     expect(container.querySelector('.text-destructive')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'comprar más páginas' })).toHaveAttribute(
+      'href',
+      '/saldo',
+    );
   });
 
-  it('sin tope fijo (Atlas), no habla de acumulado sino de cotizar', async () => {
-    stubUsage(0, null);
+  it('las páginas compradas cuentan para decidir si alcanza', async () => {
+    stubSaldo(2, 40);
+    countPdfPages.mockResolvedValue(30);
+    const archivo = new File(['contenido'], 'estado.pdf', { type: 'application/pdf' });
+    const { container } = renderWithProviders(<PageQuotaNotice selectedFile={archivo} />, {
+      usuario: BASIC_USER,
+    });
+
+    await waitFor(() => {
+      expect(container.textContent).toMatch(/te quedarían 12/);
+    });
+  });
+
+  it('sin tope fijo (Atlas), no habla de saldo sino de cotizar', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse(200, { pagesUsed: 0, monthlyPageQuota: null, unlimited: true, lots: [] }),
+        ),
+    );
     renderWithProviders(<PageQuotaNotice selectedFile={null} />, { usuario: TEST_USER });
 
     expect(
@@ -106,17 +170,38 @@ describe('PageQuotaNotice', () => {
     ).toBeInTheDocument();
   });
 
-  it('con la prueba única ya gastada, avisa sin preguntar el acumulado', () => {
-    const usuarioSinPrueba = {
+  it('con la prueba gratuita agotada y sin compras, lo dice y ofrece comprar', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        jsonResponse(200, {
+          pagesUsed: 3,
+          monthlyPageQuota: 3,
+          unlimited: false,
+          pagesAvailable: 0,
+          period: null,
+          lots: [lote('TRIAL', 3, 0, { expiresAt: null })],
+        }),
+      ),
+    );
+    const plan = BASIC_USER.plan as NonNullable<SessionUser['plan']>;
+    const usuarioGratuito: SessionUser = {
       ...BASIC_USER,
-      plan: {
-        ...BASIC_USER.plan!,
-        trialOneTime: true,
-        trialAvailable: false,
-      },
+      plan: { ...plan, trialOneTime: true, trialAvailable: false },
     };
-    renderWithProviders(<PageQuotaNotice selectedFile={null} />, { usuario: usuarioSinPrueba });
+    renderWithProviders(<PageQuotaNotice selectedFile={null} />, { usuario: usuarioGratuito });
 
-    expect(screen.getByText('Ya usaste tu prueba gratuita')).toBeInTheDocument();
+    expect(await screen.findByText('Ya usaste tu prueba gratuita')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'compra más páginas' })).toBeInTheDocument();
+  });
+
+  it('sin páginas en el periodo, dice cuándo recibe nuevas', async () => {
+    stubSaldo(0);
+    const { container } = renderWithProviders(<PageQuotaNotice selectedFile={null} />, {
+      usuario: BASIC_USER,
+    });
+
+    expect(await screen.findByText('No te quedan páginas')).toBeInTheDocument();
+    expect(container.textContent).toMatch(/Tu membresía te da páginas nuevas el/);
   });
 });

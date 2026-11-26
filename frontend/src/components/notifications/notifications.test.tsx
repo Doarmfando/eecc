@@ -58,7 +58,7 @@ describe('Avisos', () => {
     const aviso = screen.getByRole('alert');
     expect(within(aviso).getByText('No se pudo procesar «estado.pdf»')).toBeInTheDocument();
     expect(
-      within(aviso).getByText(/El PDF tiene 42 páginas y este mes te quedan 15/),
+      within(aviso).getByText(/El PDF tiene 42 páginas y ahora puedes convertir hasta 15/),
     ).toBeInTheDocument();
     expect(within(aviso).getByText('Límite de la membresía')).toBeInTheDocument();
     expect(within(aviso).getByText('PDF_PAGE_LIMIT_EXCEEDED')).toBeInTheDocument();

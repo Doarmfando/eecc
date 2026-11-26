@@ -490,7 +490,7 @@ function EditarCuentaContenido({
     },
   });
   const errores = form.formState.errors;
-  const planElegido = useWatch({ control: form.control, name: 'planCode' });
+  const recargaElegida = useWatch({ control: form.control, name: 'monthlyPageQuotaOverride' });
   const rolElegido = useWatch({ control: form.control, name: 'role' });
   const vigenciaId = useId();
   const recargaId = useId();
@@ -627,31 +627,34 @@ function EditarCuentaContenido({
           <FieldError message={errores.planCode?.message} />
         </fieldset>
 
-        <fieldset>
-          <legend className="mb-2 text-sm font-medium">
-            <label htmlFor={recargaId}>Recarga de páginas al mes</label>
-          </legend>
-          <Input
-            id={recargaId}
-            type="number"
-            min={1}
-            step={1}
-            inputMode="numeric"
-            placeholder={
-              planes.data
-                ?.find((plan) => plan.code === planElegido)
-                ?.monthlyPageQuota?.toString() ?? 'Sin tope fijo'
-            }
-            disabled={planBloqueado}
-            aria-invalid={errores.monthlyPageQuotaOverride ? true : undefined}
-            {...form.register('monthlyPageQuotaOverride')}
-          />
-          <FieldError message={errores.monthlyPageQuotaOverride?.message} />
-          <p className="mt-2 text-xs text-muted-foreground">
-            Vacío usa el tope del plan elegido. Es la "recarga Atlas": súbesela a mano después de
-            cotizarla y cobrarla por fuera, sin cambiarle el plan.
-          </p>
-        </fieldset>
+        {miembro.monthlyPageQuotaOverride != null ? (
+          <fieldset className="rounded-lg border border-border p-3">
+            <legend className="px-1 text-sm font-medium">Recarga mensual antigua</legend>
+            <p className="text-xs text-muted-foreground">
+              Tiene una recarga de{' '}
+              <strong className="text-foreground">{miembro.monthlyPageQuotaOverride}</strong>{' '}
+              páginas al mes, del modelo anterior: sigue valiendo hasta que se migre a lotes. Para
+              darle más páginas, registra una compra en su detalle.
+            </p>
+            <label htmlFor={recargaId} className="mt-2 flex items-center gap-2 text-sm">
+              <input
+                id={recargaId}
+                type="checkbox"
+                className="size-4 rounded border-border"
+                disabled={planBloqueado}
+                checked={recargaElegida === ''}
+                onChange={(event) => {
+                  form.setValue(
+                    'monthlyPageQuotaOverride',
+                    event.target.checked ? '' : String(miembro.monthlyPageQuotaOverride),
+                    { shouldDirty: true },
+                  );
+                }}
+              />
+              Quitar la recarga antigua y usar solo su plan y sus compras
+            </label>
+          </fieldset>
+        ) : null}
 
         {pideVigencia ? (
           <fieldset>
