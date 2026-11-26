@@ -33,6 +33,26 @@ irrecuperables. Se conserva la evidencia disponible en `page_consumption_entries
    dos veces. Ensayar con casos sintéticos de cuenta vigente, vencida, con consumo, con tope
    acordado y con pago o conversión en curso.
 
-La regla de transición para el tope acordado y las dos membresías Atlas comerciales necesita
-confirmación. La ejecución en producción requiere autorización aparte. Hasta entonces, `PERSONAL`
-permanece retirado en el catálogo de la rama comercial.
+## Implementación local
+
+El comando `commercial:migrate-personal` corre en simulación por defecto y entrega solo conteos.
+Requiere que la base tenga las migraciones del catálogo y de lotes. El corte se solicita con
+`--apply` y se ejecuta en una transacción. El ensayo local usa un esquema PostgreSQL exclusivo con
+datos sintéticos.
+
+En ese corte, Básica y Especial pasan a Personal cuando se pueden conservar sus condiciones. El
+periodo mantiene su ancla y vigencia. Si ya hay un lote del periodo, se actualiza ese mismo lote y
+se conservan sus asignaciones. Si falta, se crea un único lote y se arrastra el consumo registrado
+sin reserva desde el inicio del periodo o desde hace 30 días, lo que abarque más. Las cuentas
+vencidas no reciben un lote vigente. Cada membresía migrada deja un evento de auditoría.
+
+El plan Administración (`ADMINISTRACION`) conserva los límites y vistas internos de Atlas. Las
+membresías de los roles administrativos pasan a ese plan. Gratuito queda como predeterminado
+comercial, Personal se activa y se retiran del catálogo de altas Básica, Especial y Atlas. Las
+cuentas existentes que quedan en un plan retirado conservan su plan y sus condiciones. El corte
+se revierte completo si hay una reserva pendiente para una membresía que cambiaría a Personal.
+
+La herramienta deja pendientes los ajustes de cuota pactados y los Atlas de otros roles. Esas
+cuentas necesitan una regla de transición confirmada por el responsable del producto. La
+ejecución en producción requiere autorización aparte. Antes del corte, vuelve a simular, revisa
+los conteos y coordina una ventana sin altas ni ediciones de membresías.

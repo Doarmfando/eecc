@@ -21,6 +21,8 @@ const MENSAJES: Record<string, string> = {
     'Esa cuenta, o el rol que quieres darle, está por encima del tuyo. Pídeselo a un superadministrador.',
   ROLE_NOT_FOUND: 'Ese rol ya no existe. Recarga la página.',
   PLAN_NOT_FOUND: 'Esa membresía ya no está disponible. Recarga la página y elige otra.',
+  ADMIN_PLAN_REQUIRES_ADMIN_ROLE:
+    'Administración es una membresía interna. Elige una membresía comercial para este rol.',
   PLAN_ALREADY_EXISTS: 'Ya existe un plan con ese código. Elige otro: no se puede reutilizar.',
   PRODUCT_ALREADY_EXISTS:
     'Ya existe un producto con ese código. Elige otro: no se puede reutilizar.',

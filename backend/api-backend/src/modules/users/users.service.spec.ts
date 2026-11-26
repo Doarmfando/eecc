@@ -757,6 +757,18 @@ describe('UsersService y la membresía', () => {
     });
   });
 
+  it('reserva el plan interno nuevo para los roles administrativos en altas y cambios', async () => {
+    const { service, membresiaCreada, membresiaActualizada } = construir();
+    await expect(
+      service.create(ORGANIZATION_ID, ACTOR, { ...datos, planCode: 'ADMINISTRACION' }),
+    ).rejects.toMatchObject({ response: { code: 'ADMIN_PLAN_REQUIRES_ADMIN_ROLE' } });
+    await expect(
+      service.update(ORGANIZATION_ID, ACTOR, MIEMBRO_ID, { planCode: 'ADMINISTRACION' }),
+    ).rejects.toMatchObject({ response: { code: 'ADMIN_PLAN_REQUIRES_ADMIN_ROLE' } });
+    expect(membresiaCreada).not.toHaveBeenCalled();
+    expect(membresiaActualizada).not.toHaveBeenCalled();
+  });
+
   it('rechaza un rol o un plan que no están en el catálogo sin crear nada', async () => {
     const { service, usuarioCreado, membresiaCreada } = construir({
       falloDeCatalogo: new BadRequestException({ code: 'ROLE_NOT_FOUND' }),

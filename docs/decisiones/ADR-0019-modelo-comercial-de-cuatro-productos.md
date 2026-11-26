@@ -133,7 +133,7 @@ Plan completo en [`tareas-en-curso.md`](../roadmap/tareas-en-curso.md) §21.
 | 3     | Catálogo de productos de saldo y precios (este ADR)              | Hecha                              |
 | 2b, 4 | Lotes de páginas, FEFO, compras registradas por un administrador | Implementada en la rama           |
 | 5     | Saldo, cotización e historiales comerciales                      | Implementada en la rama           |
-| 6     | Migración de clientes: Básica/Especial → Personal, renombre      | Pendiente, con autorización aparte |
+| 6     | Migración de clientes: Básica/Especial → Personal, renombre      | Candidatos compatibles ensayados localmente. Excepciones y producción pendientes. |
 | 7     | Panel comercial con métricas                                     | Pendiente                          |
 
 ## Criterio de revisión
@@ -144,3 +144,12 @@ Plan completo en [`tareas-en-curso.md`](../roadmap/tareas-en-curso.md) §21.
   paquete no compara monedas distintas.
 - Si aparece un producto que habilite vistas sin ser una membresía: la separación de este ADR
   supone que solo la membresía decide las vistas.
+
+## Anexo — 2026-11-26 — Corte manual y conservación de condiciones
+
+La activación del catálogo comercial y el cambio de las membresías compatibles ocurren juntos en
+una transacción manual de Prisma. La simulación usa una transacción de solo lectura. El corte
+conserva ancla, vigencia, compras y consumo previo sin otorgar un segundo lote del periodo. El
+plan interno `ADMINISTRACION` se asigna a los roles administrativos y los planes heredados se
+retiran de las altas. Las membresías con condiciones pactadas o Atlas en otros roles conservan
+su plan mientras se decide su transición. Ver [informe de impacto](../roadmap/migracion-a-personal.md).

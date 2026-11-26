@@ -79,6 +79,10 @@ export class BootstrapService implements OnApplicationBootstrap {
       const organization =
         (await tx.organization.findFirst()) ??
         (await tx.organization.create({ data: { displayName: ORGANIZACION_INICIAL } }));
+      const role = await tx.role.findUniqueOrThrow({
+        where: { code: SYSTEM_ROLE.ADMIN },
+        select: { defaultPlanCode: true },
+      });
 
       await tx.user.create({
         data: {
@@ -92,7 +96,7 @@ export class BootstrapService implements OnApplicationBootstrap {
             create: {
               organizationId: organization.id,
               roleCode: SYSTEM_ROLE.ADMIN,
-              planCode: PLAN.ATLAS,
+              planCode: role.defaultPlanCode ?? PLAN.ATLAS,
             },
           },
         },

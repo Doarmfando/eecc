@@ -13,6 +13,7 @@ Después:
 - [`docs/README.md`](docs/README.md) — índice de toda la documentación.
 - [`docs/bitacora/README.md`](docs/bitacora/README.md) — qué se hizo últimamente y por qué.
 - [`docs/roadmap/tareas-en-curso.md`](docs/roadmap/tareas-en-curso.md) — **lista viva de tareas pedidas**. Léela al empezar y marca lo que termines.
+- [`docs/roadmap/entrega-claude-atlas-eecc.md`](docs/roadmap/entrega-claude-atlas-eecc.md) — estado de la reestructuración comercial y punto exacto para retomarla.
 
 ## Lo mínimo que hay que saber
 

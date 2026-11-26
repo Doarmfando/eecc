@@ -481,10 +481,10 @@ calendario en diciembre de 2026)
     registran como lotes. Los ajustes antiguos quedan pendientes de la etapa 6.
   - [x] **5. UI de usuario.** Saldo agregado y por lote, cotización e historiales de compras y
     consumo. Implementada y verificada localmente en `feature/lotes-de-paginas`.
-  - [ ] **6. Migración de datos existentes — requiere autorización aparte.** Básica/Especial →
-    Personal y paso a lotes de los ajustes antiguos. El [informe de impacto](migracion-a-personal.md)
-    identifica los casos que requieren una regla de transición antes de implementar y ensayar el
-    script de escritura con datos sintéticos.
+  - [~] **6. Migración de datos existentes — requiere autorización aparte.** El migrador local
+    simula y aplica el corte de los casos compatibles. Se ensayó con datos sintéticos. Queda
+    acordar la transición de los ajustes pactados y los Atlas de otros roles, además de autorizar
+    y coordinar el corte de producción. [Informe y reglas del corte](migracion-a-personal.md).
   - [ ] **7. Panel comercial con métricas.**
   - [ ] **8. ADR nuevo del modelo de cuatro productos** (reemplaza la mayor parte de ADR-0018).
     Ya existe ADR-0019 con el modelo y las decisiones; se completa con lotes y migración.

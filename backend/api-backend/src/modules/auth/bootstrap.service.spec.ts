@@ -31,6 +31,7 @@ function construir(
     email?: string;
     password?: string;
     superAdmins?: string;
+    planAdministrativo?: string;
   } = {},
 ): Dobles {
   const crearUsuario = jest.fn().mockResolvedValue({ id: 'nuevo' });
@@ -42,6 +43,11 @@ function construir(
       create: crearOrganizacion,
     },
     user: { create: crearUsuario },
+    role: {
+      findUniqueOrThrow: jest
+        .fn()
+        .mockResolvedValue({ defaultPlanCode: opciones.planAdministrativo ?? null }),
+    },
   };
 
   const prisma = {
@@ -90,6 +96,24 @@ describe('BootstrapService', () => {
     await service.onApplicationBootstrap();
 
     expect(crearUsuario).not.toHaveBeenCalled();
+  });
+
+  it('usa el plan administrativo configurado en el catálogo después de un corte', async () => {
+    const { service, crearUsuario } = construir({ planAdministrativo: 'ADMINISTRACION' });
+    await service.onApplicationBootstrap();
+    expect(crearUsuario).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          memberships: {
+            create: {
+              organizationId: 'org-nueva',
+              roleCode: 'ADMIN',
+              planCode: 'ADMINISTRACION',
+            },
+          },
+        }),
+      }),
+    );
   });
 
   it('reutiliza la organización si ya existe una', async () => {

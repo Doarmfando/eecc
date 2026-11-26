@@ -39,7 +39,13 @@ export const FEATURE = {
 export const PLAN = {
   BASICA: 'BASICA',
   ATLAS: 'ATLAS',
+  ADMINISTRACION: 'ADMINISTRACION',
 } as const;
+
+export const ROLES_ADMINISTRATIVOS: readonly string[] = [
+  SYSTEM_ROLE.ADMIN,
+  SYSTEM_ROLE.SUPER_ADMIN,
+];
 
 /** Mismo formato que exigen las restricciones `*_code_format` de la base. */
 export const ROLE_CODE_PATTERN = /^[A-Z][A-Z0-9_]{1,31}$/;

@@ -13,6 +13,18 @@ Registrar cambios materiales en orden descendente. No incluir datos bancarios, r
 - Pendiente: siguiente paso concreto.
 ```
 
+## 2026-11-26 — Migrador manual a Personal y plan interno Administración
+
+- El migrador simula por defecto y publica conteos. El corte explícito migra los casos compatibles,
+  conserva la vigencia y el consumo del periodo, registra una auditoría por cambio y activa el
+  catálogo comercial de forma transaccional. Las condiciones pactadas quedan protegidas mientras
+  se decide su transición.
+- El ensayo con datos sintéticos en PostgreSQL comprueba simulación, reversión por reserva pendiente,
+  conservación de documentos y compras, tratamiento de vencimientos y reejecución sin duplicados.
+- El plan interno Administración queda limitado a administradores y superadministradores. El
+  arranque y la semilla toman el plan de administración del catálogo.
+- El informe de impacto y los pendientes se detallan en la [entrega para Claude](../roadmap/entrega-claude-atlas-eecc.md).
+
 ## 2026-11-26 — Historial comercial de compras y consumo
 
 - *Mi saldo* muestra las compras vigentes y vencidas, y el consumo registrado. Cada lista carga

@@ -19,6 +19,7 @@ import {
   toIsoDate,
 } from '../../common/time/business-date';
 import { isEmailDomainAllowed, parseEmailDomains, type AppConfig } from '../../config/app-config';
+import { PLAN, ROLES_ADMINISTRATIVOS } from '../access/access-catalog';
 import { AccessService } from '../access/access.service';
 import { hashPassword, normalizeEmail } from '../auth/password-hash';
 import { StatementRetentionService } from '../statements/statement-retention.service';
@@ -249,6 +250,7 @@ export class UsersService {
       undefined,
       rol.defaultPlanCode,
     );
+    exigirPlanParaRol(planCode, rol.code);
     // Un usuario normal nace con fecha de vencimiento, y no en el pasado: darlo
     // de alta ya vencido sería una cuenta que no puede hacer nada. Un rol que no
     // vence (los administradores) nunca la lleva, aunque se envíe.
@@ -419,6 +421,9 @@ export class UsersService {
       datosMembresia.planChangedAt = new Date();
       // Un plan nuevo abre su propio periodo desde hoy (ADR-0019).
       datosMembresia.periodAnchorAt = datosMembresia.planChangedAt;
+    }
+    if (cambiaPlan || datosMembresia.roleCode !== undefined) {
+      exigirPlanParaRol(cambios.planCode ?? membership.planCode, rolFinal.code);
     }
     if (cambiaRecarga) {
       this.exigirRecargaValida(cambios.monthlyPageQuotaOverride);
@@ -650,6 +655,12 @@ export class UsersService {
 }
 
 /** Lanza el rechazo de la primera acción que el rango no permite. */
+function exigirPlanParaRol(planCode: string, roleCode: string): void {
+  if (planCode === PLAN.ADMINISTRACION && !ROLES_ADMINISTRATIVOS.includes(roleCode)) {
+    throw new BadRequestException({ code: 'ADMIN_PLAN_REQUIRES_ADMIN_ROLE' });
+  }
+}
+
 function exigirAcciones(
   actor: MemberActor,
   objetivo: RankedAccount,

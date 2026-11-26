@@ -42,6 +42,11 @@ async function main(): Promise<void> {
   const email = normalizeEmail(process.env.SEED_ADMIN_EMAIL ?? DEFAULT_ADMIN_EMAIL);
   const passwordIndicada = process.env.SEED_ADMIN_PASSWORD;
   const password = passwordIndicada ?? generarContrasena();
+  const role = await prisma.role.findUniqueOrThrow({
+    where: { code: SYSTEM_ROLE.ADMIN },
+    select: { defaultPlanCode: true },
+  });
+  const planCode = role.defaultPlanCode ?? PLAN.ATLAS;
 
   const existente = await prisma.user.findUnique({ where: { emailNormalized: email } });
   let mensajeClave: string;
@@ -53,7 +58,7 @@ async function main(): Promise<void> {
         organizationId: organization.id,
         userId: existente.id,
         roleCode: SYSTEM_ROLE.ADMIN,
-        planCode: PLAN.ATLAS,
+        planCode,
       },
       // La membresía no se toca: sembrar de nuevo no debe deshacer lo que se le
       // haya asignado desde la gestión de usuarios.
@@ -96,7 +101,7 @@ async function main(): Promise<void> {
           create: {
             organizationId: organization.id,
             roleCode: SYSTEM_ROLE.ADMIN,
-            planCode: PLAN.ATLAS,
+            planCode,
           },
         },
       },
