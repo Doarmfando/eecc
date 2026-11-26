@@ -421,4 +421,6 @@ calendario en diciembre de 2026)
 - [x] Pruebas y verificación: API `npm run check` (299, con cobertura); frontend típecheck,
   ESLint, Prettier y 395 pruebas (el umbral de cobertura sigue con el problema ya conocido
   del proveedor `v8` en este entorno).
-- [ ] Pendiente: commit, push y verificar en producción.
+- [x] Commit, push y verificado en producción (Railway/Fortex): la sesión ya no trae
+  `maxRetainedStatements` por plan, `retainedStatementsPerUser` es el global (3), y
+  `GET /v1/users/:userId` devuelve el detalle con `pagesUsed`.
